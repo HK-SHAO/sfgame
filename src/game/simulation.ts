@@ -39,6 +39,8 @@ export class LevelSimulation {
   private usedCold = 0
   private placed = 0
   private spawnY: number
+  private spawnVx: number
+  private spawnVy: number
 
   constructor(level: LevelDef) {
     this.level = level
@@ -52,7 +54,11 @@ export class LevelSimulation {
     this.fluid.setGroundMask(level.ground)
     this.fluid.setAmbient(level.ambient?.x ?? 0, level.ambient?.y ?? 0)
     this.spawnY = level.spawn.y ?? level.ground(level.spawn.x) - 1.4
+    this.spawnVx = level.spawn.vx ?? 0
+    this.spawnVy = level.spawn.vy ?? 0
     this.plane = createBody(level.spawn.x, this.spawnY, PLANE_PHYSICS)
+    this.plane.vx = this.spawnVx
+    this.plane.vy = this.spawnVy
   }
 
   get hotLeft() {
@@ -82,8 +88,8 @@ export class LevelSimulation {
     this.time = 0
     this.plane.x = this.level.spawn.x
     this.plane.y = this.spawnY
-    this.plane.vx = 0
-    this.plane.vy = 0
+    this.plane.vx = this.spawnVx
+    this.plane.vy = this.spawnVy
     this.plane.angle = 0
   }
 

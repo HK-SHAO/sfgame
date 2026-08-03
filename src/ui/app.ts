@@ -181,7 +181,6 @@ export class SfApp extends LitElement {
                 轻点放热源 · 长按放冷源 · 点按已放置的源可移除<br />
                 ${FIRST_LEVEL.hint}
               </p>
-              <p class="rotate-hint">横屏体验更佳</p>
             `
           : nothing}
         ${won
@@ -507,21 +506,20 @@ export class SfApp extends LitElement {
       animation: rise 420ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .rotate-hint {
-      display: none;
-      position: absolute;
-      top: calc(62px + env(safe-area-inset-top, 0px));
-      left: 50%;
-      transform: translateX(-50%);
-      margin: 0;
-      font-size: 12px;
-      color: var(--ink-soft);
-      pointer-events: none;
-    }
+    /* 竖屏窄屏：关卡名让位给源计数与操作按钮（信息在选关页已有） */
+    @media (orientation: portrait) and (max-width: 520px) {
+      .hud-title {
+        display: none;
+      }
 
-    @media (orientation: portrait) and (max-width: 700px) {
-      .rotate-hint {
-        display: block;
+      .hud {
+        justify-content: space-between;
+      }
+
+      .caption {
+        font-size: 12px;
+        line-height: 1.6;
+        padding: 9px 14px;
       }
     }
 

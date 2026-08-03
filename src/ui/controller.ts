@@ -1,6 +1,7 @@
 import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
 import { Tracers } from '../sim/particles'
+import { Trail } from '../sim/trail'
 import type { SourceKind } from '../sim/types'
 import { LevelSimulation } from '../game/simulation'
 import type { HudState, LevelDef, PressVisual } from '../game/types'
@@ -20,6 +21,8 @@ export interface ControllerEvents {
 export class GameController {
   private sim: LevelSimulation
   private tracers: Tracers
+  /** 纸飞机拖尾：按路程淡出，停驻时轨迹保留 */
+  private planeTrail: Trail
   private renderer: Renderer
   private loop: GameLoop
   private input: GestureInput
@@ -30,6 +33,9 @@ export class GameController {
   private ro: ResizeObserver | null = null
   private press: PressVisual | null = null
   private lastPhase: 'playing' | 'won' = 'playing'
+  /** 风场采样探针（世界坐标，关卡尺度的固定比例点） */
+  private windProbes: { x: number; y: number }[]
+  private tmpAir = { x: 0, y: 0 }
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -46,6 +52,11 @@ export class GameController {
       reduced ? 110 : 320,
       { w: level.world.w, h: level.world.h },
       level.ground,
+    )
+    this.planeTrail = new Trail(150, 0.3, 42)
+    const { w, h } = level.world
+    this.windProbes = [0.22, 0.5, 0.78].flatMap((fx) =>
+      [0.2, 0.35].map((fy) => ({ x: fx * w, y: fy * h })),
     )
     this.renderer = new Renderer(canvas)
     this.loop = new GameLoop({ tick: this.tick, render: this.render })
@@ -105,6 +116,7 @@ export class GameController {
 
   reset() {
     this.sim.reset()
+    this.planeTrail.clear()
     this.press = null
     this.lastPhase = 'playing'
     this.pushHud()
@@ -135,8 +147,21 @@ export class GameController {
   }
 
   private tick = (dt: number) => {
+    const p = this.sim.plane
+    const altBefore = this.sim.level.ground(p.x) - p.y
+    const vyBefore = p.vy
+
     this.sim.step(dt)
     this.tracers.step(dt, this.sim.fluid, this.sim.sources)
+    this.planeTrail.push(p.x, p.y)
+
+    // 物理音效：底噪随全场风速，摩擦声随飞机相对空气的速度
+    sfx.updateWind(this.fieldWind(), this.planeRelWind(), dt)
+    const altAfter = this.sim.level.ground(p.x) - p.y
+    if (altBefore > 0.9 && altAfter <= 0.55 && Math.abs(vyBefore) > 0.8) {
+      sfx.land(Math.abs(vyBefore))
+    }
+
     if (this.sim.phase !== this.lastPhase) {
       this.lastPhase = this.sim.phase
       if (this.sim.phase === 'won') sfx.win()
@@ -144,10 +169,32 @@ export class GameController {
     }
   }
 
+  /** 全场代表风速：固定探针 + 飞机位置处的风速均值 */
+  private fieldWind(): number {
+    const fluid = this.sim.fluid
+    let sum = 0
+    for (const pr of this.windProbes) {
+      fluid.sampleVelocity(pr.x, pr.y, this.tmpAir)
+      sum += Math.hypot(this.tmpAir.x, this.tmpAir.y)
+    }
+    const p = this.sim.plane
+    fluid.sampleVelocity(p.x, p.y, this.tmpAir)
+    sum += Math.hypot(this.tmpAir.x, this.tmpAir.y)
+    return sum / (this.windProbes.length + 1)
+  }
+
+  /** 飞机相对空气的速度：摩擦声的物理来源（随风同飘时近乎无声） */
+  private planeRelWind(): number {
+    const p = this.sim.plane
+    this.sim.fluid.sampleVelocity(p.x, p.y, this.tmpAir)
+    return Math.hypot(p.vx - this.tmpAir.x, p.vy - this.tmpAir.y)
+  }
+
   private render = () => {
     this.renderer.draw({
       sim: this.sim,
       tracers: this.tracers,
+      planeTrail: this.planeTrail,
       press: this.press,
       now: performance.now(),
     })

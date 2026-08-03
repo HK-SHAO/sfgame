@@ -19,7 +19,8 @@ export interface LevelDef {
   /** 地形高度（世界坐标，y 向下） */
   ground: (x: number) => number
   budget: { hot: number; cold: number }
-  spawn: { x: number; y?: number }
+  /** 物体出生状态：可在世界外（如画布左外侧飞入）；vx/vy 为初速度 */
+  spawn: { x: number; y?: number; vx?: number; vy?: number }
   /** 目标区：以 (x, ground(x)) 上方为中心的感应圆 */
   goal: { x: number; r: number }
   /** 环境背景风（谷风等），叠加在采样风速上。默认无。 */

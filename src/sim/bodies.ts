@@ -64,16 +64,23 @@ export function stepBody(
   body.y += body.vy * dt
 
   const r = body.radius
+  // 边界墙只反弹"正在向外运动"的物体：从画布外飞入的物体（如关卡开场）不受拦截
   if (body.x < r) {
-    body.x = r
-    body.vx = Math.abs(body.vx) * 0.35
+    if (body.vx < 0) {
+      body.x = r
+      body.vx = Math.abs(body.vx) * 0.35
+    }
   } else if (body.x > world.w - r) {
-    body.x = world.w - r
-    body.vx = -Math.abs(body.vx) * 0.35
+    if (body.vx > 0) {
+      body.x = world.w - r
+      body.vx = -Math.abs(body.vx) * 0.35
+    }
   }
   if (body.y < r) {
-    body.y = r
-    body.vy = Math.abs(body.vy) * 0.35
+    if (body.vy < 0) {
+      body.y = r
+      body.vy = Math.abs(body.vy) * 0.35
+    }
   }
 
   const pground = groundY(px) - r * 0.5

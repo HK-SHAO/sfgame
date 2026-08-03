@@ -1,4 +1,6 @@
 import type { Tracers } from '../sim/particles'
+import { TRAIL_FADE, TRAIL_LEN } from '../sim/particles'
+import type { Trail } from '../sim/trail'
 import type { Vec2 } from '../sim/types'
 import type { LevelSimulation } from '../game/simulation'
 import type { PressVisual } from '../game/types'
@@ -7,6 +9,8 @@ import { LONG_PRESS_MS } from './input'
 export interface SceneState {
   sim: LevelSimulation
   tracers: Tracers
+  /** 纸飞机的路程淡出拖尾 */
+  planeTrail: Trail
   press: PressVisual | null
   now: number
 }
@@ -15,11 +19,15 @@ const PAGE = '#fdf7ec'
 const HOT = { r: 255, g: 90, b: 60 }
 const COLD = { r: 61, g: 139, b: 255 }
 const DUST = { r: 150, g: 132, b: 104 }
+/** 飞机拖尾的淡墨色 */
+const TRAIL_INK = { r: 107, g: 91, b: 69 }
 const GOAL = '#2fbf71'
 
 /**
  * Canvas 2D 渲染器：极简矢量风。
  * 世界坐标 y 向下；视口按 contain 适配（等比缩放 + 居中留边）。
+ * 世界边界之外的视口区域由延伸的天空与大地填充，
+ * 因此竖屏/宽屏下没有"死"留白，画面始终是连续的场景。
  */
 export class Renderer {
   private canvas: HTMLCanvasElement
@@ -60,7 +68,7 @@ export class Renderer {
   draw(scene: SceneState) {
     const ctx = this.ctx
     if (!ctx || this.cssW === 0) return
-    const { sim, tracers, press, now } = scene
+    const { sim, tracers, planeTrail, press, now } = scene
     const { w, h } = sim.level.world
     this.world = sim.level.world
 
@@ -71,15 +79,22 @@ export class Renderer {
     this.scale = Math.min(this.cssW / w, this.cssH / h)
     this.ox = (this.cssW - w * this.scale) / 2
     this.oy = (this.cssH - h * this.scale) / 2
+    // 可视矩形（世界坐标）：contain 适配下恒覆盖整个世界
+    const viewL = -this.ox / this.scale
+    const viewT = -this.oy / this.scale
+    const viewR = viewL + this.cssW / this.scale
+    const viewB = viewT + this.cssH / this.scale
+
     ctx.save()
     ctx.translate(this.ox, this.oy)
     ctx.scale(this.scale, this.scale)
 
-    this.drawSky(ctx, w, h, now)
+    this.drawSky(ctx, viewL, viewT, viewR, viewB, h, now)
     this.drawGoal(ctx, sim, now)
-    this.drawTerrain(ctx, sim)
+    this.drawTerrain(ctx, sim, viewL, viewR, viewB)
     this.drawSources(ctx, sim, press)
     this.drawTracers(ctx, sim, tracers)
+    this.drawPlaneTrail(ctx, sim, planeTrail)
     this.drawPlane(ctx, sim)
     if (press && press.kind === 'place') this.drawPress(ctx, press, now)
 
@@ -88,15 +103,19 @@ export class Renderer {
 
   private drawSky(
     ctx: CanvasRenderingContext2D,
-    w: number,
+    viewL: number,
+    viewT: number,
+    viewR: number,
+    viewB: number,
     h: number,
     now: number,
   ) {
+    // 渐变锚定世界 0..h；视口超出部分由 canvas 渐变端色自然延伸
     const sky = ctx.createLinearGradient(0, 0, 0, h)
     sky.addColorStop(0, '#fff8ea')
     sky.addColorStop(1, '#f8e2bb')
     ctx.fillStyle = sky
-    ctx.fillRect(0, 0, w, h)
+    ctx.fillRect(viewL, viewT, viewR - viewL, viewB - viewT)
 
     // 太阳：本游戏的力量之源
     const sx = 12
@@ -165,21 +184,33 @@ export class Renderer {
     ctx.fill()
   }
 
-  private drawTerrain(ctx: CanvasRenderingContext2D, sim: LevelSimulation) {
-    const { w, h } = sim.level.world
+  private drawTerrain(
+    ctx: CanvasRenderingContext2D,
+    sim: LevelSimulation,
+    viewL: number,
+    viewR: number,
+    viewB: number,
+  ) {
+    const { w } = sim.level.world
     const ground = sim.level.ground
+    // 地形延伸出世界边界：保持关卡全貌可见的同时填满竖屏/宽屏视口
+    const x0 = Math.max(0, Math.floor(viewL))
+    const x1 = Math.min(w, Math.ceil(viewR))
+
     ctx.beginPath()
-    ctx.moveTo(0, ground(0))
-    for (let x = 1; x <= w; x += 1) ctx.lineTo(x, ground(x))
-    ctx.lineTo(w, h)
-    ctx.lineTo(0, h)
+    ctx.moveTo(viewL, ground(x0))
+    for (let x = x0; x <= x1; x += 1) ctx.lineTo(x, ground(x))
+    ctx.lineTo(viewR, ground(x1))
+    ctx.lineTo(viewR, viewB)
+    ctx.lineTo(viewL, viewB)
     ctx.closePath()
     ctx.fillStyle = '#ecdcba'
     ctx.fill()
 
     ctx.beginPath()
-    ctx.moveTo(0, ground(0))
-    for (let x = 1; x <= w; x += 1) ctx.lineTo(x, ground(x))
+    ctx.moveTo(viewL, ground(x0))
+    for (let x = x0; x <= x1; x += 1) ctx.lineTo(x, ground(x))
+    ctx.lineTo(viewR, ground(x1))
     ctx.strokeStyle = '#d8c193'
     ctx.lineWidth = 0.5
     ctx.stroke()
@@ -237,33 +268,124 @@ export class Renderer {
     sim: LevelSimulation,
     tracers: Tracers,
   ) {
+    // 风的线条（streakline）：每颗粒子的轨迹绘制成丝滑的淡出曲线。
+    // 按透明度分桶批量描边：桶内共享一次 stroke，移动端也轻量。
+    const BUCKETS = 5
+    const paths: Path2D[] = []
+    for (let b = 0; b < BUCKETS; b++) paths.push(new Path2D())
+    const { trailX, trailY, trailO, trailN, odo, count } = tracers
     const fluid = sim.fluid
     const air = { x: 0, y: 0 }
-    const tMax = fluid.tMax
-    for (let i = 0; i < tracers.count; i++) {
-      const x = tracers.x[i]
-      const y = tracers.y[i]
-      if (x < -50) continue
-      fluid.sampleVelocity(x, y, air)
-      const speed = Math.hypot(air.x, air.y)
-      let tn = fluid.sampleTemp(x, y) / tMax
-      if (tn > 1) tn = 1
-      else if (tn < -1) tn = -1
 
-      let r = DUST.r
-      let g = DUST.g
-      let b = DUST.b
-      const m = Math.abs(tn)
-      const target = tn > 0 ? HOT : COLD
-      r += (target.r - r) * m
-      g += (target.g - g) * m
-      b += (target.b - b) * m
-      const a = 0.13 + Math.min(0.4, speed * 0.055) + m * 0.3
+    for (let i = 0; i < count; i++) {
+      const n = trailN[i]
+      if (n === 0) continue
+      const env = tracers.envelope(i)
+      if (env <= 0.02) continue
+      // 风速极低时不画线（静止空气保持干净，"有风才见线"）
+      fluid.sampleVelocity(tracers.x[i], tracers.y[i], air)
+      if (air.x * air.x + air.y * air.y < 0.16) continue
 
-      ctx.fillStyle = `rgba(${r | 0}, ${g | 0}, ${b | 0}, ${a.toFixed(3)})`
-      ctx.beginPath()
-      ctx.arc(x, y, 0.3, 0, Math.PI * 2)
-      ctx.fill()
+      const base = i * TRAIL_LEN
+      const m = n // 记录点数；点列 P0..Pn，Pn 为粒子当前位置
+      const bucketOf = (ret: number) => {
+        const a = ret * env
+        if (a <= 0.02) return -1
+        const b = (a * BUCKETS) | 0
+        return b >= BUCKETS ? BUCKETS - 1 : b
+      }
+      const px = (k: number) => (k < m ? trailX[base + k] : tracers.x[i])
+      const py = (k: number) => (k < m ? trailY[base + k] : tracers.y[i])
+      const retAt = (k: number) =>
+        1 - (odo[i] - (k < m ? trailO[base + k] : odo[i])) / TRAIL_FADE
+
+      if (m === 1) {
+        const b = bucketOf(retAt(1))
+        if (b >= 0) {
+          paths[b].moveTo(px(0), py(0))
+          paths[b].lineTo(px(1), py(1))
+        }
+        continue
+      }
+
+      // 中点二次贝塞尔平滑：片段 k 从 mid(k-1,k) 到 mid(k,k+1)，以 P_k 为控制点
+      let prevMx = px(0)
+      let prevMy = py(0)
+      const b0 = bucketOf(retAt(0))
+      if (b0 >= 0) {
+        const mx = (px(0) + px(1)) / 2
+        const my = (py(0) + py(1)) / 2
+        paths[b0].moveTo(prevMx, prevMy)
+        paths[b0].lineTo(mx, my)
+      }
+      prevMx = (px(0) + px(1)) / 2
+      prevMy = (py(0) + py(1)) / 2
+      for (let k = 1; k < m; k++) {
+        const mx = (px(k) + px(k + 1)) / 2
+        const my = (py(k) + py(k + 1)) / 2
+        const b = bucketOf(retAt(k))
+        if (b >= 0) {
+          paths[b].moveTo(prevMx, prevMy)
+          paths[b].quadraticCurveTo(px(k), py(k), mx, my)
+        }
+        prevMx = mx
+        prevMy = my
+      }
+      const bEnd = bucketOf(retAt(m))
+      if (bEnd >= 0) {
+        paths[bEnd].moveTo(prevMx, prevMy)
+        paths[bEnd].lineTo(px(m), py(m))
+      }
+    }
+
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = 0.22
+    for (let b = 0; b < BUCKETS; b++) {
+      const a = (((b + 0.5) / BUCKETS) * 0.15).toFixed(3)
+      ctx.strokeStyle = `rgba(${DUST.r}, ${DUST.g}, ${DUST.b}, ${a})`
+      ctx.stroke(paths[b])
+    }
+  }
+
+  /** 纸飞机拖尾：按路程淡出的淡墨曲线——停驻时历史轨迹依然可见。 */
+  private drawPlaneTrail(
+    ctx: CanvasRenderingContext2D,
+    sim: LevelSimulation,
+    trail: Trail,
+  ) {
+    const n = trail.count
+    if (n === 0) return
+    const p = sim.plane
+    // 点列 P0..P_{n-1} 为记录点，P_n 为飞机当前位置
+    const px = (k: number) => (k < n ? trail.xAt(k) : p.x)
+    const py = (k: number) => (k < n ? trail.yAt(k) : p.y)
+    const retAt = (k: number) => (k < n ? trail.retentionAt(k) : 1)
+    const ink = (ret: number, mul: number) =>
+      `rgba(${TRAIL_INK.r}, ${TRAIL_INK.g}, ${TRAIL_INK.b}, ${(mul * ret).toFixed(3)})`
+
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    // 中点二次贝塞尔平滑，逐段按存留比例调透明度与粗细（尾细头粗）
+    let prevMx = px(0)
+    let prevMy = py(0)
+    for (let k = 0; k <= n; k++) {
+      const last = k === n
+      const mx = last ? px(n) : (px(k) + px(k + 1)) / 2
+      const my = last ? py(n) : (py(k) + py(k + 1)) / 2
+      const ret = retAt(k)
+      if (ret > 0.02) {
+        ctx.strokeStyle = ink(ret, 0.3)
+        ctx.lineWidth = 0.1 + 0.26 * ret
+        ctx.beginPath()
+        ctx.moveTo(prevMx, prevMy)
+        if (last || k === 0) ctx.lineTo(mx, my)
+        else ctx.quadraticCurveTo(px(k), py(k), mx, my)
+        ctx.stroke()
+      }
+      prevMx = mx
+      prevMy = my
     }
   }
 

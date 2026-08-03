@@ -1,8 +1,8 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { sfx } from './core/sfx'
-import { GameController } from './game/controller'
 import { LEVELS, UPCOMING_LEVELS } from './game/levels'
+import { SfGame } from './game/sf-game'
 import type { HudState } from './game/types'
 import type { SourceKind } from './sim/types'
 import {
@@ -31,18 +31,12 @@ export class SfApp extends LitElement {
   }
   @state() private muted = sfx.muted
 
-  // 注意：@query 只生成 getter，不能带初始化器（useDefineForClassFields=false 下会变成构造器赋值导致运行时错误），用 ! 断言
-  @query('canvas') private canvasEl!: HTMLCanvasElement
-
-  private controller: GameController | null = null
-
-  override disconnectedCallback() {
-    super.disconnectedCallback()
-    this.teardown()
-  }
+  // 游戏画布宿主：仅声明式挂载，控制器生命周期由 sf-game 自身管理
+  @query('sf-game') private gameEl!: SfGame
 
   protected override willUpdate(changed: PropertyValues) {
-    // 进入关卡前重置 HUD：willUpdate 属于当前更新周期，不会额外调度更新
+    // 进入关卡前重置 HUD 为初始值：willUpdate 属于当前更新周期，不会额外调度更新；
+    // 同时避免上一局结算覆盖层在挂载帧闪现。真正的 HUD 由 sf-game 的 hudchange 事件驱动。
     if (changed.has('screen') && this.screen === 'game') {
       this.hud = {
         phase: 'playing',
@@ -53,44 +47,30 @@ export class SfApp extends LitElement {
     }
   }
 
-  protected override updated() {
-    if (this.screen === 'game' && !this.controller && this.canvasEl) {
-      const canvas = this.canvasEl
-      this.controller = new GameController(canvas, FIRST_LEVEL, {
-        onHud: (s) => {
-          this.hud = s
-        },
-        onDeny: (kind) => this.denyChip(kind),
-      })
-      // start() 会同步回调 onHud 设置响应式属性；推迟到微任务，
-      // 使其落在更新周期之外，避免 updated() 内调度新更新（lit.dev/msg/change-in-update）
-      queueMicrotask(() => {
-        if (this.controller && this.screen === 'game') this.controller.start()
-      })
-    }
-  }
-
-  private teardown() {
-    this.controller?.destroy()
-    this.controller = null
-  }
-
   private startGame() {
     sfx.unlock()
     this.screen = 'game'
   }
 
   private backToTitle() {
-    this.teardown()
+    // 切回标题页即卸载 sf-game，其 disconnectedCallback 负责销毁游戏
     this.screen = 'title'
   }
 
   private reset() {
-    this.controller?.reset()
+    this.gameEl?.reset()
   }
 
   private toggleSound() {
     this.muted = sfx.toggleMuted()
+  }
+
+  private onHudChange(e: CustomEvent<HudState>) {
+    this.hud = e.detail
+  }
+
+  private onDeny(e: CustomEvent<SourceKind>) {
+    this.denyChip(e.detail)
   }
 
   private denyChip(kind: SourceKind) {
@@ -161,9 +141,11 @@ export class SfApp extends LitElement {
     const won = this.hud.phase === 'won'
     return html`
       <main class="game">
-        <div class="stage">
-          <canvas role="img" aria-label="造风：放置热源与冷源，用气流把纸飞机送上山崖"></canvas>
-        </div>
+        <sf-game
+          .level=${FIRST_LEVEL}
+          @hudchange=${this.onHudChange}
+          @deny=${this.onDeny}
+        ></sf-game>
 
         <header class="hud">
           <button class="icon-btn" @click=${this.backToTitle} aria-label="返回选关">
@@ -391,16 +373,9 @@ export class SfApp extends LitElement {
       background: #fdf7ec;
     }
 
-    .stage {
+    sf-game {
       position: absolute;
       inset: 0;
-    }
-
-    .stage canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-      touch-action: none;
     }
 
     .hud {

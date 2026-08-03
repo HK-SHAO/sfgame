@@ -59,7 +59,8 @@ async function main() {
   await sleep(1000)
 
   const worldToScreen = `(wx, wy) => {
-    const canvas = document.querySelector('sf-app').shadowRoot.querySelector('canvas')
+    const root = document.querySelector('sf-app').shadowRoot
+    const canvas = root.querySelector('sf-game').shadowRoot.querySelector('canvas')
     const r = canvas.getBoundingClientRect()
     const w = 76, h = 56
     const s = Math.min(r.width / w, r.height / h)

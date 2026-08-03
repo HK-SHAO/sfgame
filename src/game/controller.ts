@@ -25,13 +25,21 @@ export class GameController {
   private input: GestureInput
   private events: ControllerEvents
   private canvas: HTMLCanvasElement
+  /** 尺寸适配宿主：画布随其缩放。默认取画布的父元素（light DOM 下可用）。 */
+  private host: HTMLElement
   private ro: ResizeObserver | null = null
   private press: PressVisual | null = null
   private lastPhase: 'playing' | 'won' = 'playing'
 
-  constructor(canvas: HTMLCanvasElement, level: LevelDef, events: ControllerEvents) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    level: LevelDef,
+    events: ControllerEvents,
+    host?: HTMLElement,
+  ) {
     this.canvas = canvas
     this.events = events
+    this.host = host ?? canvas.parentElement ?? canvas
     this.sim = new LevelSimulation(level)
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     this.tracers = new Tracers(
@@ -76,10 +84,9 @@ export class GameController {
   private unlockAudio = () => sfx.unlock()
 
   start() {
-    const host = this.canvas.parentElement
-    if (host && 'ResizeObserver' in window) {
+    if ('ResizeObserver' in window) {
       this.ro = new ResizeObserver(() => this.fit())
-      this.ro.observe(host)
+      this.ro.observe(this.host)
     }
     this.fit()
     window.addEventListener('resize', this.fit)
@@ -108,9 +115,8 @@ export class GameController {
   }
 
   private fit = () => {
-    const host = this.canvas.parentElement
-    if (!host) return
-    const rect = host.getBoundingClientRect()
+    const rect = this.host.getBoundingClientRect()
+    if (rect.width === 0 && rect.height === 0) return
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     this.renderer.resize(rect.width, rect.height, dpr)
   }

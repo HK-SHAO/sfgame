@@ -59,6 +59,18 @@ export const codecs = {
       },
     }
   },
+  /** 枚举字符串：合法值生效，未知/缺失回落默认（如页面视图键） */
+  enum<T extends string>(def: T, values: readonly T[]): UrlStateCodec<T> {
+    return {
+      encode(value) {
+        return value
+      },
+      decode(raw) {
+        if (raw === null || raw === '') return def
+        return (values as readonly string[]).includes(raw) ? (raw as T) : def
+      },
+    }
+  },
   /** 分隔列表；非法元素逐个丢弃，缺失/空 → def */
   list<T>(def: T[], item: UrlStateListCodec<T>, sep = ';'): UrlStateCodec<T[]> {
     return {

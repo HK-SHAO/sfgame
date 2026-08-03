@@ -50,8 +50,8 @@ test('sources 参数整体编解码，全程零百分号字符', () => {
   expect(list.decode('20-44-h_bad_x-9-h')).toEqual([{ x: 20, y: 44, kind: 'hot' }])
 })
 
-test('schema 单例：level/dev 解码正常（无头环境下浏览器适配器静默）', () => {
+test('schema 单例：level/sources/view 解码正常（无头环境下浏览器适配器静默）', () => {
   expect(urlState.get('level')).toBeNull()
   expect(urlState.get('sources')).toEqual([])
-  expect(urlState.get('dev')).toBe(false)
+  expect(urlState.get('view')).toBe('title')
 })

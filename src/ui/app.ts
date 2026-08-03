@@ -4,6 +4,7 @@ import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
 import { LEVELS, UPCOMING_LEVELS } from '../game/levels'
 import { SfGame } from './sf-game'
+import './solutions-view'
 import { urlState } from '../game/state'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
@@ -13,6 +14,7 @@ import {
   iconLock,
   iconLogo,
   iconReset,
+  iconRoute,
   iconSnow,
   iconSoundOff,
   iconSoundOn,
@@ -20,7 +22,7 @@ import {
 
 const FIRST_LEVEL = LEVELS[0]
 
-type Screen = 'title' | 'game'
+type Screen = 'title' | 'game' | 'solutions'
 
 @customElement('sf-app')
 export class SfApp extends LitElement {
@@ -42,27 +44,28 @@ export class SfApp extends LitElement {
 
   constructor() {
     super()
-    // 初始化即读取 URL：?level=N 直接进入该关，?sources=... 携带放置状态
+    // 初始化即从 URL 推导屏幕（?level=N 直达 / ?view=solutions 解法参考页）
+    this.syncScreen()
+    // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态
+    urlState.onChange('level', () => this.syncScreen())
+    urlState.onChange('view', () => this.syncScreen())
+    urlState.onChange('sources', (v) => this.gameEl?.applySources(v))
+  }
+
+  /** 从 URL 状态统一推导屏幕：view=solutions 优先；其次 level 有效 → 游戏；否则标题。
+   * 写读分离：set/clear 不触发通知，故 UI 操作需自行设 screen。 */
+  private syncScreen() {
+    if (urlState.get('view') === 'solutions') {
+      this.screen = 'solutions'
+      return
+    }
     const id = urlState.get('level')
     const level = id === null ? undefined : LEVELS.find((l) => l.id === id)
     if (level) {
       this.activeLevel = level
       this.initialSources = urlState.get('sources')
       this.screen = 'game'
-    }
-    // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态
-    urlState.onChange('level', (v) => this.onUrlLevel(v))
-    urlState.onChange('sources', (v) => this.gameEl?.applySources(v))
-  }
-
-  /** URL 的 level 变化（popstate）：有效关卡 → 进入/切换；无 → 回标题。 */
-  private onUrlLevel(id: number | null) {
-    const level = id === null ? undefined : LEVELS.find((l) => l.id === id)
-    if (level) {
-      this.activeLevel = level
-      this.initialSources = urlState.get('sources')
-      this.screen = 'game'
-    } else if (this.screen === 'game') {
+    } else {
       this.screen = 'title'
     }
   }
@@ -97,6 +100,12 @@ export class SfApp extends LitElement {
     this.screen = 'title'
     urlState.clear('level')
     urlState.clear('sources')
+    urlState.clear('view')
+  }
+
+  private openSolutions() {
+    this.screen = 'solutions'
+    urlState.set('view', 'solutions')
   }
 
   private reset() {
@@ -139,7 +148,11 @@ export class SfApp extends LitElement {
   }
 
   protected override render() {
-    return this.screen === 'title' ? this.renderTitle() : this.renderGame()
+    if (this.screen === 'game') return this.renderGame()
+    if (this.screen === 'solutions') {
+      return html`<sf-solutions @back=${this.backToTitle}></sf-solutions>`
+    }
+    return this.renderTitle()
   }
 
   private renderTitle() {
@@ -180,6 +193,10 @@ export class SfApp extends LitElement {
           <p class="footnote">
             根据菲尔兹奖得主邓煜的数学证明，从牛顿力学可以推导出热力学方程——本游戏所有物理均基于此。
           </p>
+
+          <button class="solutions-link" @click=${this.openSolutions}>
+            ${iconRoute}<span>解法参考</span>
+          </button>
         </section>
       </main>
     `
@@ -415,6 +432,31 @@ export class SfApp extends LitElement {
       font-size: 12px;
       line-height: 1.7;
       color: var(--ink-soft);
+    }
+
+    .solutions-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 18px;
+      padding: 8px 16px;
+      font-size: 13px;
+      color: var(--ink-soft);
+      background: rgba(255, 253, 248, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      border-radius: 999px;
+      corner-shape: squircle;
+      transition: color 120ms ease-out, box-shadow 120ms ease-out;
+    }
+
+    .solutions-link:hover {
+      color: var(--ink);
+      box-shadow: 0 4px 14px rgba(61, 52, 39, 0.08);
+    }
+
+    .solutions-link svg {
+      width: 15px;
+      height: 15px;
     }
 
     /* ---------- 游戏页 ---------- */

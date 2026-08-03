@@ -22,10 +22,14 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
   },
 }
 
-/** 应用级 URL 状态 schema（单例）：level 直达关卡、sources 实时双向同步、dev 开发者模式。
- * 例：?level=1&sources=20-44-h_36-28-h */
+/** 页面视图：默认 title（无 view 参数）；solutions 为唯一显式值（解法参考页）。 */
+export type AppView = 'title' | 'solutions'
+
+/** 应用级 URL 状态 schema（单例）：level 直达关卡、sources 实时双向同步、
+ * view 记录页面视图（解法参考页刷新不丢失）。
+ * 例：?level=1&sources=20-44-h_36-28-h、?view=solutions */
 export const urlState = new UrlState({
   level: codecs.int(null, 1, 99),
   sources: codecs.list<SourcePlacement>([], sourceItem, '_'),
-  dev: codecs.bool(false),
+  view: codecs.enum<AppView>('title', ['solutions']),
 })

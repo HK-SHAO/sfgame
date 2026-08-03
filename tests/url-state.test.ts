@@ -165,6 +165,26 @@ test('未知键原样保留，不干扰已知键', async () => {
   expect(fake.pushes[0]).toBe('dev=1&utm=abc&level=1')
 })
 
+test('枚举编解码：合法值生效，未知/缺失回落默认', async () => {
+  const enumDef = { view: codecs.enum<'a' | 'b'>('a', ['a', 'b']) }
+  type EnumDef = typeof enumDef
+  const { state, fake } = (() => {
+    const f = fakeSource('')
+    return { state: new UrlState<EnumDef>(enumDef, f.source), fake: f }
+  })()
+  expect(state.get('view')).toBe('a')
+  state.set('view', 'b')
+  expect(state.get('view')).toBe('b')
+  await flush()
+  expect(fake.pushes[0]).toBe('view=b')
+  const f2 = fakeSource('view=x&view2=1')
+  const s2 = new UrlState<EnumDef>(enumDef, f2.source)
+  expect(s2.get('view')).toBe('a')
+  const f3 = fakeSource('view=b')
+  const s3 = new UrlState<EnumDef>(enumDef, f3.source)
+  expect(s3.get('view')).toBe('b')
+})
+
 test('往返稳定：set 后重新解码得到同值', async () => {
   const { state, fake } = make('')
   state.set('pairs', [

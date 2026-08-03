@@ -4,7 +4,6 @@ import { Tracers } from '../sim/particles'
 import { Trail } from '../sim/trail'
 import type { SourceKind } from '../sim/types'
 import { LevelSimulation } from '../game/simulation'
-import { LevelAgent, agentStepsFor } from '../game/agent'
 import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from './render'
@@ -63,22 +62,16 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private ground: (x: number) => number
-  /** 开发者模式自动播放 Agent（devMode 时非空） */
-  private agent: LevelAgent | null = null
 
   constructor(
     canvas: HTMLCanvasElement,
     level: LevelDef,
     events: ControllerEvents,
     host?: HTMLElement,
-    devMode = false,
   ) {
     this.canvas = canvas
     this.events = events
     this.host = host ?? canvas.parentElement ?? canvas
-    // 开发者模式：按当前关卡取参考答案；未知关卡无方案 → Agent 不启用
-    const steps = devMode ? agentStepsFor(level.id) : null
-    this.agent = steps ? new LevelAgent(steps) : null
     this.world = level.world
     this.ground = level.ground
     this.sim = new LevelSimulation(level)
@@ -154,7 +147,6 @@ export class GameController {
   destroy() {
     this.loop.stop()
     this.input.destroy()
-    this.agent = null
     this.ro?.disconnect()
     this.ro = null
     window.removeEventListener('resize', this.fit)
@@ -163,7 +155,6 @@ export class GameController {
 
   reset() {
     this.sim.reset()
-    this.agent?.reset()
     this.planeTrail.clear()
     this.press = null
     this.lastPhase = 'playing'
@@ -235,8 +226,6 @@ export class GameController {
     const vyBefore = p.vy
 
     this.sim.step(dt)
-    // 开发者模式：Agent 驱动 sim，确实放置时把源同步进 URL（等值自动跳过）
-    if (this.agent?.step(this.sim)) this.emitSources()
     this.tracers.step(dt, this.sim.fluid, this.sim.sources)
     this.planeTrail.push(p.x, p.y)
 

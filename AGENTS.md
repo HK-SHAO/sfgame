@@ -22,8 +22,8 @@ Solution-style 项目引用，改 tsconfig 或新增文件前先看：
 分层不变量：**只有 `src/ui/` 接触 DOM**；`src/core/`、`src/game/`、`src/sim/` 全部无 DOM，可在 node 中无头测试（tests 只 import `game/`、`sim/` 与 `core/`；core 的浏览器面必须可注入，如 url-state 的 URL 源）。
 
 - `src/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子）
-- `src/game/` — 无头关卡逻辑：`simulation.ts`（`LevelSimulation`）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例，无头可测）、`agent.ts`（开发者模式自动播放参考答案，整体可移除），测试唯一目标层
-- `src/ui/` — DOM/表现层：Lit 组件（`app.ts` 根组件、`sf-game.ts` 画布宿主）、`controller.ts`（组装）、`render.ts`（canvas）、`input.ts`（手势）、`icons.ts`
+- `src/game/` — 无头关卡逻辑：`simulation.ts`（`LevelSimulation`）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例：level/sources/view，无头可测）、`solutions.ts`（关卡解法注册表：初始一次性放置的解 + 实测通关秒数 + 相对 URL，解法参考页数据源），测试唯一目标层
+- `src/ui/` — DOM/表现层：Lit 组件（`app.ts` 根组件、`sf-game.ts` 画布宿主、`solutions-view.ts` 解法参考页）、`controller.ts`（组装）、`render.ts`（canvas）、`input.ts`（手势）、`icons.ts`
 - `src/core/` — 框架无关基础设施（固定步长游戏循环、音效、通用 URL 状态模块）
 - `src/main.ts` — 唯一入口，只 import `./ui/app`
 

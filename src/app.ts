@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from 'lit'
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { sfx } from './core/sfx'
 import { GameController } from './game/controller'
@@ -41,21 +41,32 @@ export class SfApp extends LitElement {
     this.teardown()
   }
 
-  protected override updated() {
-    if (this.screen === 'game' && !this.controller && this.canvasEl) {
+  protected override willUpdate(changed: PropertyValues) {
+    // 进入关卡前重置 HUD：willUpdate 属于当前更新周期，不会额外调度更新
+    if (changed.has('screen') && this.screen === 'game') {
       this.hud = {
         phase: 'playing',
         hotLeft: FIRST_LEVEL.budget.hot,
         coldLeft: FIRST_LEVEL.budget.cold,
         placed: 0,
       }
-      this.controller = new GameController(this.canvasEl, FIRST_LEVEL, {
+    }
+  }
+
+  protected override updated() {
+    if (this.screen === 'game' && !this.controller && this.canvasEl) {
+      const canvas = this.canvasEl
+      this.controller = new GameController(canvas, FIRST_LEVEL, {
         onHud: (s) => {
           this.hud = s
         },
         onDeny: (kind) => this.denyChip(kind),
       })
-      this.controller.start()
+      // start() 会同步回调 onHud 设置响应式属性；推迟到微任务，
+      // 使其落在更新周期之外，避免 updated() 内调度新更新（lit.dev/msg/change-in-update）
+      queueMicrotask(() => {
+        if (this.controller && this.screen === 'game') this.controller.start()
+      })
     }
   }
 

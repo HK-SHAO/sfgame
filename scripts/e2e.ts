@@ -13,11 +13,18 @@ async function main() {
   const ws = new WebSocket(page.webSocketDebuggerUrl)
   let id = 0
   const pending = new Map<number, (v: any) => void>()
+  const litWarnings: string[] = []
   ws.addEventListener('message', (ev) => {
     const msg = JSON.parse(String(ev.data))
     if (msg.id && pending.has(msg.id)) {
       pending.get(msg.id)!(msg)
       pending.delete(msg.id)
+    }
+    if (msg.method === 'Runtime.consoleAPICalled') {
+      const text = ((msg.params?.args ?? []) as Array<{ value?: unknown; description?: string }>)
+        .map((a) => String(a.value ?? a.description ?? ''))
+        .join(' ')
+      if (/scheduled an update|change-in-update/i.test(text)) litWarnings.push(text)
     }
   })
   await new Promise((r) => ws.addEventListener('open', () => r(null), { once: true }))
@@ -100,6 +107,9 @@ async function main() {
   const shot2 = await send('Page.captureScreenshot', { format: 'png' })
   writeFileSync('/tmp/sfgame-win.png', Buffer.from(shot2.result.data as string, 'base64'))
   console.log('win overlay screenshot saved')
+
+  console.log('lit change-in-update warnings:', litWarnings.length)
+  for (const w of litWarnings) console.log('  WARN:', w.slice(0, 160))
 
   ws.close()
   process.exit(0)

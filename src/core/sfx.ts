@@ -135,10 +135,11 @@ class Sfx {
           maxGain: 0.3,
           tau: 0.18,
         })
-        // 页面隐藏时挂起音频，避免后台持续出声
+        // 页面隐藏时挂起音频，避免后台持续出声；恢复可见时立即恢复（不依赖下次触摸）
         document.addEventListener('visibilitychange', () => {
           if (!this.ctx) return
           if (document.hidden) void this.ctx.suspend()
+          else if (this.ctx.state === 'suspended') void this.ctx.resume()
         })
       } catch {
         this.ctx = null

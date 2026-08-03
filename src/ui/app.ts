@@ -71,10 +71,11 @@ export class SfApp extends LitElement {
     // 进入关卡前重置 HUD 为初始值：willUpdate 属于当前更新周期，不会额外调度更新；
     // 同时避免上一局结算覆盖层在挂载帧闪现。真正的 HUD 由 sf-game 的 hudchange 事件驱动。
     if (changed.has('screen') && this.screen === 'game') {
+      const b = this.activeLevel.budget
       this.hud = {
         phase: 'playing',
-        hotLeft: FIRST_LEVEL.budget.hot,
-        coldLeft: FIRST_LEVEL.budget.cold,
+        hotLeft: b.hot,
+        coldLeft: b.cold,
         placed: 0,
       }
     }
@@ -84,9 +85,11 @@ export class SfApp extends LitElement {
     sfx.unlock()
     const level = LEVELS.find((l) => l.id === id) ?? FIRST_LEVEL
     this.activeLevel = level
-    this.initialSources = urlState.get('sources')
+    // 点关卡 = 新开一局：不继承 URL 里任何旧放置（否则跨关/残留 sources 会串到新局）
+    this.initialSources = []
     this.screen = 'game'
     urlState.set('level', level.id)
+    urlState.clear('sources')
   }
 
   private backToTitle() {
@@ -229,7 +232,7 @@ export class SfApp extends LitElement {
           ? html`
               <p class="caption">
                 轻点放热源 · 长按放冷源 · 点按已放置的源可移除<br />
-                ${FIRST_LEVEL.hint}
+                ${this.activeLevel.hint}
               </p>
             `
           : nothing}

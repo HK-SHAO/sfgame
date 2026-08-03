@@ -44,6 +44,10 @@ export function createBody(x: number, y: number, opts: BodyOptions): Body {
 
 const tmpAir = { x: 0, y: 0 }
 
+/** 可贴地滑行的最大坡度（每单位水平位移的地形抬升量）。
+ * 超过该值（如崖壁）禁止 snap 抬升——飞机不能凭水平风"瞬移爬墙"。 */
+const MAX_SLIDE_SLOPE = 1.0
+
 export function stepBody(
   body: Body,
   fluid: Fluid,
@@ -51,6 +55,7 @@ export function stepBody(
   groundY: (x: number) => number,
   world: WorldBounds,
 ) {
+  const px = body.x
   fluid.sampleVelocity(body.x, body.y, tmpAir)
   const k = Math.min(1, body.dragK * dt)
   body.vx += (tmpAir.x - body.vx) * k
@@ -71,12 +76,22 @@ export function stepBody(
     body.vy = Math.abs(body.vy) * 0.35
   }
 
+  const pground = groundY(px) - r * 0.5
   const ground = groundY(body.x) - r * 0.5
   if (body.y > ground) {
-    body.y = ground
-    if (body.vy > 0) body.vy = -body.vy * 0.1
-    // 地面摩擦：贴地时强阻尼，避免被微风吹离托举位置
-    body.vx *= 0.3
+    // 地形在一帧内抬升过陡（崖壁）：不沿坡"瞬移"抬升，视作墙壁横向弹回
+    const dx = body.x - px
+    if (dx > 1e-6 && pground - ground > MAX_SLIDE_SLOPE * dx) {
+      body.x = px
+      if (body.y > pground) body.y = pground
+      body.vx = -Math.abs(body.vx) * 0.35
+      if (body.vy > 0) body.vy = -body.vy * 0.1
+    } else {
+      body.y = ground
+      if (body.vy > 0) body.vy = -body.vy * 0.1
+      // 地面摩擦：贴地时强阻尼，避免被微风吹离托举位置
+      body.vx *= 0.3
+    }
   }
 
   const speed = Math.hypot(body.vx, body.vy)

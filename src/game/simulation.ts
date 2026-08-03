@@ -151,6 +151,8 @@ export class LevelSimulation {
   private inGoal(): boolean {
     const g = this.level.goal
     const gy = this.level.ground(g.x) - 2
-    return Math.hypot(this.plane.x - g.x, this.plane.y - gy) < g.r
+    if (Math.hypot(this.plane.x - g.x, this.plane.y - gy) >= g.r) return false
+    // 必须飞行抵达：贴地滑进目标区不算过关（杜绝"放着不动被风吹进圈"的挂机通关）
+    return this.plane.y < this.level.ground(this.plane.x) - 1
   }
 }

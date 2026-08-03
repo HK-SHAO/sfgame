@@ -31,7 +31,8 @@ export class SfApp extends LitElement {
   }
   @state() private muted = sfx.muted
 
-  @query('canvas') private canvasEl: HTMLCanvasElement | null
+  // 注意：@query 只生成 getter，不能带初始化器（useDefineForClassFields=false 下会变成构造器赋值导致运行时错误），用 ! 断言
+  @query('canvas') private canvasEl!: HTMLCanvasElement
 
   private controller: GameController | null = null
 

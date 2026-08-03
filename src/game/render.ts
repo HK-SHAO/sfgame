@@ -239,7 +239,7 @@ export class Renderer {
   ) {
     const fluid = sim.fluid
     const air = { x: 0, y: 0 }
-    const tMax = 9
+    const tMax = fluid.tMax
     for (let i = 0; i < tracers.count; i++) {
       const x = tracers.x[i]
       const y = tracers.y[i]

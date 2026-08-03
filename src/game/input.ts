@@ -75,6 +75,9 @@ export class GestureInput {
   }
 
   private onDown = (e: PointerEvent) => {
+    // 只处理主键（左键/触摸）。右键由 contextmenu 走"直接放冷源"路径，
+    // 若在此放行，右键会先按热源 tap 流程放置热源，与设计冲突。
+    if (e.button !== 0) return
     const w = this.handlers.toWorld(e.clientX, e.clientY)
     if (!w) return
     this.el.setPointerCapture(e.pointerId)

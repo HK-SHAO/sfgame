@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { expect, test } from 'vitest'
 import { LEVEL_1 } from '../src/game/levels'
 import { LevelSimulation } from '../src/game/simulation'
 
@@ -40,6 +40,36 @@ test('无源时飞机不会凭空起飞', () => {
   for (let i = 0; i < 60 * 10; i++) sim.step(DT)
   expect(sim.phase).toBe('playing')
   expect(sim.plane.x).toBeLessThan(30)
+})
+
+test('零操作挂机无法通关：崖壁禁止"吸坡瞬移"，飞机被困谷底', () => {
+  const sim = new LevelSimulation(LEVEL_1)
+  // 覆盖此前 263 秒挂机滑上高崖的漏洞，多留余量
+  for (let i = 0; i < 60 * 400; i++) sim.step(DT)
+  expect(sim.phase).toBe('playing')
+  // 飞机最多滑到缓坡底部（x≈36.7），上不了高原
+  expect(sim.plane.x).toBeLessThan(40)
+  expect(sim.plane.y).toBeGreaterThan(40)
+}, 60000)
+
+test('贴地滑进目标圈不算过关（必须飞行抵达）', () => {
+  const sim = new LevelSimulation(LEVEL_1)
+  sim.plane.x = LEVEL_1.goal.x
+  sim.plane.y = LEVEL_1.ground(LEVEL_1.goal.x) - 0.5
+  sim.plane.vx = 0
+  sim.plane.vy = 0
+  sim.step(DT)
+  expect(sim.phase).toBe('playing')
+})
+
+test('离地进入目标圈即过关', () => {
+  const sim = new LevelSimulation(LEVEL_1)
+  sim.plane.x = LEVEL_1.goal.x
+  sim.plane.y = LEVEL_1.ground(LEVEL_1.goal.x) - 3
+  sim.plane.vx = 0
+  sim.plane.vy = 0
+  sim.step(DT)
+  expect(sim.phase).toBe('won')
 })
 
 // 模拟玩家策略：脚下托举 → 接力爬升 → 停止加热，让谷风护送滑翔进场。

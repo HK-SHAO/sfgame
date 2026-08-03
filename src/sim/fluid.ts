@@ -37,6 +37,8 @@ export class Fluid {
   readonly nx: number
   readonly ny: number
   readonly cell: number
+  /** 温度绝对值上限（与 cfg.tMax 同步，供渲染等只读使用） */
+  readonly tMax: number
   private cfg: FluidConfig
 
   u: Float32Array
@@ -56,6 +58,7 @@ export class Fluid {
     this.nx = cfg.nx
     this.ny = cfg.ny
     this.cell = cfg.cell
+    this.tMax = cfg.tMax
     const n = cfg.nx * cfg.ny
     this.u = new Float32Array(n)
     this.v = new Float32Array(n)

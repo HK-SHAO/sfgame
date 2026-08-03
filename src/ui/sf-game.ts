@@ -1,8 +1,8 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { SourceKind } from '../sim/types'
+import type { HudState, LevelDef } from '../game/types'
 import { GameController } from './controller'
-import type { HudState, LevelDef } from './types'
 
 /** HUD 状态变化事件：detail 为最新 HUD 状态。 */
 export const HUD_CHANGE = 'hudchange'

@@ -1,8 +1,8 @@
 import type { Tracers } from '../sim/particles'
 import type { Vec2 } from '../sim/types'
+import type { LevelSimulation } from '../game/simulation'
+import type { PressVisual } from '../game/types'
 import { LONG_PRESS_MS } from './input'
-import type { LevelSimulation } from './simulation'
-import type { PressVisual } from './types'
 
 export interface SceneState {
   sim: LevelSimulation

@@ -1,10 +1,10 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
-import { sfx } from './core/sfx'
-import { LEVELS, UPCOMING_LEVELS } from './game/levels'
-import { SfGame } from './game/sf-game'
-import type { HudState } from './game/types'
-import type { SourceKind } from './sim/types'
+import { sfx } from '../core/sfx'
+import { LEVELS, UPCOMING_LEVELS } from '../game/levels'
+import { SfGame } from './sf-game'
+import type { HudState } from '../game/types'
+import type { SourceKind } from '../sim/types'
 import {
   iconBack,
   iconFlame,
@@ -14,7 +14,7 @@ import {
   iconSnow,
   iconSoundOff,
   iconSoundOn,
-} from './ui/icons'
+} from './icons'
 
 const FIRST_LEVEL = LEVELS[0]
 

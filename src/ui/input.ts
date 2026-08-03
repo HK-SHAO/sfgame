@@ -1,5 +1,5 @@
 import type { Vec2 } from '../sim/types'
-import type { Source } from './types'
+import type { Source } from '../game/types'
 
 /** 长按判定阈值（毫秒）：超过即确认为冷源。 */
 export const LONG_PRESS_MS = 380

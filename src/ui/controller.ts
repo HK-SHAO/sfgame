@@ -2,10 +2,10 @@ import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
 import { Tracers } from '../sim/particles'
 import type { SourceKind } from '../sim/types'
+import { LevelSimulation } from '../game/simulation'
+import type { HudState, LevelDef, PressVisual } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from './render'
-import { LevelSimulation } from './simulation'
-import type { HudState, LevelDef, PressVisual } from './types'
 
 export interface ControllerEvents {
   onHud(state: HudState): void

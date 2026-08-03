@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js'
 import type { SourceKind } from '../sim/types'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GameController } from './controller'
-import { urlState } from './state'
+import { urlState } from '../game/state'
 
 /** HUD 状态变化事件：detail 为最新 HUD 状态。 */
 export const HUD_CHANGE = 'hudchange'

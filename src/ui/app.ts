@@ -4,7 +4,7 @@ import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
 import { LEVELS, UPCOMING_LEVELS } from '../game/levels'
 import { SfGame } from './sf-game'
-import { urlState } from './state'
+import { urlState } from '../game/state'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
 import {

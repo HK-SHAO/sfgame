@@ -226,6 +226,8 @@ function createBrowserSource(): UrlStateSource {
       }
     },
     onChange(cb) {
+      // 无头环境（node 测试 import schema 单例）：静默不监听
+      if (typeof window === 'undefined') return () => {}
       const fire = () => cb()
       window.addEventListener('popstate', fire)
       // bfcache 恢复（某些 iOS 环境后退时 popstate 不可靠）：页面恢复即重新对齐。

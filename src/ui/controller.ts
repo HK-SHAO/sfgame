@@ -4,7 +4,8 @@ import { Tracers } from '../sim/particles'
 import { Trail } from '../sim/trail'
 import type { SourceKind } from '../sim/types'
 import { LevelSimulation } from '../game/simulation'
-import type { HudState, LevelDef, PressVisual } from '../game/types'
+import { LevelAgent, agentStepsFor } from '../game/agent'
+import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from './render'
 
@@ -24,6 +25,8 @@ export interface ControllerEvents {
   onHud(state: HudState): void
   /** 放置被拒绝（预算耗尽或位置无效），供 HUD 抖动提示 */
   onDeny(kind: SourceKind): void
+  /** 源集合变化（放置/移除/整体应用后），供 URL 状态双向同步 */
+  onSources?(sources: SourcePlacement[]): void
 }
 
 /**
@@ -60,16 +63,22 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private ground: (x: number) => number
+  /** 开发者模式自动播放 Agent（devMode 时非空） */
+  private agent: LevelAgent | null = null
 
   constructor(
     canvas: HTMLCanvasElement,
     level: LevelDef,
     events: ControllerEvents,
     host?: HTMLElement,
+    devMode = false,
   ) {
     this.canvas = canvas
     this.events = events
     this.host = host ?? canvas.parentElement ?? canvas
+    // 开发者模式：按当前关卡取参考答案；未知关卡无方案 → Agent 不启用
+    const steps = devMode ? agentStepsFor(level.id) : null
+    this.agent = steps ? new LevelAgent(steps) : null
     this.world = level.world
     this.ground = level.ground
     this.sim = new LevelSimulation(level)
@@ -113,6 +122,7 @@ export class GameController {
         if (this.sim.removeSource(s.id)) {
           sfx.remove()
           this.pushHud()
+          this.emitSources()
         }
       },
       pressStarted: (w) => {
@@ -144,6 +154,7 @@ export class GameController {
   destroy() {
     this.loop.stop()
     this.input.destroy()
+    this.agent = null
     this.ro?.disconnect()
     this.ro = null
     window.removeEventListener('resize', this.fit)
@@ -152,10 +163,13 @@ export class GameController {
 
   reset() {
     this.sim.reset()
+    this.agent?.reset()
     this.planeTrail.clear()
     this.press = null
     this.lastPhase = 'playing'
     this.pushHud()
+    // 重置后源集合为空，需同步 URL（否则刷新页面会带回旧放置）
+    this.emitSources()
   }
 
   private pushHud() {
@@ -186,10 +200,32 @@ export class GameController {
       if (kind === 'hot') sfx.placeHot()
       else sfx.placeCold()
       this.pushHud()
+      this.emitSources()
     } else {
       sfx.deny()
       this.events.onDeny(kind)
     }
+  }
+
+  /** 按目标列表应用源放置（URL 状态变化）。差异算法在 LevelSimulation（无头可测）。
+   * silent：挂载时的初始应用，不回写 URL（避免把非规范 URL 规范化成一条多余历史）。 */
+  applySources(list: SourcePlacement[], silent = false) {
+    // 胜利结算让位：让玩家看到新状态（若仍满足胜利条件，下一帧会自然重新判定）
+    if (this.sim.phase === 'won') this.sim.phase = 'playing'
+    this.sim.applySources(list)
+    this.pushHud()
+    if (!silent) this.emitSources()
+  }
+
+  private emitSources() {
+    // 对齐 URL 精度（1 位小数），保证往返稳定、等值跳过生效
+    this.events.onSources?.(
+      this.sim.sources.map((s) => ({
+        x: Math.round(s.x * 10) / 10,
+        y: Math.round(s.y * 10) / 10,
+        kind: s.kind,
+      })),
+    )
   }
 
   private tick = (dt: number) => {
@@ -199,6 +235,8 @@ export class GameController {
     const vyBefore = p.vy
 
     this.sim.step(dt)
+    // 开发者模式：Agent 驱动 sim，确实放置时把源同步进 URL（等值自动跳过）
+    if (this.agent?.step(this.sim)) this.emitSources()
     this.tracers.step(dt, this.sim.fluid, this.sim.sources)
     this.planeTrail.push(p.x, p.y)
 

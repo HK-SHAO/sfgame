@@ -1,7 +1,7 @@
 import { Fluid, type FluidConfig } from '../sim/fluid'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import type { SourceKind } from '../sim/types'
-import type { HudState, LevelDef, Source } from './types'
+import type { HudState, LevelDef, Source, SourcePlacement } from './types'
 
 /** 流体物理调参：所有关卡共享同一套"空气性格"。 */
 const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
@@ -117,8 +117,12 @@ export class LevelSimulation {
     return best
   }
 
-  placeSource(x: number, y: number, kind: SourceKind): Source | null {
-    if (this.phase !== 'playing') return null
+  /**
+   * 放置源。force 仅绕过"must be playing"（URL 状态恢复用，含获胜后重做）；
+   * 预算与位置校验仍生效。
+   */
+  placeSource(x: number, y: number, kind: SourceKind, force = false): Source | null {
+    if (!force && this.phase !== 'playing') return null
     if (kind === 'hot' ? this.hotLeft <= 0 : this.coldLeft <= 0) return null
     // 点在地面/物体上时，吸附到贴地高度——"在脚下放源"是核心交互，不应拒绝
     const cy = Math.min(y, this.level.ground(x) - 0.7)
@@ -139,6 +143,23 @@ export class LevelSimulation {
     if (s.kind === 'hot') this.usedHot--
     else this.usedCold--
     return true
+  }
+
+  /**
+   * 把源集合收敛到目标列表（URL 状态应用）。最小差异：移除不在目标中的、
+   * 补放目标中缺失的（force），存活源保留原 id/born（不重播生长动画）。
+   * 注意移除必须与"目标列表"比对（比对场上会永不删除）；位置容差 0.06 对齐
+   * URL 的 1 位小数精度（舍入误差 ≤0.05）。幂等，可安全重复调用。
+   */
+  applySources(target: SourcePlacement[]): void {
+    const match = (a: Source, b: SourcePlacement) =>
+      a.kind === b.kind && Math.abs(a.x - b.x) < 0.06 && Math.abs(a.y - b.y) < 0.06
+    for (const s of [...this.sources]) {
+      if (!target.some((t) => match(s, t))) this.removeSource(s.id)
+    }
+    for (const t of target) {
+      if (!this.sources.some((s) => match(s, t))) this.placeSource(t.x, t.y, t.kind, true)
+    }
   }
 
   step(dt: number) {

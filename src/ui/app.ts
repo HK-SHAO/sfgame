@@ -1,9 +1,11 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
+import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
 import { LEVELS, UPCOMING_LEVELS } from '../game/levels'
 import { SfGame } from './sf-game'
-import type { HudState } from '../game/types'
+import { urlState } from './state'
+import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
 import {
   iconBack,
@@ -23,6 +25,10 @@ type Screen = 'title' | 'game'
 @customElement('sf-app')
 export class SfApp extends LitElement {
   @state() private screen: Screen = 'title'
+  /** 当前进行的关卡（?level=N 直达 / 点击进入 / 浏览器后退切换） */
+  @state() private activeLevel: LevelDef = FIRST_LEVEL
+  /** 进入关卡时的初始源放置（来自 URL ?sources=...） */
+  @state() private initialSources: SourcePlacement[] = []
   @state() private hud: HudState = {
     phase: 'playing',
     hotLeft: FIRST_LEVEL.budget.hot,
@@ -33,6 +39,33 @@ export class SfApp extends LitElement {
 
   // 游戏画布宿主：仅声明式挂载，控制器生命周期由 sf-game 自身管理
   @query('sf-game') private gameEl!: SfGame
+
+  constructor() {
+    super()
+    // 初始化即读取 URL：?level=N 直接进入该关，?sources=... 携带放置状态
+    const id = urlState.get('level')
+    const level = id === null ? undefined : LEVELS.find((l) => l.id === id)
+    if (level) {
+      this.activeLevel = level
+      this.initialSources = urlState.get('sources')
+      this.screen = 'game'
+    }
+    // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态
+    urlState.onChange('level', (v) => this.onUrlLevel(v))
+    urlState.onChange('sources', (v) => this.gameEl?.applySources(v))
+  }
+
+  /** URL 的 level 变化（popstate）：有效关卡 → 进入/切换；无 → 回标题。 */
+  private onUrlLevel(id: number | null) {
+    const level = id === null ? undefined : LEVELS.find((l) => l.id === id)
+    if (level) {
+      this.activeLevel = level
+      this.initialSources = urlState.get('sources')
+      this.screen = 'game'
+    } else if (this.screen === 'game') {
+      this.screen = 'title'
+    }
+  }
 
   protected override willUpdate(changed: PropertyValues) {
     // 进入关卡前重置 HUD 为初始值：willUpdate 属于当前更新周期，不会额外调度更新；
@@ -47,14 +80,20 @@ export class SfApp extends LitElement {
     }
   }
 
-  private startGame() {
+  private startGame(id: number) {
     sfx.unlock()
+    const level = LEVELS.find((l) => l.id === id) ?? FIRST_LEVEL
+    this.activeLevel = level
+    this.initialSources = urlState.get('sources')
     this.screen = 'game'
+    urlState.set('level', level.id)
   }
 
   private backToTitle() {
     // 切回标题页即卸载 sf-game，其 disconnectedCallback 负责销毁游戏
     this.screen = 'title'
+    urlState.clear('level')
+    urlState.clear('sources')
   }
 
   private reset() {
@@ -71,6 +110,12 @@ export class SfApp extends LitElement {
 
   private onDeny(e: CustomEvent<SourceKind>) {
     this.denyChip(e.detail)
+  }
+
+  /** 玩家放置/移除源 → 同步进 URL（?sources=...，可后退撤销、可分享） */
+  private onSourcesChange(e: CustomEvent<SourcePlacement[]>) {
+    if (e.detail.length === 0) urlState.clear('sources')
+    else urlState.set('sources', e.detail)
   }
 
   private denyChip(kind: SourceKind) {
@@ -105,7 +150,7 @@ export class SfApp extends LitElement {
           <nav class="levels" aria-label="关卡列表">
             ${LEVELS.map(
               (l) => html`
-                <button class="level play" @click=${this.startGame}>
+                <button class="level play" @click=${() => this.startGame(l.id)}>
                   <span class="no">第 ${l.id} 关</span>
                   <span class="meta">
                     <span class="name">${l.name}</span>
@@ -141,18 +186,23 @@ export class SfApp extends LitElement {
     const won = this.hud.phase === 'won'
     return html`
       <main class="game">
-        <sf-game
-          .level=${FIRST_LEVEL}
-          @hudchange=${this.onHudChange}
-          @deny=${this.onDeny}
-        ></sf-game>
+        ${keyed(
+          this.activeLevel.id,
+          html`<sf-game
+            .level=${this.activeLevel}
+            .initialSources=${this.initialSources}
+            @hudchange=${this.onHudChange}
+            @deny=${this.onDeny}
+            @sourceschange=${this.onSourcesChange}
+          ></sf-game>`,
+        )}
 
         <header class="hud">
           <button class="icon-btn" @click=${this.backToTitle} aria-label="返回选关">
             ${iconBack}
           </button>
           <div class="hud-title">
-            <span class="no">第 ${FIRST_LEVEL.id} 关</span> ${FIRST_LEVEL.name}
+            <span class="no">第 ${this.activeLevel.id} 关</span> ${this.activeLevel.name}
           </div>
           <div class="hud-right">
             <span class="chip hot ${this.hud.hotLeft === 0 ? 'empty' : ''}" title="剩余热源">

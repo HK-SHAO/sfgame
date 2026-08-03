@@ -83,6 +83,71 @@ test('离地进入目标圈即过关', () => {
   expect(sim.phase).toBe('won')
 })
 
+test('获胜后：普通放置被拒，force 恢复放置可用（URL 状态"重做"路径）', () => {
+  const sim = new LevelSimulation(LEVEL_1)
+  sim.plane.x = LEVEL_1.goal.x
+  sim.plane.y = LEVEL_1.ground(LEVEL_1.goal.x) - 3
+  sim.step(DT)
+  expect(sim.phase).toBe('won')
+  // 玩家操作：获胜后不可再放置
+  expect(sim.placeSource(20, 44, 'hot')).toBeNull()
+  // URL 状态恢复：force 可放回（预算/间距校验仍生效）
+  const spots: Array<[number, number]> = [
+    [20, 44],
+    [30, 40],
+    [40, 32],
+    [50, 24],
+    [60, 16],
+  ]
+  for (const [x, y] of spots) {
+    const placed = sim.placeSource(x, y, 'hot', true)
+    if (x === 60) expect(placed).toBeNull() // 第 5 个：热源预算 4 已耗尽
+    else expect(placed).not.toBeNull()
+  }
+  expect(sim.hotLeft).toBe(0)
+  // applySources 走同一 force 机制（URL 重做路径）
+  sim.applySources([{ x: 20, y: 44, kind: 'hot' }])
+  expect(sim.sources.length).toBe(1)
+})
+
+test('applySources 差异应用：撤销/重做/替换均正确，存活源保留 born', () => {
+  const sim = new LevelSimulation(LEVEL_1)
+  const a = sim.placeSource(20, 44, 'hot')!
+  for (let k = 0; k < 60; k++) sim.step(DT) // 让 A 变老
+  const bornA = a.born
+  const b = sim.placeSource(36, 28, 'hot')!
+  expect(sim.sources.length).toBe(2)
+
+  // 后退撤销 B：场上剩 A，A 原样保留（id/born 不变，不重播生长动画）
+  sim.applySources([{ x: 20, y: 44, kind: 'hot' }])
+  expect(sim.sources.length).toBe(1)
+  expect(sim.sources[0].id).toBe(a.id)
+  expect(sim.sources[0].born).toBe(bornA)
+  expect(sim.sources.some((s) => s.id === b.id)).toBe(false)
+
+  // 前进重做：恢复 B
+  sim.applySources([
+    { x: 20, y: 44, kind: 'hot' },
+    { x: 36, y: 28, kind: 'hot' },
+  ])
+  expect(sim.sources.length).toBe(2)
+  expect(sim.sources[0].id).toBe(a.id) // 存活源仍未被重放
+
+  // 替换：C(50,16) 换掉 B(36,28)
+  sim.applySources([
+    { x: 20, y: 44, kind: 'hot' },
+    { x: 50, y: 16, kind: 'hot' },
+  ])
+  expect(sim.sources.length).toBe(2)
+  expect(sim.sources.some((s) => s.x === 50)).toBe(true)
+  expect(sim.sources.some((s) => s.x === 36)).toBe(false)
+
+  // 清空：目标为空 → 全部移除
+  sim.applySources([])
+  expect(sim.sources.length).toBe(0)
+  expect(sim.hotLeft).toBe(4)
+})
+
 test('基准策略可通关：沿谷底→崖脚→崖顶→目标放置热源，飞机起飞并飞行抵达', () => {
   const sim = new LevelSimulation(LEVEL_1)
   // 确定性策略（同一次放置，无随机干预）：下方托起 → 崖脚接力 → 崖顶推进 → 目标前托举

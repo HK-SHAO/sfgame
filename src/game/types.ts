@@ -1,5 +1,12 @@
 import type { SourceKind, Vec2 } from '../sim/types'
 
+/** 源的放置描述（URL 状态/初始化用，无 id/born）。 */
+export interface SourcePlacement {
+  x: number
+  y: number
+  kind: SourceKind
+}
+
 export interface Source {
   id: number
   kind: SourceKind

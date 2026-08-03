@@ -1,13 +1,16 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { SourceKind } from '../sim/types'
-import type { HudState, LevelDef } from '../game/types'
+import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GameController } from './controller'
+import { urlState } from './state'
 
 /** HUD 状态变化事件：detail 为最新 HUD 状态。 */
 export const HUD_CHANGE = 'hudchange'
 /** 放置被拒绝事件：detail 为被拒绝的源类型（预算耗尽或位置无效）。 */
 export const DENY = 'deny'
+/** 源集合变化事件：detail 为当前全部源的放置快照（URL 双向同步）。 */
+export const SRC_CHANGE = 'sourceschange'
 
 /**
  * 游戏画布宿主：持有命令式游戏循环（GameController）的唯一入口。
@@ -17,6 +20,8 @@ export const DENY = 'deny'
 @customElement('sf-game')
 export class SfGame extends LitElement {
   @property({ attribute: false }) level: LevelDef | null = null
+  /** 进入关卡时的初始源放置（来自 URL ?sources=...），在控制器创建后应用 */
+  @property({ attribute: false }) initialSources: SourcePlacement[] = []
 
   private controller: GameController | null = null
 
@@ -30,7 +35,10 @@ export class SfGame extends LitElement {
     this.controller = new GameController(canvas, this.level, {
       onHud: (s) => this.dispatchEvent(new CustomEvent<HudState>(HUD_CHANGE, { detail: s })),
       onDeny: (kind) => this.dispatchEvent(new CustomEvent<SourceKind>(DENY, { detail: kind })),
-    }, this)
+      onSources: (s) =>
+        this.dispatchEvent(new CustomEvent<SourcePlacement[]>(SRC_CHANGE, { detail: s })),
+    }, this, urlState.get('dev'))
+    this.controller.applySources(this.initialSources, true)
     this.controller.start()
   }
 
@@ -43,6 +51,11 @@ export class SfGame extends LitElement {
   /** 供宿主调用：重置当前关卡。 */
   reset() {
     this.controller?.reset()
+  }
+
+  /** 供宿主调用：整体应用源放置（URL 状态变化时）。 */
+  applySources(list: SourcePlacement[]) {
+    this.controller?.applySources(list)
   }
 
   protected override render() {

@@ -45,6 +45,8 @@ export class Tracers {
   private lastOdo: Float32Array
   private world: WorldBounds
   private groundY: (x: number) => number
+  /** 采样复用对象：热路径零分配 */
+  private air = { x: 0, y: 0 }
 
   constructor(count: number, world: WorldBounds, groundY: (x: number) => number, trailLen = TRAIL_LEN) {
     this.count = count
@@ -119,7 +121,7 @@ export class Tracers {
   }
 
   step(dt: number, fluid: Fluid, sources: ReadonlyArray<SourcePoint>) {
-    const air = { x: 0, y: 0 }
+    const air = this.air
     for (let i = 0; i < this.count; i++) {
       this.life[i] -= dt
       if (this.life[i] <= 0) {

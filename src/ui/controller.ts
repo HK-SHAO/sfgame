@@ -8,10 +8,11 @@ import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/t
 import { GestureInput } from './input'
 import { Renderer } from './render'
 
-/** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。 */
-const TRACER_TIERS = [320, 240, 180, 140, 96, 64]
+/** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。
+ * 桌面初始 400 只（富表现优先），触屏降一档起步。 */
+const TRACER_TIERS = [400, 320, 240, 180, 128, 96]
 /** 轨迹点上限：移动端缩短（描边负载 ∝ 粒子数 × 轨迹长度，iOS CPU 栅格化最敏感）。 */
-const TRAIL_LEN_MOBILE = 10
+const TRAIL_LEN_MOBILE = 12
 const TRAIL_LEN_DESKTOP = 24
 /** 触屏 dpr 档位（逐级下调，栅格像素成本非线性下降）；桌面档位更宽。 */
 const DPR_TIERS_COARSE = [1.5, 1.25, 1.0]

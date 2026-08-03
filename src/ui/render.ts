@@ -18,7 +18,6 @@ export interface SceneState {
 const PAGE = '#fdf7ec'
 const HOT = { r: 255, g: 90, b: 60 }
 const COLD = { r: 61, g: 139, b: 255 }
-const DUST = { r: 150, g: 132, b: 104 }
 /** 飞机拖尾的淡墨色 */
 const TRAIL_INK = { r: 107, g: 91, b: 69 }
 const GOAL = '#2fbf71'
@@ -316,23 +315,62 @@ export class Renderer {
 
   /** 共享采样临时量：热路径零分配。 */
   private static tmpAir = { x: 0, y: 0 }
+  /** 各粒子温度分桶（本帧有效）：避免头部绘制重复采样 */
+  private tracerTemp = new Uint8Array(0)
 
+  /**
+   * 风的线条（streakline）：按透明度 × 温度双维分桶批量描边。
+   * 温度分桶让"温度创造风"可见：自然温度浅灰 → 赤热自然红 / 冷自然蓝
+   * （经验分布校准：四源解下粒子温度 p95≈5.3，归一化基准取 5，分档 t<1 灰、
+   * t≥3 满饱和红/蓝，中间两档过渡）；每桶一次 stroke。
+   */
   private drawTracers(
     ctx: CanvasRenderingContext2D,
     sim: LevelSimulation,
     tracers: Tracers,
   ) {
-    // 风的线条（streakline）：按透明度分桶批量描边，桶内共享一次 stroke。
-    // 每颗粒子是一条从最旧轨迹点到当前位置的折线——点距 0.45 世界单位，
-    // 在屏幕上仅数像素，折线视觉即光滑丝线；折线比贝塞尔描边成本低一半，
-    // 且负载与"轨迹长度×粒子数"成正比（移动端已把轨迹长度档位调短）。
-    const BUCKETS = 5
+    const TEMP_LEVELS = 5
+    const ALPHA_LEVELS = 4
+    const LINE_ALPHA_MAX = 0.2
+    // 温度归一化基准（实测分布：四源解 p95≈5.3，以此定"赤热"满饱和档）
+    const T_REF = 5
+    // 冷 / 凉 / 自然(浅灰) / 暖 / 赤热：与 --cold/#ff5a3c 同色系
+    const LINE_COLORS = [
+      [61, 139, 255],
+      [116, 154, 208],
+      [170, 168, 160],
+      [212, 129, 110],
+      [255, 90, 60],
+    ]
+    const HEAD_COLORS = [
+      [61, 139, 255],
+      [116, 154, 208],
+      [170, 168, 160],
+      [212, 129, 110],
+      [255, 90, 60],
+    ]
+    // 头部点透明度：自然温度档最透（半透明浅灰），冷热端更实
+    const HEAD_ALPHA = [0.8, 0.65, 0.45, 0.65, 0.85]
     const paths: Path2D[] = []
-    for (let b = 0; b < BUCKETS; b++) paths.push(new Path2D())
+    const heads: Path2D[] = []
+    for (let t = 0; t < TEMP_LEVELS; t++) {
+      for (let a = 0; a < ALPHA_LEVELS; a++) paths.push(new Path2D())
+      // 粒子本身可见点：包络分两档透明度
+      for (let a = 0; a < 2; a++) heads.push(new Path2D())
+    }
     const { trailX, trailY, trailO, trailN, odo, count } = tracers
     const trailLen = tracers.trailLen
     const fluid = sim.fluid
     const air = Renderer.tmpAir
+    const levels = this.tracerTemp
+    if (levels.length < count) {
+      this.tracerTemp = new Uint8Array(count)
+    }
+    const tempLevelOf = (i: number) => {
+      const f = Math.max(-1, Math.min(1, fluid.sampleTemp(tracers.x[i], tracers.y[i]) / T_REF))
+      // f∈[-1,1] → 五档：0 冷 / 1 凉 / 2 自然 / 3 暖 / 4 赤热
+      return Math.min(TEMP_LEVELS - 1, ((f + 1) * 2.5) | 0)
+    }
 
     for (let i = 0; i < count; i++) {
       const n = trailN[i]
@@ -345,6 +383,8 @@ export class Renderer {
       if (sp2 < 0.16) continue
       // 亮度随风速增强：阵风处的线条更亮（速度 ≥4 封顶）
       const gust = 0.7 + 0.6 * Math.min(1, Math.sqrt(sp2) / 4)
+      const tl = tempLevelOf(i)
+      levels[i] = tl
 
       const base = i * trailLen
       const odoI = odo[i]
@@ -357,10 +397,11 @@ export class Renderer {
         const ny = k + 1 < n ? trailY[base + k + 1] : ly
         const a = (1 - (odoI - trailO[base + k]) / TRAIL_FADE) * env * gust
         if (a > 0.02) {
-          let b = (a * BUCKETS) | 0
-          if (b >= BUCKETS) b = BUCKETS - 1
-          paths[b].moveTo(px, py)
-          paths[b].lineTo(nx, ny)
+          let b = (a * ALPHA_LEVELS) | 0
+          if (b >= ALPHA_LEVELS) b = ALPHA_LEVELS - 1
+          const p = paths[tl * ALPHA_LEVELS + b]
+          p.moveTo(px, py)
+          p.lineTo(nx, ny)
         }
         px = nx
         py = ny
@@ -369,11 +410,37 @@ export class Renderer {
 
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    ctx.lineWidth = 0.22
-    for (let b = 0; b < BUCKETS; b++) {
-      const a = (((b + 0.5) / BUCKETS) * 0.15).toFixed(3)
-      ctx.strokeStyle = `rgba(${DUST.r}, ${DUST.g}, ${DUST.b}, ${a})`
-      ctx.stroke(paths[b])
+    ctx.lineWidth = 0.3
+    for (let t = 0; t < TEMP_LEVELS; t++) {
+      const c = LINE_COLORS[t]
+      for (let b = 0; b < ALPHA_LEVELS; b++) {
+        const a = (((b + 0.5) / ALPHA_LEVELS) * LINE_ALPHA_MAX).toFixed(3)
+        ctx.strokeStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`
+        ctx.stroke(paths[t * ALPHA_LEVELS + b])
+      }
+    }
+
+    // 粒子头部：线的起点（即粒子当前位置）画小圆点，半径 0.3（与线宽 0.22 同量级，
+    // 作"颗粒感"点缀）。同一温度分桶 + 包络分档批量填充。
+    for (let i = 0; i < count; i++) {
+      const env = tracers.envelope(i)
+      if (env <= 0.02) continue
+      fluid.sampleVelocity(tracers.x[i], tracers.y[i], air)
+      const sp2 = air.x * air.x + air.y * air.y
+      if (sp2 < 0.16) continue
+      // 线循环未计算（无轨迹点）的粒子：头部现算温度，避免用陈旧分桶
+      const tl = trailN[i] === 0 ? tempLevelOf(i) : levels[i]
+      const r = 0.3
+      const p = heads[tl * 2 + (env >= 0.5 ? 1 : 0)]
+      p.moveTo(tracers.x[i] + r, tracers.y[i])
+      p.arc(tracers.x[i], tracers.y[i], r, 0, Math.PI * 2)
+    }
+    for (let t = 0; t < TEMP_LEVELS; t++) {
+      const c = HEAD_COLORS[t]
+      ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${(HEAD_ALPHA[t] * 0.4).toFixed(3)})`
+      ctx.fill(heads[t * 2])
+      ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${(HEAD_ALPHA[t] * 0.92).toFixed(3)})`
+      ctx.fill(heads[t * 2 + 1])
     }
   }
 

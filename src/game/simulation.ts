@@ -7,9 +7,9 @@ import type { HudState, LevelDef, Source } from './types'
 const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
   buoyancy: 2.0,
   tMax: 9,
-  heatRate: 18,
+  heatRate: 10,
   sourceRadius: 3.4,
-  velDamping: 0.996,
+  velDamping: 0.997,
   tDamping: 0.99,
   iterations: 12,
   vorticity: 0.5,

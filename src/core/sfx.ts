@@ -181,6 +181,7 @@ class Sfx {
       lp.connect(g)
       g.connect(this.master)
       src.start(t0, Math.random() * 1.4, 0.22)
+      this.releaseWhenDone(src, [src, lp, g])
     } catch {
       /* 音频失败不影响游戏 */
     }
@@ -198,6 +199,32 @@ class Sfx {
       this.master.gain.setTargetAtTime(this.muted ? 0 : 0.5, this.ctx.currentTime, 0.05)
     }
     return this.muted
+  }
+
+  /**
+   * 一次性音源播完后显式断开整条节点链：不这么做的话 WebKit 的音频图
+   * 会持有已完成节点（长会话累积 → GC 压力与掉帧）。ended 事件确保
+   * 播放结束（或 stop 到达）后才断开，中途不静音。
+   */
+  private releaseWhenDone(
+    src: AudioScheduledSourceNode,
+    nodes: Array<AudioNode | AudioScheduledSourceNode>,
+  ) {
+    const cleanup = () => {
+      for (const n of nodes) {
+        try {
+          n.disconnect()
+        } catch {
+          /* 已断开 */
+        }
+      }
+    }
+    try {
+      src.addEventListener('ended', cleanup, { once: true })
+    } catch {
+      // 极端环境（无 ended 事件）下退化为延迟清理
+      window.setTimeout(cleanup, 2000)
+    }
   }
 
   private tone(
@@ -223,6 +250,7 @@ class Sfx {
       gain.connect(this.master)
       osc.start(t0)
       osc.stop(t0 + dur + 0.05)
+      this.releaseWhenDone(osc, [osc, gain])
     } catch {
       /* 音频失败不影响游戏 */
     }

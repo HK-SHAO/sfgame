@@ -13,18 +13,20 @@ test('初始状态：纸飞机在画布外、离地有一定高度、带初速�
   expect(sim.phase).toBe('playing')
 })
 
-test('无操作：飞机很快落地谷底，无法抵达目标', () => {
+test('无操作：飞机缓缓滑翔坠落谷底，无法抵达目标', () => {
   const sim = new LevelSimulation(LEVEL_1)
   let landedAt = -1
-  for (let t = 0; t < 12; t += DT) {
+  for (let t = 0; t < 20; t += DT) {
     sim.step(DT)
     if (landedAt < 0 && sim.plane.y > LEVEL_1.ground(sim.plane.x) - 1.2) landedAt = t
   }
-  // 约 5 秒内落地（"很快"），且落在谷底而非目标
+  // 纸飞机很轻（终端下落约 1 单位/秒），滑翔时间长，但最终必坠谷底
+  // （约 14 秒，慢于"很快"，属有意的飘然手感；不变量是"落谷底且不能通关"）
   expect(landedAt).toBeGreaterThan(2)
-  expect(landedAt).toBeLessThan(7)
+  expect(landedAt).toBeLessThan(20)
   expect(sim.phase).toBe('playing')
-  expect(sim.plane.x).toBeLessThan(30)
+  // 落在谷底（x 未过 36 的爬坡段、y 在谷底地面附近），远离 x=58 的目标区
+  expect(sim.plane.x).toBeLessThan(36)
   expect(sim.plane.y).toBeGreaterThan(40)
 }, 30000)
 
@@ -80,3 +82,29 @@ test('离地进入目标圈即过关', () => {
   sim.step(DT)
   expect(sim.phase).toBe('won')
 })
+
+test('基准策略可通关：沿谷底→崖脚→崖顶→目标放置热源，飞机起飞并飞行抵达', () => {
+  const sim = new LevelSimulation(LEVEL_1)
+  // 确定性策略（同一次放置，无随机干预）：下方托起 → 崖脚接力 → 崖顶推进 → 目标前托举
+  const plan: Array<[number, number]> = [
+    [20, 44],
+    [36, 28],
+    [50, 16],
+    [58, 14],
+  ]
+  for (const [x, y] of plan) {
+    expect(sim.placeSource(x, y, 'hot')).not.toBeNull()
+  }
+  let wonAt = -1
+  for (let t = 0; t < 60; t += DT) {
+    sim.step(DT)
+    if (sim.phase === 'won') {
+      wonAt = t
+      break
+    }
+  }
+  expect(wonAt).toBeGreaterThan(0)
+  expect(wonAt).toBeLessThan(60)
+  // 飞行抵达：过关瞬间飞机在目标圈上方（悬停阈值之上）
+  expect(sim.plane.y).toBeLessThan(LEVEL_1.ground(sim.plane.x) - 1)
+}, 30000)

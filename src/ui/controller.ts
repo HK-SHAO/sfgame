@@ -8,6 +8,18 @@ import type { HudState, LevelDef, PressVisual } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from './render'
 
+/** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。 */
+const TRACER_TIERS = [320, 240, 180, 140, 96, 64]
+/** 轨迹点上限：移动端缩短（描边负载 ∝ 粒子数 × 轨迹长度，iOS CPU 栅格化最敏感）。 */
+const TRAIL_LEN_MOBILE = 10
+const TRAIL_LEN_DESKTOP = 24
+/** 触屏 dpr 档位（逐级下调，栅格像素成本非线性下降）；桌面档位更宽。 */
+const DPR_TIERS_COARSE = [1.5, 1.25, 1.0]
+const DPR_TIERS_FINE = [2, 1.5]
+/** 持续该时长（帧）帧开销超限才降级，避免偶发卡顿误触发。 */
+const SLOW_FRAMES_TO_DEGRADE = 150
+/** 帧开销 EMA 超该毫秒数视为需要降级（60fps 预算 16.7ms，留余量）。 */
+const FRAME_BUDGET_MS = 13
 export interface ControllerEvents {
   onHud(state: HudState): void
   /** 放置被拒绝（预算耗尽或位置无效），供 HUD 抖动提示 */
@@ -36,6 +48,18 @@ export class GameController {
   /** 风场采样探针（世界坐标，关卡尺度的固定比例点） */
   private windProbes: { x: number; y: number }[]
   private tmpAir = { x: 0, y: 0 }
+  /** 示踪粒子档位（TRACER_TIERS 下标），随帧开销自适应降级 */
+  private tracerLevel: number
+  private trailLen: number
+  private dprTier = 0
+  private dprTiers: number[]
+  private frameEma = 0
+  private slowFrames = 0
+  private tickMs = 0
+  private fitW = 0
+  private fitH = 0
+  private world: { w: number; h: number }
+  private ground: (x: number) => number
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -46,12 +70,24 @@ export class GameController {
     this.canvas = canvas
     this.events = events
     this.host = host ?? canvas.parentElement ?? canvas
+    this.world = level.world
+    this.ground = level.ground
     this.sim = new LevelSimulation(level)
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    this.dprTiers = coarse ? DPR_TIERS_COARSE : DPR_TIERS_FINE
+    // 移动端（触屏）Canvas 2D 在 iOS 上为 CPU 栅格化，初始档位放低省绘制预算
+    this.tracerLevel = reduced
+      ? TRACER_TIERS.length - 1
+      : coarse
+        ? 4
+        : 0
+    this.trailLen = coarse || reduced ? TRAIL_LEN_MOBILE : TRAIL_LEN_DESKTOP
     this.tracers = new Tracers(
-      reduced ? 110 : 320,
-      { w: level.world.w, h: level.world.h },
-      level.ground,
+      TRACER_TIERS[this.tracerLevel],
+      this.world,
+      this.ground,
+      this.trailLen,
     )
     this.planeTrail = new Trail(150, 0.3, 42)
     const { w, h } = level.world
@@ -126,11 +162,21 @@ export class GameController {
     this.events.onHud(this.sim.hudState())
   }
 
+  /** 像素比：随档位下调（持续重载时最后手段），Canvas 2D 栅格分辨率直接决定绘制成本。 */
+  private pixelRatio(): number {
+    return Math.min(window.devicePixelRatio || 1, this.dprTiers[this.dprTier])
+  }
+
   private fit = () => {
     const rect = this.host.getBoundingClientRect()
-    if (rect.width === 0 && rect.height === 0) return
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
-    this.renderer.resize(rect.width, rect.height, dpr)
+    const w = Math.round(rect.width)
+    const h = Math.round(rect.height)
+    if (w === 0 && h === 0) return
+    // 尺寸未变则跳过：防止 ResizeObserver 抖动/循环导致画布每帧重建（iOS 已知坑）
+    if (w === this.fitW && h === this.fitH) return
+    this.fitW = w
+    this.fitH = h
+    this.renderer.resize(w, h, this.pixelRatio())
   }
 
   private tryPlace(x: number, y: number, kind: SourceKind) {
@@ -147,6 +193,7 @@ export class GameController {
   }
 
   private tick = (dt: number) => {
+    const t0 = performance.now()
     const p = this.sim.plane
     const altBefore = this.sim.level.ground(p.x) - p.y
     const vyBefore = p.vy
@@ -167,6 +214,8 @@ export class GameController {
       if (this.sim.phase === 'won') sfx.win()
       this.pushHud()
     }
+
+    this.tickMs += performance.now() - t0
   }
 
   /** 全场代表风速：固定探针 + 飞机位置处的风速均值 */
@@ -191,6 +240,7 @@ export class GameController {
   }
 
   private render = () => {
+    const t0 = performance.now()
     this.renderer.draw({
       sim: this.sim,
       tracers: this.tracers,
@@ -198,5 +248,28 @@ export class GameController {
       press: this.press,
       now: performance.now(),
     })
+    const cost = performance.now() - t0 + this.tickMs
+    this.tickMs = 0
+    this.frameEma = this.frameEma === 0 ? cost : this.frameEma * 0.95 + cost * 0.05
+    // 持续超预算才降级：先降示踪粒子（观感影响小），粒子到最低档仍不够再降 dpr
+    if (this.frameEma > FRAME_BUDGET_MS) {
+      if (++this.slowFrames > SLOW_FRAMES_TO_DEGRADE) {
+        this.slowFrames = 0
+        if (this.tracerLevel < TRACER_TIERS.length - 1) {
+          this.tracerLevel++
+          this.tracers = new Tracers(
+            TRACER_TIERS[this.tracerLevel],
+            this.world,
+            this.ground,
+            this.trailLen,
+          )
+        } else if (this.dprTier < this.dprTiers.length - 1) {
+          this.dprTier++
+          this.fit()
+        }
+      }
+    } else {
+      this.slowFrames = 0
+    }
   }
 }

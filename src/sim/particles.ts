@@ -7,7 +7,7 @@ interface SourcePoint {
   kind: SourceKind
 }
 
-/** 每颗粒子记录的轨迹点数 */
+/** 每颗粒子记录的轨迹点数（实例可调：移动端缩短以控制描边负载） */
 export const TRAIL_LEN = 24
 /** 粒子每走过该路程记录一个轨迹点（等距采样） */
 const TRAIL_SAMPLE = 0.45
@@ -27,25 +27,28 @@ const FADE_OUT = 0.7
  */
 export class Tracers {
   count: number
+  /** 轨迹点数上限（按设备档位传入，控制描边负载） */
+  readonly trailLen: number
   x: Float32Array
   y: Float32Array
   life: Float32Array
   maxLife: Float32Array
   /** 各粒子累计路程（里程表） */
   odo: Float32Array
-  /** 轨迹点坐标与写入时里程，按 count×TRAIL_LEN 平铺 */
+  /** 轨迹点坐标与写入时里程，按 count×trailLen 平铺 */
   trailX: Float32Array
   trailY: Float32Array
   trailO: Float32Array
-  /** 各粒子当前轨迹点数（≤ TRAIL_LEN） */
+  /** 各粒子当前轨迹点数（≤ trailLen） */
   trailN: Uint8Array
 
   private lastOdo: Float32Array
   private world: WorldBounds
   private groundY: (x: number) => number
 
-  constructor(count: number, world: WorldBounds, groundY: (x: number) => number) {
+  constructor(count: number, world: WorldBounds, groundY: (x: number) => number, trailLen = TRAIL_LEN) {
     this.count = count
+    this.trailLen = trailLen
     this.world = world
     this.groundY = groundY
     this.x = new Float32Array(count)
@@ -53,9 +56,9 @@ export class Tracers {
     this.life = new Float32Array(count)
     this.maxLife = new Float32Array(count)
     this.odo = new Float32Array(count)
-    this.trailX = new Float32Array(count * TRAIL_LEN)
-    this.trailY = new Float32Array(count * TRAIL_LEN)
-    this.trailO = new Float32Array(count * TRAIL_LEN)
+    this.trailX = new Float32Array(count * trailLen)
+    this.trailY = new Float32Array(count * trailLen)
+    this.trailO = new Float32Array(count * trailLen)
     this.trailN = new Uint8Array(count)
     this.lastOdo = new Float32Array(count)
     for (let i = 0; i < count; i++) this.respawn(i, true)
@@ -88,21 +91,22 @@ export class Tracers {
   }
 
   private recordTrail(i: number) {
-    const base = i * TRAIL_LEN
+    const base = i * this.trailLen
+    const len = this.trailLen
     const n = this.trailN[i]
-    if (n < TRAIL_LEN) {
+    if (n < len) {
       this.trailX[base + n] = this.x[i]
       this.trailY[base + n] = this.y[i]
       this.trailO[base + n] = this.odo[i]
       this.trailN[i] = n + 1
     } else {
       // 满：整体前移丢弃最旧点
-      this.trailX.copyWithin(base, base + 1, base + TRAIL_LEN)
-      this.trailY.copyWithin(base, base + 1, base + TRAIL_LEN)
-      this.trailO.copyWithin(base, base + 1, base + TRAIL_LEN)
-      this.trailX[base + TRAIL_LEN - 1] = this.x[i]
-      this.trailY[base + TRAIL_LEN - 1] = this.y[i]
-      this.trailO[base + TRAIL_LEN - 1] = this.odo[i]
+      this.trailX.copyWithin(base, base + 1, base + len)
+      this.trailY.copyWithin(base, base + 1, base + len)
+      this.trailO.copyWithin(base, base + 1, base + len)
+      this.trailX[base + len - 1] = this.x[i]
+      this.trailY[base + len - 1] = this.y[i]
+      this.trailO[base + len - 1] = this.odo[i]
     }
     this.lastOdo[i] = this.odo[i]
   }

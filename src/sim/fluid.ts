@@ -4,7 +4,13 @@ import type { Vec2 } from './types'
  * 均匀网格上的稳定流体求解器（Jos Stam, "Real-Time Fluid Dynamics for Games"）——欧拉视角。
  *
  * 场：速度 (u, v) 与温度扰动 t（相对环境温度的偏差，热为正、冷为负）。
- * 每步：浮力 → 涡度约束 → 半拉格朗日自平流（含衰减）→ 压强投影（保持无散度）。
+ * 每步：浮力 → 涡度约束 → MacCormack 二阶平流（含衰减）→ 压强投影（保持无散度）。
+ *
+ * MacCormack（Selle et al. 2006）用"前推-回溯误差补偿"把一阶半拉格朗日升为二阶：
+ * 耗散大幅下降、细节保留更好，代价仅两趟平流 + 邻域钳制（保证无条件稳定）。
+ *
+ * 压强投影用红黑 Gauss-Seidel，并沿用上一帧压强场做 warm-start 初值
+ * （流场逐帧缓变，初值极好，同迭代数收敛显著更好）。
  *
  * 游戏物理叙事在此成立：热源加热空气 → 浮力上升 → 投影使周围冷空气补充流入，
  * 压强差自然涌现出水平风；冷源相反。世界坐标 y 向下。
@@ -49,6 +55,9 @@ export class Fluid {
   private u0: Float32Array
   private v0: Float32Array
   private t0: Float32Array
+  /** MacCormack 误差补偿的临时场（q1/q2 跨场复用，场间串行处理） */
+  private q1: Float32Array
+  private q2: Float32Array
   private p: Float32Array
   private div: Float32Array
   private curl: Float32Array
@@ -67,6 +76,8 @@ export class Fluid {
     this.u0 = new Float32Array(n)
     this.v0 = new Float32Array(n)
     this.t0 = new Float32Array(n)
+    this.q1 = new Float32Array(n)
+    this.q2 = new Float32Array(n)
     this.p = new Float32Array(n)
     this.div = new Float32Array(n)
     this.curl = new Float32Array(n)
@@ -100,11 +111,6 @@ export class Fluid {
         this.solid[i + j * nx] = edge || cy >= groundY(cx) ? 1 : 0
       }
     }
-  }
-
-  private blocked(i: number, j: number): boolean {
-    if (i < 0 || j < 0 || i >= this.nx || j >= this.ny) return true
-    return this.solid[i + j * this.nx] === 1
   }
 
   /** 在世界坐标 (wx, wy) 附近注入温度（热为正、冷为负），按半径线性衰减。 */
@@ -198,9 +204,9 @@ export class Fluid {
     this.u0.set(this.u)
     this.v0.set(this.v)
     this.t0.set(this.t)
-    this.advect(this.u, this.u0, dt, this.cfg.velDamping)
-    this.advect(this.v, this.v0, dt, this.cfg.velDamping)
-    this.advect(this.t, this.t0, dt, this.cfg.tDamping)
+    this.advectMacCormack(this.u, this.u0, dt, this.cfg.velDamping)
+    this.advectMacCormack(this.v, this.v0, dt, this.cfg.velDamping)
+    this.advectMacCormack(this.t, this.t0, dt, this.cfg.tDamping)
 
     this.project()
     this.enforceBoundary()
@@ -238,7 +244,7 @@ export class Fluid {
         if (solid[idx]) continue
         const dwdx = (Math.abs(curl[idx + 1]) - Math.abs(curl[idx - 1])) / h2
         const dwdy = (Math.abs(curl[idx + nx]) - Math.abs(curl[idx - nx])) / h2
-        const len = Math.hypot(dwdx, dwdy) + 1e-5
+        const len = Math.sqrt(dwdx * dwdx + dwdy * dwdy) + 1e-5
         const nxN = dwdx / len
         const nyN = dwdy / len
         const w = curl[idx]
@@ -248,9 +254,49 @@ export class Fluid {
     }
   }
 
-  private advect(dst: Float32Array, src: Float32Array, dt: number, damping: number) {
+  /**
+   * MacCormack 二阶平流（Selle et al. 2006）。
+   * q1 = 前向半拉格朗日平流，q2 = 反向平流 q1，误差补偿
+   * q_new = q1 + (src - q2)/2，再钳制到 src 的 3×3 邻域极值内——
+   * 钳制保证不产生新极值、无条件稳定（代价仅两趟平流 + 一趟邻域扫描）。
+   * 所有场都用本步开始前的速度场 (u0, v0) 回溯，互不干扰。
+   */
+  private advectMacCormack(dst: Float32Array, src: Float32Array, dt: number, damping: number) {
+    const { nx, ny, solid, q1, q2 } = this
+    this.advectPass(q1, src, dt, 1)
+    this.advectPass(q2, q1, dt, -1)
+    for (let j = 1; j < ny - 1; j++) {
+      for (let i = 1; i < nx - 1; i++) {
+        const idx = i + j * nx
+        if (solid[idx]) {
+          dst[idx] = 0
+          continue
+        }
+        // 3×3 邻域极值（含固体格，其值为 0，钳制方向安全）
+        let lo = src[idx]
+        let hi = lo
+        for (let jj = j - 1; jj <= j + 1; jj++) {
+          for (let ii = i - 1; ii <= i + 1; ii++) {
+            const v = src[ii + jj * nx]
+            if (v < lo) lo = v
+            else if (v > hi) hi = v
+          }
+        }
+        let val = q1[idx] + (src[idx] - q2[idx]) * 0.5
+        if (val < lo) val = lo
+        else if (val > hi) val = hi
+        dst[idx] = val * damping
+      }
+    }
+  }
+
+  /**
+   * 单趟半拉格朗日平流：沿速度场回溯（sign=1）或前推（sign=-1）一个 dt，
+   * 双线性插值采样源场。无条件稳定，一阶精度。
+   */
+  private advectPass(dst: Float32Array, src: Float32Array, dt: number, sign: number) {
     const { nx, ny, u0, v0, solid, cell } = this
-    const dt0 = dt / cell
+    const dt0 = (dt / cell) * sign
     for (let j = 1; j < ny - 1; j++) {
       for (let i = 1; i < nx - 1; i++) {
         const idx = i + j * nx
@@ -273,11 +319,10 @@ export class Fluid {
         const c = a + nx
         const d = c + 1
         dst[idx] =
-          (src[a] * (1 - fx) * (1 - fy) +
-            src[b] * fx * (1 - fy) +
-            src[c] * (1 - fx) * fy +
-            src[d] * fx * fy) *
-          damping
+          src[a] * (1 - fx) * (1 - fy) +
+          src[b] * fx * (1 - fy) +
+          src[c] * (1 - fx) * fy +
+          src[d] * fx * fy
       }
     }
   }
@@ -286,7 +331,9 @@ export class Fluid {
     const { nx, ny, u, v, p, div, solid, cell } = this
     const h = cell
     const inv2h = 1 / (2 * h)
+    const h2 = h * h
 
+    // 散度场。p 不清零：warm-start，沿用上一帧压强做初值（收敛更快）。
     for (let j = 1; j < ny - 1; j++) {
       for (let i = 1; i < nx - 1; i++) {
         const idx = i + j * nx
@@ -300,21 +347,24 @@ export class Fluid {
         const vD = solid[idx + nx] ? 0 : v[idx + nx]
         const vU = solid[idx - nx] ? 0 : v[idx - nx]
         div[idx] = (uR - uL + vD - vU) * inv2h
-        p[idx] = 0
       }
     }
 
-    const h2 = h * h
+    // 红黑 Gauss-Seidel：两色交替扫描，收敛约两倍于顺序 GS，
+    // 且天然可并行。网格四边恒为固体，内圈邻域索引必在界内。
     for (let it = 0; it < this.cfg.iterations; it++) {
-      for (let j = 1; j < ny - 1; j++) {
-        for (let i = 1; i < nx - 1; i++) {
-          const idx = i + j * nx
-          if (solid[idx]) continue
-          const pL = this.blocked(i - 1, j) ? p[idx] : p[idx - 1]
-          const pR = this.blocked(i + 1, j) ? p[idx] : p[idx + 1]
-          const pU = this.blocked(i, j - 1) ? p[idx] : p[idx - nx]
-          const pD = this.blocked(i, j + 1) ? p[idx] : p[idx + nx]
-          p[idx] = (pL + pR + pU + pD - h2 * div[idx]) / 4
+      for (let parity = 0; parity < 2; parity++) {
+        for (let j = 1; j < ny - 1; j++) {
+          const i0 = ((parity ^ (j & 1)) & 1) ? 1 : 2
+          for (let i = i0; i < nx - 1; i += 2) {
+            const idx = i + j * nx
+            if (solid[idx]) continue
+            const pL = solid[idx - 1] ? p[idx] : p[idx - 1]
+            const pR = solid[idx + 1] ? p[idx] : p[idx + 1]
+            const pU = solid[idx - nx] ? p[idx] : p[idx - nx]
+            const pD = solid[idx + nx] ? p[idx] : p[idx + nx]
+            p[idx] = (pL + pR + pU + pD - h2 * div[idx]) * 0.25
+          }
         }
       }
     }
@@ -323,10 +373,10 @@ export class Fluid {
       for (let i = 1; i < nx - 1; i++) {
         const idx = i + j * nx
         if (solid[idx]) continue
-        const pL = this.blocked(i - 1, j) ? p[idx] : p[idx - 1]
-        const pR = this.blocked(i + 1, j) ? p[idx] : p[idx + 1]
-        const pU = this.blocked(i, j - 1) ? p[idx] : p[idx - nx]
-        const pD = this.blocked(i, j + 1) ? p[idx] : p[idx + nx]
+        const pL = solid[idx - 1] ? p[idx] : p[idx - 1]
+        const pR = solid[idx + 1] ? p[idx] : p[idx + 1]
+        const pU = solid[idx - nx] ? p[idx] : p[idx - nx]
+        const pD = solid[idx + nx] ? p[idx] : p[idx + nx]
         u[idx] -= (pR - pL) * inv2h
         v[idx] -= (pD - pU) * inv2h
       }

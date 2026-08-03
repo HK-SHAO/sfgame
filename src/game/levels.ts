@@ -27,7 +27,7 @@ export const LEVEL_1: LevelDef = {
   name: '纸飞机起飞',
   tagline: '上升气流',
   hint: '在纸飞机下方轻点，放一团热源——热空气上升，会把飞机送上山崖。',
-  world: { w: 76, h: 56, cell: 1.5 },
+  world: { w: 76, h: 56, cell: 0.75 },
   ground: ground1,
   budget: { hot: 4, cold: 2 },
   spawn: { x: -6, y: 33, vx: 40 },

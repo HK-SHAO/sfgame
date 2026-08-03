@@ -1,0 +1,45 @@
+:root {
+  color-scheme: light;
+  --paper: #fdf7ec;
+  --ink: #3d3427;
+  --ink-soft: #8a7d68;
+  --hot: #ff5a3c;
+  --cold: #3d8bff;
+  --card: rgba(255, 252, 245, 0.82);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Noto Sans SC', 'Segoe UI', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+sf-app {
+  display: block;
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}

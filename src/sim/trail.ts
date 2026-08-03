@@ -5,7 +5,8 @@
  * 淡出程度 = 物体自该点之后走过的路程 / fadeDist。
  * 由此物体停住时可见轨迹不会消失，运动越快旧轨迹被"甩掉"得越干脆。
  *
- * 环形缓冲、等距采样（每走过 sampleDist 记一点），无 DOM 依赖，可无头测试。
+ * 环形缓冲、等距采样（每走过 sampleDist 记一点），按从旧到新索引（0 为最旧）。
+ * 无 DOM 依赖，可无头测试。
  */
 export class Trail {
   readonly maxPoints: number
@@ -71,22 +72,18 @@ export class Trail {
     return this.count < this.maxPoints ? k : (this.head + k) % this.maxPoints
   }
 
-  /** 第 k 个点（从旧到新，0 起）的横坐标。 */
   xAt(k: number): number {
     return this.xs[this.indexOf(k)]
   }
 
-  /** 第 k 个点（从旧到新，0 起）的纵坐标。 */
   yAt(k: number): number {
     return this.ys[this.indexOf(k)]
   }
 
-  /** 第 k 个点写入时的里程。 */
   odoAt(k: number): number {
     return this.os[this.indexOf(k)]
   }
 
-  /** 按从旧到新取第 k 个点的坐标与写入时里程。 */
   pointAt(k: number): { x: number; y: number; odo: number } {
     const i = this.indexOf(k)
     return { x: this.xs[i], y: this.ys[i], odo: this.os[i] }

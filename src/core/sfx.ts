@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'zaofeng.muted'
+const MASTER_GAIN = 0.5
 
 /**
  * Paul Kellet 粉红噪声近似滤波：白噪声经一阶 IIR 组逼近 1/f 功率谱。
@@ -94,9 +95,7 @@ class Sfx {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
   private noiseBuf: AudioBuffer | null = null
-  /** 风场底噪：由全场平均风速驱动 */
   private bed: WindVoice | null = null
-  /** 飞机气动摩擦声：由飞机相对空气的速度驱动 */
   private planeWind: WindVoice | null = null
   muted = false
 
@@ -118,7 +117,7 @@ class Sfx {
       try {
         this.ctx = new Ctor()
         this.master = this.ctx.createGain()
-        this.master.gain.value = this.muted ? 0 : 0.5
+        this.master.gain.value = this.muted ? 0 : MASTER_GAIN
         this.master.connect(this.ctx.destination)
         this.noiseBuf = makePinkNoiseBuffer(this.ctx)
         this.bed = new WindVoice(this.ctx, this.master, this.noiseBuf, {
@@ -184,7 +183,6 @@ class Sfx {
       src.start(t0, Math.random() * 1.4, 0.22)
       this.releaseWhenDone(src, [src, lp, g])
     } catch {
-      /* 音频失败不影响游戏 */
     }
   }
 
@@ -193,11 +191,10 @@ class Sfx {
     try {
       localStorage.setItem(STORAGE_KEY, this.muted ? '1' : '0')
     } catch {
-      /* 忽略持久化失败 */
     }
     if (this.master && this.ctx) {
       // 连续风声层由主增益统一静音
-      this.master.gain.setTargetAtTime(this.muted ? 0 : 0.5, this.ctx.currentTime, 0.05)
+      this.master.gain.setTargetAtTime(this.muted ? 0 : MASTER_GAIN, this.ctx.currentTime, 0.05)
     }
     return this.muted
   }
@@ -216,7 +213,6 @@ class Sfx {
         try {
           n.disconnect()
         } catch {
-          /* 已断开 */
         }
       }
     }
@@ -253,7 +249,6 @@ class Sfx {
       osc.stop(t0 + dur + 0.05)
       this.releaseWhenDone(osc, [osc, gain])
     } catch {
-      /* 音频失败不影响游戏 */
     }
   }
 

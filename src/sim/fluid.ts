@@ -172,7 +172,6 @@ export class Fluid {
     out.y += this.ambientY
   }
 
-  /** 双线性采样温度场。 */
   sampleTemp(wx: number, wy: number): number {
     const { nx, ny, cell, t } = this
     let gx = wx / cell - 0.5

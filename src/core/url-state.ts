@@ -1,10 +1,8 @@
 /**
  * 通用 URL 状态模块：声明式 schema ↔ URL 查询参数双向绑定。
- * 鲁棒：解码永不抛错（非法/缺失回落默认，未知键保留）；等值 set 跳过（防历史污染）。
- * 高性能：读取走缓存；写入按微任务批量（同帧多次 set 只写一次 URL）。
- * 敏捷：按键读写/订阅；浏览器适配器可注入（无头可测）。低耦合：不感知业务。
- * 写读分离（关键契约）：set/clear 不回调订阅者；onChange 仅响应外部 URL 变化
- * （popstate，含 bfcache 恢复的 pageshow 兜底）——机制上杜绝"写入→回读→再写入"反馈环。
+ * 写读分离：set/clear 不回调订阅者（杜绝"写入→回读→再写入"反馈环），
+ * onChange 仅响应外部 URL 变化；解码永不抛错，等值 set 跳过（防历史污染）。
+ * 无头可测：URL 源可注入。
  */
 export interface UrlStateCodec<T> {
   /** 值 → URL 字符串（null 编为空串，表示"该键无值"） */
@@ -21,15 +19,13 @@ export interface UrlStateListCodec<T> {
 
 /** URL 状态源（浏览器适配器实现于本文件；测试可注入内存假源） */
 export interface UrlStateSource {
-  /** 当前查询参数快照 */
   getParams(): URLSearchParams
-  /** 写入新查询参数（pushState 语义：新增历史条目，可后退撤销） */
+  /** pushState 语义：新增历史条目，可后退撤销 */
   pushState(params: URLSearchParams): void
   /** 订阅外部 URL 变化（popstate + pageshow/bfcache 恢复）；返回退订函数 */
   onChange(cb: () => void): () => void
 }
 
-/** 内置编解码器工厂。 */
 export const codecs = {
   /** 整数；def 可为 null（表示无值） */
   int(def: number | null, min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER): UrlStateCodec<number | null> {
@@ -59,7 +55,7 @@ export const codecs = {
       },
     }
   },
-  /** 枚举字符串：合法值生效，未知/缺失回落默认（如页面视图键） */
+  /** 枚举字符串：合法值生效，未知/缺失回落默认 */
   enum<T extends string>(def: T, values: readonly T[]): UrlStateCodec<T> {
     return {
       encode(value) {
@@ -112,7 +108,6 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
     this.sync()
   }
 
-  /** 读取当前值（同步缓存）。 */
   get<K extends KeyOf<D>>(key: K): ReturnType<D[K]['decode']> {
     return this.values.get(key) as ReturnType<D[K]['decode']>
   }

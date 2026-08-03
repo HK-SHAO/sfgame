@@ -11,9 +11,19 @@ import { Renderer } from './render'
 /** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。
  * 桌面初始 400 只（富表现优先），触屏降一档起步。 */
 const TRACER_TIERS = [400, 320, 240, 180, 128, 96]
+const COARSE_TRACER_TIER = 4
 /** 轨迹点上限：移动端缩短（描边负载 ∝ 粒子数 × 轨迹长度，iOS CPU 栅格化最敏感）。 */
 const TRAIL_LEN_MOBILE = 12
 const TRAIL_LEN_DESKTOP = 24
+const PLANE_TRAIL_MAX_POINTS = 150
+const PLANE_TRAIL_SAMPLE = 0.3
+const PLANE_TRAIL_FADE = 42
+/** 风场采样探针（世界坐标的固定比例点）：底噪声源的均匀覆盖 */
+const WIND_PROBE_FX = [0.22, 0.5, 0.78]
+const WIND_PROBE_FY = [0.2, 0.35]
+const LAND_ALT_BEFORE = 0.9
+const LAND_ALT_AFTER = 0.55
+const LAND_IMPACT_MIN = 0.8
 /** 触屏 dpr 档位（逐级下调，栅格像素成本非线性下降）；桌面档位更宽。 */
 const DPR_TIERS_COARSE = [1.5, 1.25, 1.0]
 const DPR_TIERS_FINE = [2, 1.5]
@@ -21,6 +31,7 @@ const DPR_TIERS_FINE = [2, 1.5]
 const SLOW_FRAMES_TO_DEGRADE = 150
 /** 帧开销 EMA 超该毫秒数视为需要降级（60fps 预算 16.7ms，留余量）。 */
 const FRAME_BUDGET_MS = 13
+const FRAME_EMA_SMOOTH = 0.95
 export interface ControllerEvents {
   onHud(state: HudState): void
   /** 放置被拒绝（预算耗尽或位置无效），供 HUD 抖动提示 */
@@ -48,10 +59,8 @@ export class GameController {
   private ro: ResizeObserver | null = null
   private press: PressVisual | null = null
   private lastPhase: 'playing' | 'won' = 'playing'
-  /** 风场采样探针（世界坐标，关卡尺度的固定比例点） */
   private windProbes: { x: number; y: number }[]
   private tmpAir = { x: 0, y: 0 }
-  /** 示踪粒子档位（TRACER_TIERS 下标），随帧开销自适应降级 */
   private tracerLevel: number
   private trailLen: number
   private dprTier = 0
@@ -83,7 +92,7 @@ export class GameController {
     this.tracerLevel = reduced
       ? TRACER_TIERS.length - 1
       : coarse
-        ? 4
+        ? COARSE_TRACER_TIER
         : 0
     this.trailLen = coarse || reduced ? TRAIL_LEN_MOBILE : TRAIL_LEN_DESKTOP
     this.tracers = new Tracers(
@@ -92,10 +101,10 @@ export class GameController {
       this.ground,
       this.trailLen,
     )
-    this.planeTrail = new Trail(150, 0.3, 42)
+    this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
-    this.windProbes = [0.22, 0.5, 0.78].flatMap((fx) =>
-      [0.2, 0.35].map((fy) => ({ x: fx * w, y: fy * h })),
+    this.windProbes = WIND_PROBE_FX.flatMap((fx) =>
+      WIND_PROBE_FY.map((fy) => ({ x: fx * w, y: fy * h })),
     )
     this.renderer = new Renderer(canvas)
     this.loop = new GameLoop({ tick: this.tick, render: this.render })
@@ -230,10 +239,9 @@ export class GameController {
     this.tracers.step(dt, this.sim.fluid, this.sim.sources)
     this.planeTrail.push(p.x, p.y)
 
-    // 物理音效：底噪随全场风速，摩擦声随飞机相对空气的速度
     sfx.updateWind(this.fieldWind(), this.planeRelWind(), dt)
     const altAfter = this.sim.level.ground(p.x) - p.y
-    if (altBefore > 0.9 && altAfter <= 0.55 && Math.abs(vyBefore) > 0.8) {
+    if (altBefore > LAND_ALT_BEFORE && altAfter <= LAND_ALT_AFTER && Math.abs(vyBefore) > LAND_IMPACT_MIN) {
       sfx.land(Math.abs(vyBefore))
     }
 
@@ -246,7 +254,6 @@ export class GameController {
     this.tickMs += performance.now() - t0
   }
 
-  /** 全场代表风速：固定探针 + 飞机位置处的风速均值 */
   private fieldWind(): number {
     const fluid = this.sim.fluid
     let sum = 0
@@ -260,7 +267,6 @@ export class GameController {
     return sum / (this.windProbes.length + 1)
   }
 
-  /** 飞机相对空气的速度：摩擦声的物理来源（随风同飘时近乎无声） */
   private planeRelWind(): number {
     const p = this.sim.plane
     this.sim.fluid.sampleVelocity(p.x, p.y, this.tmpAir)
@@ -278,7 +284,7 @@ export class GameController {
     })
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0
-    this.frameEma = this.frameEma === 0 ? cost : this.frameEma * 0.95 + cost * 0.05
+    this.frameEma = this.frameEma === 0 ? cost : this.frameEma * FRAME_EMA_SMOOTH + cost * (1 - FRAME_EMA_SMOOTH)
     // 持续超预算才降级：先降示踪粒子（观感影响小），粒子到最低档仍不够再降 dpr
     if (this.frameEma > FRAME_BUDGET_MS) {
       if (++this.slowFrames > SLOW_FRAMES_TO_DEGRADE) {

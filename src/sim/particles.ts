@@ -9,13 +9,19 @@ interface SourcePoint {
 
 /** 每颗粒子记录的轨迹点数（实例可调：移动端缩短以控制描边负载） */
 export const TRAIL_LEN = 24
-/** 粒子每走过该路程记录一个轨迹点（等距采样） */
 const TRAIL_SAMPLE = 0.45
 /** 轨迹点自记录后随路程淡出的总长度 */
 export const TRAIL_FADE = 10
 /** 生命首尾的淡入/淡出时长（秒），避免粒子凭空闪现 */
 const FADE_IN = 0.5
 const FADE_OUT = 0.7
+/** 随机重生的位置尝试次数（地形下无空位时放弃） */
+const RESPAWN_TRIES = 8
+const PLUME_PER_STEP = 2
+/** 羽流粒子绕源散开的半径 / 生命范围（秒） */
+const PLUME_RADIUS = 1.6
+const PLUME_LIFE_MIN = 0.9
+const PLUME_LIFE_SPAN = 1.2
 
 /**
  * 示踪粒子（拉格朗日）：被动平流于风场，把看不见的气流可视化。
@@ -68,7 +74,7 @@ export class Tracers {
 
   private respawn(i: number, scatter = false) {
     const { w } = this.world
-    for (let tries = 0; tries < 8; tries++) {
+    for (let tries = 0; tries < RESPAWN_TRIES; tries++) {
       const x = 2 + Math.random() * (w - 4)
       const ceil = this.groundY(x) - 1.5
       if (ceil < 3) continue
@@ -148,17 +154,17 @@ export class Tracers {
 
     // 在活跃的源附近补充"羽流"粒子，强化因果感
     if (sources.length > 0) {
-      for (let n = 0; n < 2; n++) {
+      for (let n = 0; n < PLUME_PER_STEP; n++) {
         const s = sources[(Math.random() * sources.length) | 0]
         const i = (Math.random() * this.count) | 0
         const ang = Math.random() * Math.PI * 2
-        const rad = Math.random() * 1.6
+        const rad = Math.random() * PLUME_RADIUS
         const x = s.x + Math.cos(ang) * rad
         const y = s.y + Math.sin(ang) * rad
         if (y > this.groundY(x) - 0.6 || y < 1) continue
         this.x[i] = x
         this.y[i] = y
-        this.maxLife[i] = 0.9 + Math.random() * 1.2
+        this.maxLife[i] = PLUME_LIFE_MIN + Math.random() * PLUME_LIFE_SPAN
         this.life[i] = this.maxLife[i]
         this.resetTrail(i)
       }

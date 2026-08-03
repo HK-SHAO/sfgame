@@ -47,6 +47,9 @@ const tmpAir = { x: 0, y: 0 }
 /** 可贴地滑行的最大坡度（每单位水平位移的地形抬升量）。
  * 超过该值（如崖壁）禁止 snap 抬升——飞机不能凭水平风"瞬移爬墙"。 */
 const MAX_SLIDE_SLOPE = 1.0
+const WALL_RESTITUTION = 0.35
+/** 贴地摩擦：每次接触后水平速度的保留比例（防被微风吹离托举位置） */
+const GROUND_FRICTION = 0.3
 
 export function stepBody(
   body: Body,
@@ -68,18 +71,18 @@ export function stepBody(
   if (body.x < r) {
     if (body.vx < 0) {
       body.x = r
-      body.vx = Math.abs(body.vx) * 0.35
+      body.vx = Math.abs(body.vx) * WALL_RESTITUTION
     }
   } else if (body.x > world.w - r) {
     if (body.vx > 0) {
       body.x = world.w - r
-      body.vx = -Math.abs(body.vx) * 0.35
+      body.vx = -Math.abs(body.vx) * WALL_RESTITUTION
     }
   }
   if (body.y < r) {
     if (body.vy < 0) {
       body.y = r
-      body.vy = Math.abs(body.vy) * 0.35
+      body.vy = Math.abs(body.vy) * WALL_RESTITUTION
     }
   }
 
@@ -91,13 +94,12 @@ export function stepBody(
     if (dx > 1e-6 && pground - ground > MAX_SLIDE_SLOPE * dx) {
       body.x = px
       if (body.y > pground) body.y = pground
-      body.vx = -Math.abs(body.vx) * 0.35
+      body.vx = -Math.abs(body.vx) * WALL_RESTITUTION
       if (body.vy > 0) body.vy = -body.vy * 0.1
     } else {
       body.y = ground
       if (body.vy > 0) body.vy = -body.vy * 0.1
-      // 地面摩擦：贴地时强阻尼，避免被微风吹离托举位置
-      body.vx *= 0.3
+      body.vx *= GROUND_FRICTION
     }
   }
 

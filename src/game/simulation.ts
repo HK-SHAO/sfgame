@@ -21,6 +21,15 @@ const PLANE_PHYSICS = { radius: 1.0, dragK: 3.0, gravity: 3.0 }
 
 /** 源之间的最小间距，避免叠放。 */
 const MIN_SOURCE_GAP = 3.2
+const SOURCE_HIT_RADIUS = 3.0
+/** 放置下限：地面之上该高度内均可放置；贴地吸附高度 */
+const GROUND_PLACE_MARGIN = 0.6
+const GROUND_SNAP_LIFT = 0.7
+/** 目标区圆心在地面上的抬升高度 / 判胜所需最小飞行高度 */
+const GOAL_LIFT = 2
+const FLYING_ALT = 1
+/** URL 位置匹配容差：对齐 URL 的 1 位小数精度（舍入误差 ≤0.05） */
+const URL_PRECISION_TOLERANCE = 0.06
 
 /**
  * 无头关卡模拟：流体 + 刚体 + 源管理 + 胜负判定。
@@ -93,11 +102,11 @@ export class LevelSimulation {
     this.plane.angle = 0
   }
 
-  /** 位置是否允许放置：世界内、地面之上（可贴地，便于托起停机坪上的物体）、离其他源足够远。 */
+  /** 位置是否允许放置：世界内、地面之上（可贴地）、离其他源足够远。 */
   canPlaceAt(x: number, y: number): boolean {
     const { w } = this.level.world
     if (x < 2 || x > w - 2 || y < 3) return false
-    if (y > this.level.ground(x) - 0.6) return false
+    if (y > this.level.ground(x) - GROUND_PLACE_MARGIN) return false
     for (const s of this.sources) {
       if (Math.hypot(s.x - x, s.y - y) < MIN_SOURCE_GAP) return false
     }
@@ -106,7 +115,7 @@ export class LevelSimulation {
 
   hitSource(x: number, y: number): Source | null {
     let best: Source | null = null
-    let bestDist = 3.0
+    let bestDist = SOURCE_HIT_RADIUS
     for (const s of this.sources) {
       const d = Math.hypot(s.x - x, s.y - y)
       if (d < bestDist) {
@@ -125,7 +134,7 @@ export class LevelSimulation {
     if (!force && this.phase !== 'playing') return null
     if (kind === 'hot' ? this.hotLeft <= 0 : this.coldLeft <= 0) return null
     // 点在地面/物体上时，吸附到贴地高度——"在脚下放源"是核心交互，不应拒绝
-    const cy = Math.min(y, this.level.ground(x) - 0.7)
+    const cy = Math.min(y, this.level.ground(x) - GROUND_SNAP_LIFT)
     if (!this.canPlaceAt(x, cy)) return null
     const source: Source = { id: this.nextId++, kind, x, y: cy, born: this.time }
     this.sources.push(source)
@@ -148,12 +157,13 @@ export class LevelSimulation {
   /**
    * 把源集合收敛到目标列表（URL 状态应用）。最小差异：移除不在目标中的、
    * 补放目标中缺失的（force），存活源保留原 id/born（不重播生长动画）。
-   * 注意移除必须与"目标列表"比对（比对场上会永不删除）；位置容差 0.06 对齐
-   * URL 的 1 位小数精度（舍入误差 ≤0.05）。幂等，可安全重复调用。
+   * 注意移除必须与"目标列表"比对（比对场上会永不删除）。幂等，可安全重复调用。
    */
   applySources(target: SourcePlacement[]): void {
     const match = (a: Source, b: SourcePlacement) =>
-      a.kind === b.kind && Math.abs(a.x - b.x) < 0.06 && Math.abs(a.y - b.y) < 0.06
+      a.kind === b.kind &&
+      Math.abs(a.x - b.x) < URL_PRECISION_TOLERANCE &&
+      Math.abs(a.y - b.y) < URL_PRECISION_TOLERANCE
     for (const s of [...this.sources]) {
       if (!target.some((t) => match(s, t))) this.removeSource(s.id)
     }
@@ -177,9 +187,9 @@ export class LevelSimulation {
 
   private inGoal(): boolean {
     const g = this.level.goal
-    const gy = this.level.ground(g.x) - 2
+    const gy = this.level.ground(g.x) - GOAL_LIFT
     if (Math.hypot(this.plane.x - g.x, this.plane.y - gy) >= g.r) return false
     // 必须飞行抵达：贴地滑进目标区不算过关（杜绝"放着不动被风吹进圈"的挂机通关）
-    return this.plane.y < this.level.ground(this.plane.x) - 1
+    return this.plane.y < this.level.ground(this.plane.x) - FLYING_ALT
   }
 }

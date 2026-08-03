@@ -8,9 +8,7 @@ import type { SourcePlacement } from './types'
  * winTime 为无头确定性模拟实测值，由 tests/solutions.test.ts 守护。
  */
 export interface LevelSolution {
-  /** 解名（简短） */
   name: string
-  /** 初始一次性放置的全部源 */
   sources: SourcePlacement[]
   /** 无头实测通关时刻（秒） */
   winTime: number

@@ -47,12 +47,10 @@ export class SfGame extends LitElement {
     super.disconnectedCallback()
   }
 
-  /** 供宿主调用：重置当前关卡。 */
   reset() {
     this.controller?.reset()
   }
 
-  /** 供宿主调用：整体应用源放置（URL 状态变化时）。 */
   applySources(list: SourcePlacement[]) {
     this.controller?.applySources(list)
   }

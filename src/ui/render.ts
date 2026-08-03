@@ -9,7 +9,6 @@ import { LONG_PRESS_MS } from './input'
 export interface SceneState {
   sim: LevelSimulation
   tracers: Tracers
-  /** 纸飞机的路程淡出拖尾 */
   planeTrail: Trail
   press: PressVisual | null
   now: number
@@ -18,15 +17,53 @@ export interface SceneState {
 const PAGE = '#fdf7ec'
 const HOT = { r: 255, g: 90, b: 60 }
 const COLD = { r: 61, g: 139, b: 255 }
-/** 飞机拖尾的淡墨色 */
 const TRAIL_INK = { r: 107, g: 91, b: 69 }
 const GOAL = '#2fbf71'
 
+// ---------- 视觉参数（世界单位，关卡 76×56 尺度） ----------
+
+const SUN_POS = { x: 12, y: 9.5 }
+const SUN_RADIUS = 4
+const SUN_BREATH_AMP = 0.12
+const SUN_BREATH_PERIOD = 700
+
+const TEMP_LEVELS = 5
+/** 温度归一化基准：实测四源解粒子温度 p95≈5.3，取 5 定"赤热"满饱和档 */
+const T_REF = 5
+const LINE_COLORS = [
+  [61, 139, 255],
+  [116, 154, 208],
+  [170, 168, 160],
+  [212, 129, 110],
+  [255, 90, 60],
+]
+const HEAD_COLORS = [
+  [61, 139, 255],
+  [116, 154, 208],
+  [170, 168, 160],
+  [212, 129, 110],
+  [255, 90, 60],
+]
+/** 头部点透明度按档递减：自然温度最透（半透明浅灰），冷热端更实 */
+const HEAD_ALPHA = [0.8, 0.65, 0.45, 0.65, 0.85]
+const HEAD_ENV_ALPHA = [0.4, 0.92]
+const LINE_ALPHA_MAX = 0.2
+const TRACER_LINE_WIDTH = 0.3
+const TRACER_HEAD_RADIUS = 0.3
+const GUST_BASE = 0.7
+const GUST_BOOST = 0.6
+const GUST_FULL_SPEED = 4
+/** 风速平方低于此值视为静止空气：不画线也不画粒子（"有风才见线"） */
+const CALM_AIR_SPEED2 = 0.16
+const VISIBLE_ALPHA = 0.02
+const SOURCE_POP_RATE = 9
+const SOURCE_GLOW_RADIUS = 4.8
+const SOURCE_CORE_RADIUS = 1.15
+
 /**
  * Canvas 2D 渲染器：极简矢量风。
- * 世界坐标 y 向下；视口按 contain 适配（等比缩放 + 居中留边）。
- * 世界边界之外的视口区域由延伸的天空与大地填充，
- * 因此竖屏/宽屏下没有"死"留白，画面始终是连续的场景。
+ * 世界坐标 y 向下；视口按 contain 适配，世界边界外由延伸的天空与大地填充，
+ * 竖屏/宽屏下没有"死"留白。
  */
 export class Renderer {
   private canvas: HTMLCanvasElement
@@ -63,7 +100,7 @@ export class Renderer {
   }
 
   private world: { w: number; h: number } | null = null
-  /** 静态层（底色 + 天空渐变 + 地形）离屏缓存：尺寸不变时每帧整层 blit */
+  /** 静态层（底色 + 天空渐变 + 地形）离屏缓存：画布尺寸/关卡不变时每帧整层 blit */
   private bg: HTMLCanvasElement | null = null
   private bgKey = ''
 
@@ -77,7 +114,6 @@ export class Renderer {
     this.scale = Math.min(this.cssW / w, this.cssH / h)
     this.ox = (this.cssW - w * this.scale) / 2
     this.oy = (this.cssH - h * this.scale) / 2
-    // 可视矩形（世界坐标）：contain 适配下恒覆盖整个世界
     const viewL = -this.ox / this.scale
     const viewT = -this.oy / this.scale
     const viewR = viewL + this.cssW / this.scale
@@ -102,7 +138,6 @@ export class Renderer {
     ctx.restore()
   }
 
-  /** 静态层缓存：仅当画布尺寸/缩放/关卡变化时重建，避免每帧重建渐变与地形路径。 */
   private ensureBg(
     viewL: number,
     viewT: number,
@@ -127,14 +162,14 @@ export class Renderer {
     g.translate(this.ox, this.oy)
     g.scale(this.scale, this.scale)
 
-    // 天空渐变锚定世界 0..h；视口超出部分由 canvas 渐变端色自然延伸
+    // 天空渐变锚定世界 0..h；视口超出部分由渐变端色自然延伸
     const sky = g.createLinearGradient(0, 0, 0, h)
     sky.addColorStop(0, '#fff8ea')
     sky.addColorStop(1, '#f8e2bb')
     g.fillStyle = sky
     g.fillRect(viewL, viewT, viewR - viewL, viewB - viewT)
 
-    // 地形延伸出世界边界：保持关卡全貌可见的同时填满竖屏/宽屏视口
+    // 地形延伸出世界边界：填满竖屏/宽屏视口
     const ground = sim.level.ground
     const x0 = Math.max(0, Math.floor(viewL))
     const x1 = Math.min(w, Math.ceil(viewR))
@@ -156,18 +191,16 @@ export class Renderer {
     g.lineWidth = 0.5
     g.stroke()
 
-    // 太阳光晕（静态；核心的呼吸动效在动态层）
-    const sx = 12
-    const sy = 9.5
-    const halo = g.createRadialGradient(sx, sy, 0, sx, sy, 12)
+    // 太阳光晕（静态层；呼吸动效在动态层）
+    const halo = g.createRadialGradient(SUN_POS.x, SUN_POS.y, 0, SUN_POS.x, SUN_POS.y, SUN_RADIUS * 3)
     halo.addColorStop(0, 'rgba(255, 196, 83, 0.4)')
     halo.addColorStop(1, 'rgba(255, 196, 83, 0)')
     g.fillStyle = halo
     g.beginPath()
-    g.arc(sx, sy, 12, 0, Math.PI * 2)
+    g.arc(SUN_POS.x, SUN_POS.y, SUN_RADIUS * 3, 0, Math.PI * 2)
     g.fill()
 
-    // 目标区静态部分：感应虚线圆 + 光柱（落点垫的呼吸与旗帜飘动在动态层）
+    // 目标区静态部分：感应虚线圆 + 光柱（落点垫呼吸与旗帜摆动在动态层）
     const goal = sim.level.goal
     const gy = sim.level.ground(goal.x)
     g.strokeStyle = 'rgba(47, 191, 113, 0.35)'
@@ -184,23 +217,24 @@ export class Renderer {
     g.fillRect(goal.x - 1.6, gy - 12, 3.2, 12)
   }
 
-  /** 太阳核心（动态：呼吸），光晕已烘焙进静态层。 */
   private drawSun(ctx: CanvasRenderingContext2D, now: number) {
-    const sx = 12
-    const sy = 9.5
     ctx.fillStyle = '#ffc453'
     ctx.beginPath()
-    ctx.arc(sx, sy, 4 + 0.12 * Math.sin(now / 700), 0, Math.PI * 2)
+    ctx.arc(
+      SUN_POS.x,
+      SUN_POS.y,
+      SUN_RADIUS + SUN_BREATH_AMP * Math.sin(now / SUN_BREATH_PERIOD),
+      0,
+      Math.PI * 2,
+    )
     ctx.fill()
   }
 
-  /** 目标区动态部分：落点垫（呼吸脉冲）与旗帜（随风摆动）。感应圈与光柱已烘焙进静态层。 */
   private drawGoal(ctx: CanvasRenderingContext2D, sim: LevelSimulation, now: number) {
     const g = sim.level.goal
     const gy = sim.level.ground(g.x)
     const pulse = 1 + 0.06 * Math.sin(now / 320)
 
-    // 落点垫
     ctx.fillStyle = 'rgba(47, 191, 113, 0.3)'
     ctx.beginPath()
     ctx.ellipse(g.x, gy - 0.1, g.r * 0.62 * pulse, 1.0, 0, 0, Math.PI * 2)
@@ -211,7 +245,7 @@ export class Renderer {
     ctx.ellipse(g.x, gy - 0.1, g.r * 0.62 * pulse, 1.0, 0, 0, Math.PI * 2)
     ctx.stroke()
 
-    // 旗帜：波幅与顺风倾斜都随目标处实测风速——风与画面同呼吸
+    // 旗帜：波幅与顺风倾斜随目标处实测风速——风与画面同呼吸
     const air = Renderer.tmpAir
     sim.fluid.sampleVelocity(g.x, gy - 5, air)
     const wind = Math.min(1.4, Math.hypot(air.x, air.y))
@@ -233,8 +267,7 @@ export class Renderer {
     ctx.fill()
   }
 
-  /** 源光晕精灵缓存：渐变一次性烘焙成离屏位图，每帧仅 drawImage
-   * （iOS WebKit 上每帧 createRadialGradient 既贵又有累积风险）。 */
+  /** 源光晕精灵：渐变烘焙成离屏位图（iOS WebKit 上每帧 createRadialGradient 既贵又有累积风险） */
   private sourceGlows = new Map<number, HTMLCanvasElement>()
 
   private glowSprite(kind: SourceKind): HTMLCanvasElement {
@@ -258,7 +291,6 @@ export class Renderer {
     sim: LevelSimulation,
     press: PressVisual | null,
   ) {
-    // 清理已移除源的精灵缓存（源数量很小，直接按存活集合过滤）
     if (this.sourceGlows.size > sim.sources.length) {
       const alive = new Set<number>()
       for (const s of sim.sources) alive.add(s.id)
@@ -269,23 +301,21 @@ export class Renderer {
 
     for (const s of sim.sources) {
       const grabbed = press?.kind === 'remove' && press.sourceId === s.id
-      const age = sim.time - s.born
-      const pop = 1 - Math.exp(-age * 9)
+      const pop = 1 - Math.exp(-(sim.time - s.born) * SOURCE_POP_RATE)
       const pulse = 1 + 0.05 * Math.sin(sim.time * 4 + s.id * 1.7)
       const c = s.kind === 'hot' ? HOT : COLD
 
-      // 光晕：精灵缩放跟随生长动画，中心恒定
-      if (pop > 0.02) {
+      if (pop > VISIBLE_ALPHA) {
         let sprite = this.sourceGlows.get(s.id)
         if (!sprite) {
           sprite = this.glowSprite(s.kind)
           this.sourceGlows.set(s.id, sprite)
         }
-        const glowR = 4.8 * pop
+        const glowR = SOURCE_GLOW_RADIUS * pop
         ctx.drawImage(sprite, s.x - glowR, s.y - glowR, glowR * 2, glowR * 2)
       }
 
-      const coreR = 1.15 * pop * pulse * (grabbed ? 1.18 : 1)
+      const coreR = SOURCE_CORE_RADIUS * pop * pulse * (grabbed ? 1.18 : 1)
       ctx.fillStyle = '#fffdf8'
       ctx.beginPath()
       ctx.arc(s.x, s.y, coreR, 0, Math.PI * 2)
@@ -313,50 +343,25 @@ export class Renderer {
     }
   }
 
-  /** 共享采样临时量：热路径零分配。 */
+  /** 共享采样临时量：热路径零分配 */
   private static tmpAir = { x: 0, y: 0 }
-  /** 各粒子温度分桶（本帧有效）：避免头部绘制重复采样 */
+  /** 各粒子温度分桶（本帧有效）：头部绘制免重复采样 */
   private tracerTemp = new Uint8Array(0)
 
   /**
-   * 风的线条（streakline）：按透明度 × 温度双维分桶批量描边。
-   * 温度分桶让"温度创造风"可见：自然温度浅灰 → 赤热自然红 / 冷自然蓝
-   * （经验分布校准：四源解下粒子温度 p95≈5.3，归一化基准取 5，分档 t<1 灰、
-   * t≥3 满饱和红/蓝，中间两档过渡）；每桶一次 stroke。
+   * 风的线条（streakline）：透明度 × 温度双维分桶，每桶一次 stroke 批量描边。
    */
   private drawTracers(
     ctx: CanvasRenderingContext2D,
     sim: LevelSimulation,
     tracers: Tracers,
   ) {
-    const TEMP_LEVELS = 5
     const ALPHA_LEVELS = 4
-    const LINE_ALPHA_MAX = 0.2
-    // 温度归一化基准（实测分布：四源解 p95≈5.3，以此定"赤热"满饱和档）
-    const T_REF = 5
-    // 冷 / 凉 / 自然(浅灰) / 暖 / 赤热：与 --cold/#ff5a3c 同色系
-    const LINE_COLORS = [
-      [61, 139, 255],
-      [116, 154, 208],
-      [170, 168, 160],
-      [212, 129, 110],
-      [255, 90, 60],
-    ]
-    const HEAD_COLORS = [
-      [61, 139, 255],
-      [116, 154, 208],
-      [170, 168, 160],
-      [212, 129, 110],
-      [255, 90, 60],
-    ]
-    // 头部点透明度：自然温度档最透（半透明浅灰），冷热端更实
-    const HEAD_ALPHA = [0.8, 0.65, 0.45, 0.65, 0.85]
     const paths: Path2D[] = []
     const heads: Path2D[] = []
     for (let t = 0; t < TEMP_LEVELS; t++) {
       for (let a = 0; a < ALPHA_LEVELS; a++) paths.push(new Path2D())
-      // 粒子本身可见点：包络分两档透明度
-      for (let a = 0; a < 2; a++) heads.push(new Path2D())
+      for (let a = 0; a < HEAD_ENV_ALPHA.length; a++) heads.push(new Path2D())
     }
     const { trailX, trailY, trailO, trailN, odo, count } = tracers
     const trailLen = tracers.trailLen
@@ -376,13 +381,11 @@ export class Renderer {
       const n = trailN[i]
       if (n === 0) continue
       const env = tracers.envelope(i)
-      if (env <= 0.02) continue
-      // 风速极低时不画线（静止空气保持干净，"有风才见线"）
+      if (env <= VISIBLE_ALPHA) continue
       fluid.sampleVelocity(tracers.x[i], tracers.y[i], air)
       const sp2 = air.x * air.x + air.y * air.y
-      if (sp2 < 0.16) continue
-      // 亮度随风速增强：阵风处的线条更亮（速度 ≥4 封顶）
-      const gust = 0.7 + 0.6 * Math.min(1, Math.sqrt(sp2) / 4)
+      if (sp2 < CALM_AIR_SPEED2) continue
+      const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
       const tl = tempLevelOf(i)
       levels[i] = tl
 
@@ -396,7 +399,7 @@ export class Renderer {
         const nx = k + 1 < n ? trailX[base + k + 1] : lx
         const ny = k + 1 < n ? trailY[base + k + 1] : ly
         const a = (1 - (odoI - trailO[base + k]) / TRAIL_FADE) * env * gust
-        if (a > 0.02) {
+        if (a > VISIBLE_ALPHA) {
           let b = (a * ALPHA_LEVELS) | 0
           if (b >= ALPHA_LEVELS) b = ALPHA_LEVELS - 1
           const p = paths[tl * ALPHA_LEVELS + b]
@@ -410,7 +413,7 @@ export class Renderer {
 
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    ctx.lineWidth = 0.3
+    ctx.lineWidth = TRACER_LINE_WIDTH
     for (let t = 0; t < TEMP_LEVELS; t++) {
       const c = LINE_COLORS[t]
       for (let b = 0; b < ALPHA_LEVELS; b++) {
@@ -420,33 +423,30 @@ export class Renderer {
       }
     }
 
-    // 粒子头部：线的起点（即粒子当前位置）画小圆点，半径 0.3（与线宽 0.22 同量级，
-    // 作"颗粒感"点缀）。同一温度分桶 + 包络分档批量填充。
     for (let i = 0; i < count; i++) {
       const env = tracers.envelope(i)
-      if (env <= 0.02) continue
+      if (env <= VISIBLE_ALPHA) continue
       fluid.sampleVelocity(tracers.x[i], tracers.y[i], air)
       const sp2 = air.x * air.x + air.y * air.y
-      if (sp2 < 0.16) continue
-      // 线循环未计算（无轨迹点）的粒子：头部现算温度，避免用陈旧分桶
+      if (sp2 < CALM_AIR_SPEED2) continue
+      // 无轨迹点的粒子：头部现算温度，避免用陈旧分桶
       const tl = trailN[i] === 0 ? tempLevelOf(i) : levels[i]
-      const r = 0.3
-      const p = heads[tl * 2 + (env >= 0.5 ? 1 : 0)]
+      const r = TRACER_HEAD_RADIUS
+      const p = heads[tl * HEAD_ENV_ALPHA.length + (env >= 0.5 ? 1 : 0)]
       p.moveTo(tracers.x[i] + r, tracers.y[i])
       p.arc(tracers.x[i], tracers.y[i], r, 0, Math.PI * 2)
     }
     for (let t = 0; t < TEMP_LEVELS; t++) {
       const c = HEAD_COLORS[t]
-      ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${(HEAD_ALPHA[t] * 0.4).toFixed(3)})`
-      ctx.fill(heads[t * 2])
-      ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${(HEAD_ALPHA[t] * 0.92).toFixed(3)})`
-      ctx.fill(heads[t * 2 + 1])
+      ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${(HEAD_ALPHA[t] * HEAD_ENV_ALPHA[0]).toFixed(3)})`
+      ctx.fill(heads[t * HEAD_ENV_ALPHA.length])
+      ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${(HEAD_ALPHA[t] * HEAD_ENV_ALPHA[1]).toFixed(3)})`
+      ctx.fill(heads[t * HEAD_ENV_ALPHA.length + 1])
     }
   }
 
-  /** 纸飞机拖尾：按路程淡出的淡墨折线——停驻时历史轨迹依然可见。
-   * 按存留比例分桶批量描边（每桶一次 stroke），替代逐段 beginPath/stroke：
-   * 移动端从最多 ~150 次路径提交降到 5 次，粗细感由桶中线宽近似保留。 */
+  /** 纸飞机拖尾：按路程淡出的淡墨折线（停驻时可见）；
+   * 按存留比例分桶批量描边，移动端从最多 ~150 次路径提交降到 5 次。 */
   private drawPlaneTrail(
     ctx: CanvasRenderingContext2D,
     sim: LevelSimulation,
@@ -459,14 +459,13 @@ export class Renderer {
     const paths: Path2D[] = []
     for (let b = 0; b < BUCKETS; b++) paths.push(new Path2D())
 
-    // 折线段 P_k → P_{k+1}（P_n = 飞机当前位置）；点距 0.3 世界单位，视觉即光滑曲线
     let px = trail.xAt(0)
     let py = trail.yAt(0)
     for (let k = 0; k < n; k++) {
       const nx = k + 1 < n ? trail.xAt(k + 1) : p.x
       const ny = k + 1 < n ? trail.yAt(k + 1) : p.y
       const ret = trail.retentionAt(k)
-      if (ret > 0.02) {
+      if (ret > VISIBLE_ALPHA) {
         let b = (ret * BUCKETS) | 0
         if (b >= BUCKETS) b = BUCKETS - 1
         paths[b].moveTo(px, py)
@@ -479,7 +478,7 @@ export class Renderer {
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     for (let b = 0; b < BUCKETS; b++) {
-      // 桶内以存留中值为代表：透明度与线宽随桶递增，保留"尾细头粗"的观感
+      // 桶内以存留中值为代表：透明度与线宽随桶递增，保留"尾细头粗"观感
       const ret = (b + 0.5) / BUCKETS
       ctx.strokeStyle = `rgba(${TRAIL_INK.r}, ${TRAIL_INK.g}, ${TRAIL_INK.b}, ${(0.3 * ret).toFixed(3)})`
       ctx.lineWidth = 0.1 + 0.26 * ret
@@ -503,7 +502,7 @@ export class Renderer {
     const idle = Math.max(0, 1 - speed / 3)
     ctx.save()
     ctx.translate(p.x, p.y)
-    // 俯仰随垂直速度：下落低头、上升抬头（速度低时收拢为待机摆动）
+    // 俯仰随垂直速度：下落低头、上升抬头（低速时收拢为待机摆动）
     const pitch = Math.max(-0.32, Math.min(0.32, p.vy * 0.1))
     ctx.rotate(p.angle + 0.07 * Math.sin(p.clock * 1.8) * idle + pitch)
 
@@ -530,7 +529,6 @@ export class Renderer {
 
   private drawPress(ctx: CanvasRenderingContext2D, press: PressVisual, now: number) {
     const progress = Math.min(1, (now - press.start) / LONG_PRESS_MS)
-    // 按压即刻反馈：热源幽灵 + 冷源进度环
     ctx.fillStyle = 'rgba(255, 90, 60, 0.12)'
     ctx.beginPath()
     ctx.arc(press.x, press.y, 1.5, 0, Math.PI * 2)

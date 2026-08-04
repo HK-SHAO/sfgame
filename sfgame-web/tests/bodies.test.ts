@@ -84,3 +84,45 @@ test('地面摩擦：贴地物体速度被强阻尼', () => {
   expect(body.y).toBeCloseTo(39.5, 5)
   expect(body.vx).toBeLessThan(8 * 0.4)
 })
+
+/** 贴地物理测试：掉到地上后"特别难再起飞、很难贴地滑动"（地面边界层模型）。
+ * 用真实重力（gravity=3，与游戏内纸飞机一致）：悬停需垂直风 ≥ gravity/dragK = 1.0。 */
+const OPTS_G = { radius: 1, dragK: 3, gravity: 3 }
+
+test('贴地难起飞：贴地悬停所需的垂直风高于空中（边界层耦合衰减）', () => {
+  // 垂直上升风 -1.5：空中可托起（> 1.0 阈值），贴地（耦合 0.6 → 有效 0.9）托不起
+  const fluid = makeCalmFluid()
+  fluid.setAmbient(0, -1.5)
+  const ground = () => 40
+  const world = { w: 76, h: 56 }
+  const air = createBody(10, 30, OPTS_G)
+  for (let i = 0; i < 120; i++) stepBody(air, fluid, DT, ground, world)
+  expect(air.y).toBeLessThan(30) // 空中被托起上升
+  const gnd = createBody(10, 39.6, OPTS_G)
+  for (let i = 0; i < 120; i++) stepBody(gnd, fluid, DT, ground, world)
+  expect(gnd.y).toBeGreaterThanOrEqual(39.5) // 贴地保持贴地（托不起）
+})
+
+test('贴地强风可撬起：垂直风超过贴地阈值后飞机离地', () => {
+  // -2.5 强风：贴地有效 -1.5 > 1.0 → 撬起（"难"但可救，与源正下方风强 ~2.2+ 对应）
+  const fluid = makeCalmFluid()
+  fluid.setAmbient(0, -2.5)
+  const ground = () => 40
+  const world = { w: 76, h: 56 }
+  const body = createBody(10, 39.6, OPTS_G)
+  for (let i = 0; i < 120; i++) stepBody(body, fluid, DT, ground, world)
+  expect(body.y).toBeLessThan(39.5) // 被撬离地面
+})
+
+test('贴地几乎不被水平风滑动：环境风下贴地位移极小，空中随风飘移', () => {
+  const fluid = makeCalmFluid()
+  fluid.setAmbient(1.8, 0) // 关卡环境风（水平）
+  const ground = () => 40
+  const world = { w: 76, h: 56 }
+  const gnd = createBody(10, 39.6, OPTS_G)
+  for (let i = 0; i < 60 * 5; i++) stepBody(gnd, fluid, DT, ground, world)
+  expect(Math.abs(gnd.x - 10)).toBeLessThan(1) // 5 秒水平位移 < 1（贴地滑动极难）
+  const air = createBody(10, 20, OPTS_G)
+  for (let i = 0; i < 60 * 5; i++) stepBody(air, fluid, DT, ground, world)
+  expect(air.x - 10).toBeGreaterThan(5) // 空中被环境风带走（对照）
+})

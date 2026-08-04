@@ -51,6 +51,20 @@ const WALL_RESTITUTION = 0.35
 /** 贴地摩擦：每次接触后水平速度的保留比例（防被微风吹离托举位置） */
 const GROUND_FRICTION = 0.3
 
+/**
+ * 贴地区（地面边界层）参数：
+ * - GROUND_EFFECT_H：贴地区高度。离地低于该值，气流对飞机的耦合按贴地度衰减——
+ *   地面边界层吸收风能、机翼下方无气流（升力失效），物理上"贴地难起飞"。
+ * - GROUND_AERO_MIN：完全贴地时气流耦合的比例（0.6 → 贴地悬停所需风 1.67，
+ *   约为飞行中 1.0 的 1.7 倍）。贴地后靠"持续垂直风"托起：源放正下方（贴地风
+ *   ≥2.2）可撬起，源放远处/仅环境风（1.8 为水平风）托不起——"特别难再起飞"。
+ * - GROUND_SLIDE_K：贴地滑动摩擦（1/s）——贴地越紧水平速度向 0 收敛越快，
+ *   与落地阻尼叠加后贴地飞机几乎不被水平风吹动（很难贴地滑动）。
+ */
+const GROUND_EFFECT_H = 2.0
+const GROUND_AERO_MIN = 0.6
+const GROUND_SLIDE_K = 3.0
+
 export function stepBody(
   body: Body,
   fluid: Fluid,
@@ -60,13 +74,20 @@ export function stepBody(
 ) {
   const px = body.x
   fluid.sampleVelocity(body.x, body.y, tmpAir)
-  const k = Math.min(1, body.dragK * dt)
+  const r = body.radius
+  // 贴地度 eff：0 = 完全贴地，1 = 脱离贴地区。地面边界层内气流耦合衰减、
+  // 滑动摩擦增强——"掉到地上就特别难再起飞、也很难贴地滑动"的物理来源。
+  const hAbove = Math.max(0, groundY(px) - body.y - r * 0.5)
+  const eff = Math.min(1, hAbove / GROUND_EFFECT_H)
+  const airK = 1 - (1 - eff) * (1 - GROUND_AERO_MIN)
+  const k = Math.min(1, body.dragK * dt) * airK
   body.vx += (tmpAir.x - body.vx) * k
   body.vy += body.gravity * dt + (tmpAir.y - body.vy) * k
+  // 贴地滑动摩擦（库仑近似）：贴地越紧，水平速度向 0 收敛越快
+  body.vx -= body.vx * Math.min(1, GROUND_SLIDE_K * (1 - eff) * dt)
   body.x += body.vx * dt
   body.y += body.vy * dt
 
-  const r = body.radius
   // 边界墙只反弹"正在向外运动"的物体：从画布外飞入的物体（如关卡开场）不受拦截
   if (body.x < r) {
     if (body.vx < 0) {

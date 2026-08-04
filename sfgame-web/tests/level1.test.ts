@@ -176,11 +176,12 @@ test('applySources 差异应用：撤销/重做/替换均正确，存活源保�
 test('基准策略可通关：沿谷底→崖脚→崖顶→目标放置热源，飞机起飞并飞行抵达', () => {
   const sim = new LevelSimulation(LEVEL_1)
   // 确定性策略（同一次放置，无随机干预）：下方托起 → 崖脚接力 → 崖顶推进 → 目标前托举
+  // （贴地物理：飞机落地后需源贴近才可撬起，故接力源沿飞机航线密排，保持全程飞行）
   const plan: Array<[number, number]> = [
     [20, 44],
-    [36, 28],
-    [50, 16],
-    [58, 14],
+    [38, 28],
+    [48, 14],
+    [54, 12],
   ]
   for (const [x, y] of plan) {
     expect(sim.placeSource(x, y, 'hot')).not.toBeNull()

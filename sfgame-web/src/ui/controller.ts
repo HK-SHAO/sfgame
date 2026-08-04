@@ -157,14 +157,12 @@ export class GameController {
     sfx.fadeOutWind()
   }
 
-  reset() {
-    this.sim.reset()
+  restart() {
+    this.sim.restart()
     this.planeTrail.clear()
     this.press = null
     this.lastPhase = 'playing'
     this.pushHud()
-    // 重置后源集合为空，需同步 URL（否则刷新页面会带回旧放置）
-    this.emitSources()
   }
 
   private pushHud() {

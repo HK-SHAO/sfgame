@@ -54,14 +54,37 @@ test('预算与放置规则生效', () => {
   expect(sim.hotLeft).toBe(3)
 })
 
-test('重置后回到画布外的初始状态（含初速）', () => {
+test('重置后回到画布外的初始状态（含初速），源与预算清空', () => {
   const sim = new LevelSimulation(LEVEL_1)
+  expect(sim.placeSource(20, 44, 'hot')).not.toBeNull()
   for (let i = 0; i < 60 * 8; i++) sim.step(DT)
   sim.reset()
   expect(sim.plane.x).toBeLessThan(0)
   expect(sim.plane.vx).toBeGreaterThan(6)
   expect(sim.phase).toBe('playing')
+  expect(sim.sources).toHaveLength(0)
+  expect(sim.hotLeft).toBe(4)
 })
+
+test('restart 保留玩家已放置的源与预算，仅清场与复位飞机（微调实验）', () => {
+  const sim = new LevelSimulation(LEVEL_1)
+  expect(sim.placeSource(20, 44, 'hot')).not.toBeNull()
+  expect(sim.placeSource(36, 28, 'hot')).not.toBeNull()
+  const sourcesBefore = sim.sources.map((s) => ({ id: s.id, x: s.x, y: s.y, kind: s.kind }))
+  for (let i = 0; i < 60 * 2; i++) sim.step(DT)
+  // 2 秒加热后温度场应有非零值（源附近）
+  expect(sim.fluid.t.some((v) => v !== 0)).toBe(true)
+  sim.restart()
+  // 源原样保留（含 id），预算不返还
+  expect(sim.sources).toHaveLength(2)
+  expect(sim.sources.map((s) => ({ id: s.id, x: s.x, y: s.y, kind: s.kind }))).toEqual(sourcesBefore)
+  expect(sim.hotLeft).toBe(2)
+  expect(sim.fluid.t.every((v) => v === 0)).toBe(true)
+  expect(sim.plane.x).toBeLessThan(0)
+  expect(sim.plane.vx).toBeGreaterThan(6)
+  expect(sim.time).toBe(0)
+  expect(sim.phase).toBe('playing')
+}, 10000)
 
 test('贴地滑进目标圈不算过关（必须飞行抵达）', () => {
   const sim = new LevelSimulation(LEVEL_1)

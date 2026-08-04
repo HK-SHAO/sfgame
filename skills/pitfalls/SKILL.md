@@ -18,6 +18,7 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - 后退后历史条目异常 → C3、C4、C7
 - iOS 卡顿/掉帧 → D1、D2、D5、D7
 - Canvas 2D 描边/渐变负载高、想上 WebGL → D7
+- WebGL 上下文恢复后白屏/资源泄漏 → D9
 - 淡出/裁剪逻辑让物体整体消失 → D8
 - 切后台回前台无声 → F2
 - 长按弹系统菜单/双击缩放 → E1
@@ -141,6 +142,12 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 - **上下文回收**：iOS 内存压力会销毁 WebGL 上下文——`webglcontextlost` 要 preventDefault，`webglcontextrestored` 重建程序/缓冲。
 - **混合**：`SRC_ALPHA / ONE_MINUS_SRC_ALPHA`（非预乘），与 Canvas rgba 语义一致；`alpha:false` 画布不透明，天空由场景自铺满。
 - 静态背景不必再离屏缓存：天空/地形/光晕每帧重建仅数百顶点，GPU 可忽略，还省掉 bgKey/bg 位图的缓存复杂度。
+
+### D9 webglcontextrestored 重建失败会静默白屏 + 重复恢复泄漏 GPU 对象
+**症状**：iOS 内存压力回收上下文后画面空白；或多次恢复后显存持续上涨。
+**根因**：restored 回调里重建程序/缓冲，但 (1) 重建失败（编译/链接错误）时静默早退，`program`/`buffer` 仍是已随上下文销毁的旧对象，draw 继续误用 → 白屏且无重试路径；(2) 每次重建都不删旧 shader/program/buffer → 重复恢复反复泄漏。
+**修法**：`init()` 开头 `dispose()` 删旧对象（恢复后旧对象本已失效）；失败路径删除已创建对象并置空指针返回 false，restored 回调据返回值报错——draw 检查 `!program` 跳过，不碰失效对象；shader 在 link 成功后即可 delete。
+**信号**：上下文恢复相关代码出现"早退不清资源"或"重试不清理旧对象"。
 
 ### D8 淡出/裁剪的早退别跳过物体本体
 旧 `drawPlane` 在 `alt >= SHADOW_FADE_ALT` 时直接 `return`——连飞机本体都不画，高空飞机凭空消失。**影子淡出是"局部效果"，早退只能跳过影子那段**；任何"某效果随条件淡出"的代码，先确认早退范围不含主体绘制。重构渲染时优先审这类 early-return。

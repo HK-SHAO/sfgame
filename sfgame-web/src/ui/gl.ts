@@ -51,7 +51,8 @@ export class GlRenderer {
     })
     canvas.addEventListener('webglcontextrestored', () => {
       this.lost = false
-      this.init()
+      // 恢复后旧对象已失效：init 失败已清指针，draw 检查 program 自动跳过
+      if (!this.init()) console.error('WebGL 资源重建失败，渲染已暂停')
     })
     this.init()
   }
@@ -72,17 +73,44 @@ export class GlRenderer {
     return new GlRenderer(canvas, gl)
   }
 
-  private init() {
+  /** 删除旧 program/buffer：恢复后已失效；init 重试前也清掉上次失败的残留。 */
+  private dispose() {
     const gl = this.gl
+    if (this.program) gl.deleteProgram(this.program)
+    if (this.buffer) gl.deleteBuffer(this.buffer)
+    this.program = null
+    this.buffer = null
+    this.uploadedBytes = 0
+  }
+
+  /** 失败返回 false（调用方据其决定停用渲染）；失败路径清理已建对象。 */
+  private init(): boolean {
+    const gl = this.gl
+    this.dispose()
     const vs = this.compile(gl.VERTEX_SHADER, VS)
     const fs = this.compile(gl.FRAGMENT_SHADER, FS)
-    if (!vs || !fs) return
+    if (!vs || !fs) {
+      if (vs) gl.deleteShader(vs)
+      if (fs) gl.deleteShader(fs)
+      return false
+    }
     const program = gl.createProgram()
-    if (!program) return
+    if (!program) {
+      gl.deleteShader(vs)
+      gl.deleteShader(fs)
+      return false
+    }
     gl.attachShader(program, vs)
     gl.attachShader(program, fs)
     gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return
+    // 链接完成后 shader 即可释放（program 持有链接结果）
+    gl.deleteShader(vs)
+    gl.deleteShader(fs)
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('WebGL 着色器链接失败：' + gl.getProgramInfoLog(program))
+      gl.deleteProgram(program)
+      return false
+    }
 
     this.program = program
     this.aPos = gl.getAttribLocation(program, 'aPos')
@@ -94,6 +122,7 @@ export class GlRenderer {
     gl.disable(gl.DEPTH_TEST)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    return true
   }
 
   private compile(type: number, source: string): WebGLShader | null {
@@ -102,7 +131,11 @@ export class GlRenderer {
     if (!shader) return null
     gl.shaderSource(shader, source)
     gl.compileShader(shader)
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return null
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.error('WebGL 着色器编译失败：' + gl.getShaderInfoLog(shader))
+      gl.deleteShader(shader)
+      return null
+    }
     return shader
   }
 

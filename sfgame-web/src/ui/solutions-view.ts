@@ -22,7 +22,6 @@ export class SfSolutions extends LitElement {
           <span class="time">≈ ${Math.round(sol.winTime)} 秒</span>
         </div>
         <code class="url">${href}</code>
-        <p class="note">${sol.note}</p>
       </a>
     `
   }
@@ -205,13 +204,6 @@ export class SfSolutions extends LitElement {
       line-height: 1.5;
       color: var(--ink-soft);
       word-break: break-all;
-    }
-
-    .note {
-      margin: 0.5rem 0 0;
-      font-size: 0.75rem;
-      line-height: 1.6;
-      color: var(--ink-soft);
     }
   `
 }

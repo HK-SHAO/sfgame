@@ -87,12 +87,25 @@ export class LevelSimulation {
     }
   }
 
+  /** 完整重置：清场、清空源与预算占用、飞机回出生点、时间与胜负复位。 */
   reset() {
     this.fluid.clear()
     this.sources = []
     this.usedHot = 0
     this.usedCold = 0
     this.placed = 0
+    this.phase = 'playing'
+    this.time = 0
+    this.plane.x = this.level.spawn.x
+    this.plane.y = this.spawnY
+    this.plane.vx = this.spawnVx
+    this.plane.vy = this.spawnVy
+    this.plane.angle = 0
+  }
+
+  /** 只清场与复位飞机，保留玩家已放置的源与预算（UI「再玩一次」语义）。 */
+  restart() {
+    this.fluid.clear()
     this.phase = 'playing'
     this.time = 0
     this.plane.x = this.level.spawn.x

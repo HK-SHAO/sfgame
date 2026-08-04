@@ -116,9 +116,9 @@ export class SfApp extends LitElement {
     urlState.set('view', 'solutions')
   }
 
-  private reset() {
+  private restart() {
     sfx.uiReset()
-    this.gameEl?.reset()
+    this.gameEl?.restart()
   }
 
   private toggleSound() {
@@ -242,7 +242,7 @@ export class SfApp extends LitElement {
             <span class="chip cold ${this.hud.coldLeft === 0 ? 'empty' : ''}" title="剩余冷源">
               ${iconSnow}<b>${this.hud.coldLeft}</b>
             </span>
-            <button class="icon-btn" @click=${this.reset} aria-label="重置关卡">
+            <button class="icon-btn" @click=${this.restart} aria-label="重置关卡">
               ${iconReset}
             </button>
             <button
@@ -271,7 +271,7 @@ export class SfApp extends LitElement {
                   <h2>${this.activeLevel.win.title}</h2>
                   <p>${this.activeLevel.win.text}</p>
                   <div class="row">
-                    <button class="primary" @click=${this.reset}>再玩一次</button>
+                    <button class="primary" @click=${this.restart}>再玩一次</button>
                     <button class="ghost" @click=${this.backToTitle}>选关</button>
                   </div>
                 </div>

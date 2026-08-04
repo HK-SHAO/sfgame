@@ -47,8 +47,9 @@ export class SfGame extends LitElement {
     super.disconnectedCallback()
   }
 
-  reset() {
-    this.controller?.reset()
+  /** 重开本局：清场复位飞机，保留玩家已放置的源。 */
+  restart() {
+    this.controller?.restart()
   }
 
   applySources(list: SourcePlacement[]) {

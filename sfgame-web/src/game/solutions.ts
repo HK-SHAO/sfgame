@@ -49,5 +49,5 @@ export function solutionsFor(levelId: number): LevelSolution[] {
 
 /** 解 → 进入游戏的相对 URL（与 URL 状态模块同构，点击即可直达该摆放）。 */
 export function solutionUrl(levelId: number, sol: LevelSolution): string {
-  return `?level=${levelId}&sources=${sol.sources.map((s) => sourceItem.encode(s)).join('_')}`
+  return `?lv=${levelId}&src=${sol.sources.map((s) => sourceItem.encode(s)).join('_')}`
 }

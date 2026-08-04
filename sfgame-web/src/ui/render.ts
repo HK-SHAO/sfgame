@@ -23,7 +23,8 @@ const rgb = (r: number, g: number, b: number): RGB => [r / 255, g / 255, b / 255
 
 const HOT = rgb(255, 90, 60)
 const COLD = rgb(61, 139, 255)
-const TRAIL_INK = rgb(107, 91, 69)
+/** 飞机拖尾：深石墨蓝灰（比所有空气线条更深更冷），α 取高以盖过奶油底色 */
+const TRAIL_INK = rgb(64, 74, 106)
 const INK_DARK = rgb(61, 52, 39)
 const GOAL = rgb(47, 191, 113)
 const SKY_TOP = rgb(255, 248, 234)
@@ -330,7 +331,7 @@ export class Renderer {
     }
   }
 
-  /** 纸飞机拖尾：按路程淡出的淡墨轨迹（停驻时可见），宽度与透明度随存留连续变化 */
+  /** 纸飞机拖尾：按路程淡出的石墨蓝灰轨迹（停驻时可见），宽度与透明度随存留连续变化 */
   private drawPlaneTrail(b: MeshBatch, sim: LevelSimulation, trail: Trail) {
     const n = trail.count
     if (n === 0) return
@@ -342,7 +343,7 @@ export class Renderer {
       const ny = k + 1 < n ? trail.yAt(k + 1) : p.y
       const ret = trail.retentionAt(k)
       if (ret > VISIBLE_ALPHA) {
-        b.stroke(px, py, nx, ny, 0.1 + 0.26 * ret, TRAIL_INK[0], TRAIL_INK[1], TRAIL_INK[2], 0.3 * ret)
+        b.stroke(px, py, nx, ny, 0.1 + 0.26 * ret, TRAIL_INK[0], TRAIL_INK[1], TRAIL_INK[2], 0.5 * ret)
       }
       px = nx
       py = ny

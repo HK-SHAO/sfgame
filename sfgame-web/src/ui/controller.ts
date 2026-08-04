@@ -66,6 +66,7 @@ export class GameController {
   private slowFrames = 0
   private tickMs = 0
   private lastLand = -Infinity
+  private rate = 1
   private fitW = 0
   private fitH = 0
   private world: { w: number; h: number }
@@ -145,6 +146,11 @@ export class GameController {
     window.addEventListener('resize', this.fit)
     this.loop.start()
     this.pushHud()
+  }
+
+  setRate(rate: number) {
+    this.rate = rate
+    this.loop.setRate(rate)
   }
 
   destroy() {
@@ -282,8 +288,10 @@ export class GameController {
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0
     this.frameEma = this.frameEma === 0 ? cost : this.frameEma * FRAME_EMA_SMOOTH + cost * (1 - FRAME_EMA_SMOOTH)
-    // 持续超预算才降级：先降示踪粒子（观感影响小），粒子到最低档仍不够再降 dpr
-    if (this.frameEma > FRAME_BUDGET_MS) {
+    // 帧预算按速率放大：倍速下每帧本就要消化 rate×tick，慢帧是预期而非故障；
+    // 且主导成本（流体）不可降级，阶梯在高速率下只会白降画质、救不回帧率
+    if (this.frameEma > FRAME_BUDGET_MS * this.rate) {
+      // 先降示踪粒子（观感影响小），粒子到底仍不够再降 dpr
       if (++this.slowFrames > SLOW_FRAMES_TO_DEGRADE) {
         this.slowFrames = 0
         if (this.tracerLevel < TRACER_TIERS.length - 1) {

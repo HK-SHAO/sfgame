@@ -27,9 +27,9 @@ type Screen = 'title' | 'game' | 'solutions'
 @customElement('sf-app')
 export class SfApp extends LitElement {
   @state() private screen: Screen = 'title'
-  /** 当前进行的关卡（?level=N 直达 / 点击进入 / 浏览器后退切换） */
+  /** 当前进行的关卡（?lv=N 直达 / 点击进入 / 浏览器后退切换） */
   @state() private activeLevel: LevelDef = FIRST_LEVEL
-  /** 进入关卡时的初始源放置（来自 URL ?sources=...） */
+  /** 进入关卡时的初始源放置（来自 URL ?src=...） */
   @state() private initialSources: SourcePlacement[] = []
   @state() private hud: HudState = {
     phase: 'playing',
@@ -38,6 +38,9 @@ export class SfApp extends LitElement {
     placed: 0,
   }
   @state() private muted = sfx.muted
+  /** 游戏速率档位：循环切换（1× 默认，2×~16× 快进，0.5× 细看） */
+  @state() private rate = 1
+  private static SPEED_STEPS = [1, 2, 4, 8, 16, 0.5]
 
   // 游戏画布宿主：仅声明式挂载，控制器生命周期由 sf-game 自身管理
   @query('sf-game') private gameEl!: SfGame
@@ -46,12 +49,12 @@ export class SfApp extends LitElement {
     super()
     // 尽早武装音频解锁：任意首次交互（pointerdown/keydown）即获得权限
     sfx.unlock()
-    // 初始化即从 URL 推导屏幕（?level=N 直达 / ?view=solutions 解法参考页）
+    // 初始化即从 URL 推导屏幕（?lv=N 直达 / ?v=solutions 解法参考页）
     this.syncScreen()
     // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态
-    urlState.onChange('level', () => this.syncScreen())
-    urlState.onChange('view', () => this.syncScreen())
-    urlState.onChange('sources', (v) => {
+    urlState.onChange('lv', () => this.syncScreen())
+    urlState.onChange('v', () => this.syncScreen())
+    urlState.onChange('src', (v) => {
       this.gameEl?.applySources(v)
       // 撤销/重做（仅外部 URL 变化触发，玩家自身操作不触发）轻反馈
       sfx.uiClick()
@@ -61,15 +64,15 @@ export class SfApp extends LitElement {
   /** 从 URL 状态统一推导屏幕：view=solutions 优先；其次 level 有效 → 游戏；否则标题。
    * 写读分离：set/clear 不触发通知，故 UI 操作需自行设 screen。 */
   private syncScreen() {
-    if (urlState.get('view') === 'solutions') {
+    if (urlState.get('v') === 'solutions') {
       this.screen = 'solutions'
       return
     }
-    const id = urlState.get('level')
+    const id = urlState.get('lv')
     const level = id === null ? undefined : LEVELS.find((l) => l.id === id)
     if (level) {
       this.activeLevel = level
-      this.initialSources = urlState.get('sources')
+      this.initialSources = urlState.get('src')
       this.screen = 'game'
     } else {
       this.screen = 'title'
@@ -97,23 +100,23 @@ export class SfApp extends LitElement {
     // 点关卡 = 新开一局：不继承 URL 里任何旧放置（否则跨关/残留 sources 会串到新局）
     this.initialSources = []
     this.screen = 'game'
-    urlState.set('level', level.id)
-    urlState.clear('sources')
+    urlState.set('lv', level.id)
+    urlState.clear('src')
   }
 
   private backToTitle() {
     // 切回标题页即卸载 sf-game，其 disconnectedCallback 负责销毁游戏
     sfx.uiBack()
     this.screen = 'title'
-    urlState.clear('level')
-    urlState.clear('sources')
-    urlState.clear('view')
+    urlState.clear('lv')
+    urlState.clear('src')
+    urlState.clear('v')
   }
 
   private openSolutions() {
     sfx.uiEnter()
     this.screen = 'solutions'
-    urlState.set('view', 'solutions')
+    urlState.set('v', 'solutions')
   }
 
   private restart() {
@@ -127,6 +130,16 @@ export class SfApp extends LitElement {
     if (!this.muted) sfx.uiClick()
   }
 
+  private cycleSpeed() {
+    const steps = SfApp.SPEED_STEPS
+    this.rate = steps[(steps.indexOf(this.rate) + 1) % steps.length]
+    sfx.uiClick()
+  }
+
+  private speedLabel(): string {
+    return this.rate < 1 ? '0.5×' : `${this.rate}×`
+  }
+
   private onHudChange(e: CustomEvent<HudState>) {
     this.hud = e.detail
   }
@@ -135,10 +148,10 @@ export class SfApp extends LitElement {
     this.denyChip(e.detail)
   }
 
-  /** 玩家放置/移除源 → 同步进 URL（?sources=...，可后退撤销、可分享） */
+  /** 玩家放置/移除源 → 同步进 URL（?src=...，可后退撤销、可分享） */
   private onSourcesChange(e: CustomEvent<SourcePlacement[]>) {
-    if (e.detail.length === 0) urlState.clear('sources')
-    else urlState.set('sources', e.detail)
+    if (e.detail.length === 0) urlState.clear('src')
+    else urlState.set('src', e.detail)
   }
 
   private denyChip(kind: SourceKind) {
@@ -222,6 +235,7 @@ export class SfApp extends LitElement {
           html`<sf-game
             .level=${this.activeLevel}
             .initialSources=${this.initialSources}
+            .rate=${this.rate}
             @hudchange=${this.onHudChange}
             @deny=${this.onDeny}
             @sourceschange=${this.onSourcesChange}
@@ -242,6 +256,9 @@ export class SfApp extends LitElement {
             <span class="chip cold ${this.hud.coldLeft === 0 ? 'empty' : ''}" title="剩余冷源">
               ${iconSnow}<b>${this.hud.coldLeft}</b>
             </span>
+            <button class="icon-btn speed" @click=${this.cycleSpeed} aria-label="游戏速率 ${this.speedLabel()}">
+              ${this.speedLabel()}
+            </button>
             <button class="icon-btn" @click=${this.restart} aria-label="重置关卡">
               ${iconReset}
             </button>
@@ -562,6 +579,12 @@ export class SfApp extends LitElement {
       height: 1.19rem;
     }
 
+    .icon-btn.speed {
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
     .chip {
       display: inline-flex;
       align-items: center;
@@ -634,6 +657,10 @@ export class SfApp extends LitElement {
 
       .hud {
         justify-content: space-between;
+      }
+
+      .chip {
+        padding: 0 0.5rem;
       }
 
       .caption {

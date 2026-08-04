@@ -1,4 +1,4 @@
-import { LitElement, css, html } from 'lit'
+import { LitElement, css, html, type PropertyValues } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { SourceKind } from '../sim/types'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
@@ -19,8 +19,10 @@ export const SRC_CHANGE = 'sourceschange'
 @customElement('sf-game')
 export class SfGame extends LitElement {
   @property({ attribute: false }) level: LevelDef | null = null
-  /** 进入关卡时的初始源放置（来自 URL ?sources=...），在控制器创建后应用 */
+  /** 进入关卡时的初始源放置（来自 URL ?src=...），在控制器创建后应用 */
   @property({ attribute: false }) initialSources: SourcePlacement[] = []
+  /** 游戏速率（倍速），控制器创建后与运行中均实时转发给循环 */
+  @property({ attribute: false }) rate = 1
 
   private controller: GameController | null = null
 
@@ -39,6 +41,10 @@ export class SfGame extends LitElement {
     }, this)
     this.controller.applySources(this.initialSources, true)
     this.controller.start()
+  }
+
+  protected override updated(changed: PropertyValues) {
+    if (changed.has('rate')) this.controller?.setRate(this.rate)
   }
 
   override disconnectedCallback() {

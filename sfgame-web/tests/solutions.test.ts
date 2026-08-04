@@ -52,8 +52,8 @@ test('solutionUrl：与 URL 状态模块往返一致，且零百分号编码', (
     for (const s of solutionsFor(level.id)) {
       const url = solutionUrl(level.id, s)
       const params = new URLSearchParams(url)
-      expect(params.get('level')).toBe(String(level.id))
-      expect(sources.decode(params.get('sources'))).toEqual(s.sources)
+      expect(params.get('lv')).toBe(String(level.id))
+      expect(sources.decode(params.get('src'))).toEqual(s.sources)
       expect(url).not.toMatch(/%/)
     }
   }

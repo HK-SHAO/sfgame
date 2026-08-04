@@ -2,10 +2,11 @@
 
 造风（sfgame-web）：Lit 3 + Canvas 2D 物理益智游戏。放置热/冷源造风，让纸飞机抵达目标。注释与 README 均为中文。
 
-## 仓库布局（命令易踩）
+## 仓库布局
 
 - `skills/`（含 `pitfalls/SKILL.md` 避坑手册）与 `docs/` 同仓
 - web 版本 app 源代码在 `sfgame-web/`，路径常需加上这个前缀
+- 要重点参考 `docs/development.md`
 
 ## 命令（以 package.json 为准）
 

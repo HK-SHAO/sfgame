@@ -1,4 +1,4 @@
-import { MeshBatch } from '../core/batch'
+import { MeshBatch, VERTEX_STRIDE } from '../core/batch'
 import { GlRenderer } from './gl'
 import type { Tracers } from '../sim/particles'
 import { TRAIL_FADE } from '../sim/particles'
@@ -92,7 +92,7 @@ const SHADOW_MAX_ALPHA = 0.3
  * - 静态背景不再离屏缓存：天空/地形/光晕每帧重建仅数百顶点，GPU 负载可忽略
  */
 export class Renderer {
-  private canvas: HTMLCanvasElement
+  readonly canvas: HTMLCanvasElement
   private gl: GlRenderer | null
   private batch = new MeshBatch()
   private cssW = 0
@@ -105,6 +105,15 @@ export class Renderer {
   /** 各粒子本帧包络与温度档：头部绘制免重复采样 */
   private tracerEnv = new Float32Array(0)
   private tracerTemp = new Uint8Array(0)
+  /**
+   * 静态背景脏标记：resize（视口/画布尺寸变化）后置 true，下一帧 draw 时
+   * 把天空/地形/光晕/目标静态烘焙进离屏纹理。烘焙与运行时共用同一套
+   * view 计算（cssW/cssH/scale/ox/oy），保证逐像素一致。
+   */
+  private bgDirty = true
+  /** 上一帧动态层顶点数与上传字节（?perf=1 诊断用） */
+  lastVertexCount = 0
+  lastUploadBytes = 0
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -118,6 +127,9 @@ export class Renderer {
     // dpr 体现在帧缓冲尺寸上：GL viewport 直接用 canvas 设备像素尺寸
     this.canvas.width = Math.max(1, Math.round(cssW * dpr))
     this.canvas.height = Math.max(1, Math.round(cssH * dpr))
+    // 画布尺寸变化 → 背景纹理须重建并重新烘焙
+    this.gl?.resizeBg()
+    this.bgDirty = true
   }
 
   toWorld(clientX: number, clientY: number): Vec2 | null {
@@ -148,12 +160,21 @@ export class Renderer {
     const viewR = viewL + this.cssW / this.scale
     const viewB = viewT + this.cssH / this.scale
 
+    // 静态背景（天空/地形/光晕/目标静态）烘焙进离屏纹理，仅 resize 后重做；
+    // 动态层（太阳呼吸/旗帜/源/粒子/拖尾/飞机）每帧重建——动画与运动节奏不变
+    if (this.bgDirty) {
+      const bg = this.batch
+      bg.reset()
+      this.drawSky(bg, viewL, viewT, viewR, viewB, h)
+      this.drawTerrain(bg, sim, viewL, viewR, viewB)
+      this.drawSunHalo(bg)
+      this.drawGoalStatic(bg, sim)
+      gl.bakeBg(bg, viewL, viewT, viewR, viewB)
+      this.bgDirty = false
+    }
+
     const b = this.batch
     b.reset()
-    this.drawSky(b, viewL, viewT, viewR, viewB, h)
-    this.drawTerrain(b, sim, viewL, viewR, viewB)
-    this.drawSunHalo(b)
-    this.drawGoalStatic(b, sim)
     this.drawSun(b, now)
     this.drawGoal(b, sim, now)
     this.drawSources(b, sim, press)
@@ -161,6 +182,8 @@ export class Renderer {
     this.drawPlaneTrail(b, sim, planeTrail)
     this.drawPlane(b, sim)
     if (press && press.kind === 'place') this.drawPress(b, press, now)
+    this.lastVertexCount = b.count
+    this.lastUploadBytes = b.count * VERTEX_STRIDE * 4
     gl.draw(b, viewL, viewT, viewR, viewB)
   }
 

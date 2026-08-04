@@ -109,11 +109,11 @@ async function main() {
     ['node_modules/vite/bin/vite.js', '--port', String(VITE_PORT), '--strictPort'],
     `${import.meta.dir}/..`,
   )
-  // 2. headless Chrome
+  // 2. headless Chrome（需 --enable-unsafe-swiftshader：headless 默认无 WebGL）
   const chrome = spawnSilent(CHROME, [
     '--headless=new',
-    '--disable-gpu',
-    `--remote-debugging-port=${CDP_PORT}`,
+    '--enable-unsafe-swiftshader',
+    '--remote-debugging-port=${CDP_PORT}',
     `--user-data-dir=${USER_DATA}`,
     '--no-first-run',
     '--no-default-browser-check',

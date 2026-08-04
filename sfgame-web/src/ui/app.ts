@@ -38,9 +38,15 @@ export class SfApp extends LitElement {
     placed: 0,
   }
   @state() private muted = sfx.muted
-  /** 游戏速率档位：循环切换（1× 默认，2×~16× 快进，0.5× 细看） */
+  /** 游戏速率档位：点按向减速方向循环（1× 默认，0.5× 细看，2×~4× 快进；
+   * dev 模式（?dev=1）额外开放 8×/16× 高速档） */
   @state() private rate = 1
-  private static SPEED_STEPS = [1, 2, 4, 8, 16, 0.5]
+  /** 开发者模式：?dev=1 开启 perf 叠加层与 8×/16× 高速档，普通玩家无 */
+  @state() private dev = urlState.get('dev')
+  /** 速率档位序列（数组顺序即循环顺序，越靠后越小） */
+  private get speedSteps(): number[] {
+    return this.dev ? [1, 2, 4, 8, 16, 0.5] : [1, 2, 4, 0.5]
+  }
 
   // 游戏画布宿主：仅声明式挂载，控制器生命周期由 sf-game 自身管理
   @query('sf-game') private gameEl!: SfGame
@@ -131,8 +137,9 @@ export class SfApp extends LitElement {
   }
 
   private cycleSpeed() {
-    const steps = SfApp.SPEED_STEPS
-    this.rate = steps[(steps.indexOf(this.rate) + 1) % steps.length]
+    // 向减速方向循环：1× → 0.5× → 最大档 → … → 2× → 1×
+    const steps = this.speedSteps
+    this.rate = steps[(steps.indexOf(this.rate) - 1 + steps.length) % steps.length]
     sfx.uiClick()
   }
 

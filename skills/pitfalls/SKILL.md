@@ -28,6 +28,8 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - 搜索类算法跑不完 → G4
 - 布局测量与预期不符 → A1、H1
 - 想用 wasm/代码生成/Worker 加速、移动端"应该更慢"的想当然 → I1、I5
+- 只有 iOS Safari 卡、其他平台都好 → I6（Metal 后端渲染路径）
+- headless Chrome 截图/验证画面空白或只有背景色 → I7
 - vite dev 自动化访问 127.0.0.1 失败（000）→ I2
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
 - 想无依赖驱动 headless Chrome 做真实浏览器验证 → I4
@@ -225,6 +227,21 @@ headless Chrome 加 `--remote-debugging-port` 后，用 bun 原生 `WebSocket` �
 
 ### I5 真机基准页的"帧预算"解读
 iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是量化底噪，不代表真实抖动；看 mean 与整帧构成（倍速帧项）判断瓶颈。iOS Safari 的 fluid JS 比桌面还快（0.49ms）——**"移动端更慢"要逐平台实测，别想当然**。
+
+### I6 iOS Safari WebGL（ANGLE→Metal）性能要点（2026-08 实测 + WebKit bug 255987）
+**根因**：iOS 15.4 起 WebGL 默认走 Metal 后端，同内容 GPU 负载显著更高（"内容本质是 GPU 受限"），另有帧呈现依赖（254912，可致有效 30fps）等系统问题；Chrome/Android/macOS Safari 无此问题。
+**对策**（已落地）：
+- **`antialias: false`**：iOS 上 MSAA 作用于整个帧缓冲，是最大开销之一
+- **静态背景烘焙到离屏纹理**（resize 时重建），每帧一次不透明 blit；动态层保持混合
+- **不透明/混合两趟绘制**：PowerVR 平铺 GPU 上全屏混合直接放大成本
+- **blend 状态每帧幂等重设**：canvas 尺寸变更会重置上下文状态，init 里设一次会失效
+- **渲染门控加容差**（`>= SIM_DT_MS - 1`）：60Hz 下 rAF 抖动会跳过半数渲染 → 16/33ms 交替伪 30fps
+- 调试：`?perf=1` 叠加层（独立模块 src/ui/perf.ts）实时帧间隔分布/顶点量/上传字节，点击复制
+**信号**：只有 iOS Safari 卡、其他平台都好 → 先怀疑 Metal 后端渲染路径，别动物理。
+
+### I7 headless Chrome 默认无 WebGL
+**症状**：headless Chrome（`--headless=new`）里 `getContext('webgl')` 返回 null，游戏画面空白/只有 CSS 背景色；还容易误判为产品 bug。
+**修法**：加 `--enable-unsafe-swiftshader`（软件 WebGL）。bench-browser.ts 已内置。注意 SwiftShader 性能不代表真机，只用于管线正确性验证。
 
 ### H3 Lit 3 样式在 `shadowRoot.adoptedStyleSheets`
 无 `<style>` 标签，查生效规则读 `cssRules` 的 `cssText`。

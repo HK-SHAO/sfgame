@@ -39,6 +39,14 @@ export class GameLoop {
   private running = false
   private rate = 1
   private lastRender = -Infinity
+  /**
+   * 渲染最小间隔：SIM_DT_MS - 1ms 容差。
+   * 120Hz 屏 rAF 间隔 8.3ms < 15.7 → 隔帧（防双倍渲染负载）；
+   * 60Hz 屏 rAF 间隔 ~16.7ms 但有 ±1ms 抖动（iOS Safari 尤甚），
+   * 精确 >=16.67 会跳过半数渲染 → 16/33ms 交替呈现，视觉似 30fps 卡顿；
+   * 容差后 60Hz 每帧必渲。物理与动画不受影响（只决定"何时画"）。
+   */
+  private static readonly RENDER_MIN_INTERVAL = SIM_DT_MS - 1
 
   constructor(handlers: LoopHandlers) {
     this.handlers = handlers
@@ -66,6 +74,17 @@ export class GameLoop {
 
   private frame = (now: number) => {
     if (!this.running) return
+    try {
+      this.frameInner(now)
+    } catch (e) {
+      // 渲染/模拟抛错会中断 rAF 链（画面冻结且无提示）——显式上报便于诊断
+      console.error('游戏循环异常：', e)
+      this.stop()
+    }
+  }
+
+  private frameInner(now: number) {
+    this.frameCount++
     let frameDt = (now - this.last) / 1000
     this.last = now
     if (frameDt > MAX_FRAME) frameDt = MAX_FRAME
@@ -79,10 +98,15 @@ export class GameLoop {
       stepped = true
       ticks++
     }
-    if (stepped && now - this.lastRender >= SIM_DT_MS) {
+    if (stepped && now - this.lastRender >= GameLoop.RENDER_MIN_INTERVAL) {
       this.handlers.render()
+      this.renderCount++
       this.lastRender = now
     }
     this.rafId = requestAnimationFrame(this.frame)
   }
+
+  /** ?perf 诊断：rAF 帧数与实际渲染数（验证节流/门控行为） */
+  frameCount = 0
+  renderCount = 0
 }

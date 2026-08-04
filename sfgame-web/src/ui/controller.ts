@@ -7,6 +7,8 @@ import { LevelSimulation } from '../game/simulation'
 import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from './render'
+import { SfPerf } from './perf'
+import { urlState } from '../game/state'
 
 /** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。
  * 渲染已 GPU 化，粒子数主要消耗 CPU 采样预算，档位只按模拟成本取舍。 */
@@ -71,6 +73,8 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private ground: (x: number) => number
+  /** dev 模式（?dev=1）调试叠加层（独立 Lit 组件，见 perf.ts） */
+  private perfEl: SfPerf | null = null
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -83,6 +87,12 @@ export class GameController {
     this.world = level.world
     this.ground = level.ground
     this.sim = new LevelSimulation(level)
+    // dev 模式：?dev=1 挂 perf 叠加层（perf/dev 功能统一由 URL 的 dev 键控制）
+    if (urlState.get('dev')) {
+      const el = new SfPerf()
+      document.body.appendChild(el)
+      this.perfEl = el
+    }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const coarse = window.matchMedia('(pointer: coarse)').matches
     this.dprTiers = coarse ? DPR_TIERS_COARSE : DPR_TIERS_FINE
@@ -159,6 +169,8 @@ export class GameController {
     this.ro?.disconnect()
     this.ro = null
     window.removeEventListener('resize', this.fit)
+    this.perfEl?.remove()
+    this.perfEl = null
     // 淡出风声：否则返回标题页后风声残留
     sfx.fadeOutWind()
   }
@@ -284,6 +296,14 @@ export class GameController {
       planeTrail: this.planeTrail,
       press: this.press,
       now: performance.now(),
+    })
+    this.perfEl?.record({
+      tickMs: this.tickMs,
+      batchMs: performance.now() - t0,
+      vertices: this.renderer.lastVertexCount,
+      uploadBytes: this.renderer.lastUploadBytes,
+      loopFrames: this.loop.frameCount,
+      loopRenders: this.loop.renderCount,
     })
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0

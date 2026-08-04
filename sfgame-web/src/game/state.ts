@@ -26,10 +26,12 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
 export type AppView = 'title' | 'solutions'
 
 /** 应用级 URL 状态 schema（单例）：lv 直达关卡、src 实时双向同步、
- * v 记录页面视图（解法参考页刷新不丢失）。键名取短，压缩分享 URL。
- * 例：?lv=1&src=20-44-h_36-28-h、?v=solutions */
+ * v 记录页面视图（解法参考页刷新不丢失）、dev 开启开发者功能
+ * （perf 叠加层、8×/16× 高速档）。键名取短，压缩分享 URL。
+ * 例：?lv=1&src=20-44-h_36-28-h、?v=solutions、?dev=1 */
 export const urlState = new UrlState({
   lv: codecs.int(null, 1, 99),
   src: codecs.list<SourcePlacement>([], sourceItem, '_'),
   v: codecs.enum<AppView>('title', ['solutions']),
+  dev: codecs.bool(false),
 })

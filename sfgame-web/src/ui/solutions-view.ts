@@ -57,6 +57,13 @@ export class SfSolutions extends LitElement {
   }
 
   static styles = css`
+    /* shadow DOM 不继承全局 box-sizing */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     :host {
       display: block;
       height: 100%;
@@ -67,8 +74,8 @@ export class SfSolutions extends LitElement {
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       padding:
-        calc(14px + env(safe-area-inset-top, 0px)) 18px
-        calc(30px + env(safe-area-inset-bottom, 0px));
+        calc(0.875rem + env(safe-area-inset-top, 0px)) 1.125rem
+        calc(1.875rem + env(safe-area-inset-bottom, 0px));
       background:
         radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
         linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
@@ -77,25 +84,25 @@ export class SfSolutions extends LitElement {
     .head {
       display: flex;
       align-items: center;
-      gap: 12px;
-      max-width: 560px;
-      margin: 0 auto 20px;
+      gap: 0.75rem;
+      max-width: 35rem;
+      margin: 0 auto 1.25rem;
     }
 
     .icon-btn {
       flex: none;
-      width: 38px;
-      height: 38px;
+      width: 2.5rem;
+      height: 2.5rem;
       display: grid;
       place-items: center;
       border: none;
-      border-radius: 12px;
+      border-radius: 0.75rem;
       corner-shape: squircle;
       background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(16px) saturate(1.5);
-      -webkit-backdrop-filter: blur(16px) saturate(1.5);
+      backdrop-filter: blur(1rem) saturate(1.5);
+      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
       border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 2px 10px rgba(61, 52, 39, 0.06);
+      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
       color: var(--ink);
       cursor: pointer;
       padding: 0;
@@ -106,40 +113,40 @@ export class SfSolutions extends LitElement {
     }
 
     .icon-btn svg {
-      width: 19px;
-      height: 19px;
+      width: 1.19rem;
+      height: 1.19rem;
     }
 
     .head-text h1 {
       margin: 0;
-      font-size: 20px;
+      font-size: 1.25rem;
       font-weight: 700;
       letter-spacing: 0.01em;
     }
 
     .head-text p {
-      margin: 2px 0 0;
-      font-size: 12px;
+      margin: 0.125rem 0 0;
+      font-size: 0.75rem;
       color: var(--ink-soft);
     }
 
     .level {
-      max-width: 560px;
-      margin: 0 auto 24px;
+      max-width: 35rem;
+      margin: 0 auto 1.5rem;
     }
 
     .level h2 {
       display: flex;
       align-items: baseline;
-      gap: 8px;
-      margin: 0 0 10px;
-      font-size: 16px;
+      gap: 0.5rem;
+      margin: 0 0 0.625rem;
+      font-size: 1rem;
       font-weight: 700;
     }
 
     .level h2 .no {
       color: var(--ink-soft);
-      font-size: 12px;
+      font-size: 0.75rem;
       font-weight: 600;
       flex: none;
     }
@@ -147,25 +154,25 @@ export class SfSolutions extends LitElement {
     .rows {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 0.625rem;
     }
 
     .row {
       display: block;
-      padding: 14px 16px;
+      padding: 0.875rem 1rem;
       background: var(--card);
       border: 1px solid rgba(255, 255, 255, 0.6);
-      border-radius: 16px;
+      border-radius: 1rem;
       corner-shape: squircle;
-      box-shadow: 0 8px 22px rgba(61, 52, 39, 0.07);
+      box-shadow: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.07);
       color: inherit;
       text-decoration: none;
       transition: transform 120ms ease-out, box-shadow 120ms ease-out;
     }
 
     .row:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 12px 26px rgba(61, 52, 39, 0.12);
+      transform: translateY(-0.0625rem);
+      box-shadow: 0 0.75rem 1.625rem rgba(61, 52, 39, 0.12);
     }
 
     .row:active {
@@ -176,33 +183,33 @@ export class SfSolutions extends LitElement {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 8px;
+      gap: 0.625rem;
+      margin-bottom: 0.5rem;
     }
 
     .row-head .name {
-      font-size: 15px;
+      font-size: 0.94rem;
       font-weight: 600;
     }
 
     .time {
       flex: none;
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-soft);
     }
 
     .url {
       display: block;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
+      font-size: 0.75rem;
       line-height: 1.5;
       color: var(--ink-soft);
       word-break: break-all;
     }
 
     .note {
-      margin: 8px 0 0;
-      font-size: 12px;
+      margin: 0.5rem 0 0;
+      font-size: 0.75rem;
       line-height: 1.6;
       color: var(--ink-soft);
     }

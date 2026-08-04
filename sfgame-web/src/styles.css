@@ -11,7 +11,16 @@
     'Noto Sans SC', 'Segoe UI', system-ui, sans-serif;
 }
 
-* {
+/* 根单位随视口缩放（宽、高双向约束）：窄屏/竖屏整体按比例适配，
+   矮窗（横屏手机/小笔记本）自动收紧防纵向溢出；桌面封顶 17px。
+   组件内尺寸一律用 rem，随根单位自动适配，不再逐屏写媒体查询。 */
+html {
+  font-size: clamp(14px, calc(12.5px + min(0.7vw, 0.38vh)), 17px);
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 

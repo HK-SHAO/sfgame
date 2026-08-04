@@ -272,6 +272,13 @@ export class SfApp extends LitElement {
   }
 
   static styles = css`
+    /* shadow DOM 不继承全局 box-sizing，组件内必须自声明（否则 padding 撑爆 max-width） */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     :host {
       display: block;
       height: 100svh;
@@ -310,63 +317,67 @@ export class SfApp extends LitElement {
 
     .title {
       height: 100%;
-      display: grid;
-      place-items: center;
-      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
       background:
         radial-gradient(circle at 18% 12%, rgba(255, 196, 83, 0.32), transparent 42%),
         linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
       overflow: auto;
     }
 
+    /* flex 列 + margin:auto：宽度不足时 width:100% 撑满（padding 留白），
+       宽屏时 max-width 封顶居中；溢出时 margin 塌缩为 0，从顶部可滚动 */
     .title-card {
-      width: min(560px, 100%);
-      padding: 36px 32px 28px;
+      width: 100%;
+      max-width: 35rem;
+      margin: auto;
+      padding: 1.75rem 2rem 1.375rem;
       text-align: center;
       background: var(--card);
-      backdrop-filter: blur(24px) saturate(1.4);
-      -webkit-backdrop-filter: blur(24px) saturate(1.4);
+      backdrop-filter: blur(1.5rem) saturate(1.4);
+      -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
       border: 1px solid rgba(255, 255, 255, 0.6);
-      border-radius: 28px;
+      border-radius: 1.75rem;
       corner-shape: squircle;
-      box-shadow: 0 18px 44px rgba(61, 52, 39, 0.1);
+      box-shadow: 0 1.125rem 2.75rem rgba(61, 52, 39, 0.1);
     }
 
     .logo svg {
-      width: 76px;
-      height: 76px;
+      width: 3.25rem;
+      height: 3.25rem;
       margin: 0 auto;
     }
 
     h1 {
-      margin: 14px 0 4px;
-      font-size: 42px;
+      margin: 0.625rem 0 0.25rem;
+      font-size: 2.125rem;
       font-weight: 700;
       letter-spacing: -0.02em;
       line-height: 1.1;
     }
 
     .tagline {
-      margin: 0 0 26px;
+      margin: 0 0 1rem;
       color: var(--ink-soft);
-      font-size: 15px;
+      font-size: 0.94rem;
       letter-spacing: 0.06em;
     }
 
     .levels {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 0.375rem;
       text-align: left;
     }
 
     .level {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 0.875rem;
       width: 100%;
-      padding: 12px 16px;
-      border-radius: 16px;
+      padding: 0.5rem 1rem;
+      border-radius: 1rem;
       corner-shape: squircle;
       transition: transform 120ms ease-out, box-shadow 120ms ease-out;
     }
@@ -374,11 +385,11 @@ export class SfApp extends LitElement {
     .level.play {
       background: rgba(255, 255, 255, 0.72);
       border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 4px 14px rgba(61, 52, 39, 0.07);
+      box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.07);
     }
 
     .level.play:hover {
-      box-shadow: 0 8px 22px rgba(61, 52, 39, 0.12);
+      box-shadow: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.12);
     }
 
     .level.locked {
@@ -389,9 +400,9 @@ export class SfApp extends LitElement {
 
     .level .no {
       flex: none;
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-soft);
-      width: 44px;
+      width: 2.75rem;
     }
 
     .level .meta {
@@ -403,33 +414,33 @@ export class SfApp extends LitElement {
     }
 
     .level .name {
-      font-size: 16px;
+      font-size: 1rem;
       font-weight: 600;
       letter-spacing: 0.01em;
     }
 
     .level .concept {
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-soft);
     }
 
     .level .go {
-      font-size: 24px;
+      font-size: 1.5rem;
       line-height: 1;
       color: var(--hot);
       font-weight: 600;
     }
 
     .level .lock svg {
-      width: 17px;
-      height: 17px;
+      width: 1.06rem;
+      height: 1.06rem;
       color: var(--ink-soft);
     }
 
     .footnote {
-      margin: 26px auto 0;
-      max-width: 460px;
-      font-size: 12px;
+      margin: 1rem auto 0;
+      max-width: 28.75rem;
+      font-size: 0.75rem;
       line-height: 1.7;
       color: var(--ink-soft);
     }
@@ -437,10 +448,10 @@ export class SfApp extends LitElement {
     .solutions-link {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      margin-top: 18px;
-      padding: 8px 16px;
-      font-size: 13px;
+      gap: 0.375rem;
+      margin-top: 0.75rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.81rem;
       color: var(--ink-soft);
       background: rgba(255, 253, 248, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.6);
@@ -451,12 +462,12 @@ export class SfApp extends LitElement {
 
     .solutions-link:hover {
       color: var(--ink);
-      box-shadow: 0 4px 14px rgba(61, 52, 39, 0.08);
+      box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
     }
 
     .solutions-link svg {
-      width: 15px;
-      height: 15px;
+      width: 0.94rem;
+      height: 0.94rem;
     }
 
     /* ---------- 游戏页 ---------- */
@@ -479,8 +490,8 @@ export class SfApp extends LitElement {
       right: 0;
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+      gap: 0.625rem;
+      padding: calc(0.625rem + env(safe-area-inset-top, 0px)) 0.875rem 0.625rem;
       pointer-events: none;
     }
 
@@ -491,16 +502,16 @@ export class SfApp extends LitElement {
     .hud-title {
       flex: 1;
       text-align: center;
-      font-size: 14px;
+      font-size: 0.875rem;
       font-weight: 600;
-      padding: 8px 14px;
-      border-radius: 13px;
+      padding: 0.5rem 0.875rem;
+      border-radius: 0.81rem;
       corner-shape: squircle;
       background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(16px) saturate(1.5);
-      -webkit-backdrop-filter: blur(16px) saturate(1.5);
+      backdrop-filter: blur(1rem) saturate(1.5);
+      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
       border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 2px 10px rgba(61, 52, 39, 0.06);
+      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -509,56 +520,56 @@ export class SfApp extends LitElement {
     .hud-title .no {
       color: var(--ink-soft);
       font-weight: 500;
-      font-size: 12px;
-      margin-right: 2px;
+      font-size: 0.75rem;
+      margin-right: 0.125rem;
     }
 
     .hud-right {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 0.5rem;
     }
 
     .icon-btn {
-      width: 38px;
-      height: 38px;
+      width: 2.5rem;
+      height: 2.5rem;
       display: grid;
       place-items: center;
-      border-radius: 12px;
+      border-radius: 0.75rem;
       corner-shape: squircle;
       background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(16px) saturate(1.5);
-      -webkit-backdrop-filter: blur(16px) saturate(1.5);
+      backdrop-filter: blur(1rem) saturate(1.5);
+      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
       border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 2px 10px rgba(61, 52, 39, 0.06);
+      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
       color: var(--ink);
       transition: transform 100ms ease-out;
     }
 
     .icon-btn svg {
-      width: 19px;
-      height: 19px;
+      width: 1.19rem;
+      height: 1.19rem;
     }
 
     .chip {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      height: 38px;
-      padding: 0 12px;
-      border-radius: 12px;
+      gap: 0.31rem;
+      height: 2.5rem;
+      padding: 0 0.75rem;
+      border-radius: 0.75rem;
       corner-shape: squircle;
       background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(16px) saturate(1.5);
-      -webkit-backdrop-filter: blur(16px) saturate(1.5);
+      backdrop-filter: blur(1rem) saturate(1.5);
+      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
       border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 2px 10px rgba(61, 52, 39, 0.06);
-      font-size: 14px;
+      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
+      font-size: 0.875rem;
     }
 
     .chip svg {
-      width: 15px;
-      height: 15px;
+      width: 0.94rem;
+      height: 0.94rem;
     }
 
     .chip.hot svg {
@@ -582,21 +593,24 @@ export class SfApp extends LitElement {
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
-      bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-      max-width: min(92%, 560px);
+      bottom: calc(0.875rem + env(safe-area-inset-bottom, 0px));
+      /* left:50% 的无宽绝对定位走 shrink-to-fit，可用空间只有容器一半；
+         width:max-content 让宽度贴内容，max-width 再封顶换行 */
+      width: max-content;
+      max-width: min(92%, 35rem);
       margin: 0;
-      padding: 10px 18px;
+      padding: 0.625rem 1.125rem;
       text-align: center;
-      font-size: 13px;
+      font-size: 0.81rem;
       line-height: 1.65;
       color: var(--ink);
       background: rgba(255, 253, 248, 0.72);
-      backdrop-filter: blur(16px) saturate(1.5);
-      -webkit-backdrop-filter: blur(16px) saturate(1.5);
+      backdrop-filter: blur(1rem) saturate(1.5);
+      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
       border: 1px solid rgba(255, 255, 255, 0.55);
-      border-radius: 16px;
+      border-radius: 1rem;
       corner-shape: squircle;
-      box-shadow: 0 4px 18px rgba(61, 52, 39, 0.08);
+      box-shadow: 0 0.25rem 1.125rem rgba(61, 52, 39, 0.08);
       pointer-events: none;
       animation: rise 420ms cubic-bezier(0.22, 1, 0.36, 1);
     }
@@ -612,9 +626,9 @@ export class SfApp extends LitElement {
       }
 
       .caption {
-        font-size: 12px;
+        font-size: 0.75rem;
         line-height: 1.6;
-        padding: 9px 14px;
+        padding: 0.56rem 0.875rem;
       }
     }
 
@@ -624,51 +638,53 @@ export class SfApp extends LitElement {
       position: absolute;
       inset: 0;
       z-index: 5;
-      display: grid;
-      place-items: center;
-      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
       background: rgba(61, 52, 39, 0.2);
-      backdrop-filter: blur(3px);
-      -webkit-backdrop-filter: blur(3px);
+      backdrop-filter: blur(0.19rem);
+      -webkit-backdrop-filter: blur(0.19rem);
       animation: fade 260ms ease-out;
     }
 
     .win-card {
-      width: min(360px, 100%);
-      padding: 30px 30px 26px;
+      width: 100%;
+      max-width: 22.5rem;
+      margin: auto;
+      padding: 1.875rem 1.875rem 1.625rem;
       text-align: center;
       background: rgba(255, 252, 245, 0.94);
       border: 1px solid rgba(255, 255, 255, 0.7);
-      border-radius: 26px;
+      border-radius: 1.625rem;
       corner-shape: squircle;
-      box-shadow: 0 24px 60px rgba(61, 52, 39, 0.22);
+      box-shadow: 0 1.5rem 3.75rem rgba(61, 52, 39, 0.22);
       animation: pop 340ms cubic-bezier(0.3, 1.35, 0.5, 1);
     }
 
     .win-card h2 {
-      margin: 0 0 6px;
-      font-size: 26px;
+      margin: 0 0 0.375rem;
+      font-size: 1.625rem;
       font-weight: 700;
       letter-spacing: -0.01em;
     }
 
     .win-card p {
-      margin: 0 0 22px;
-      font-size: 14px;
+      margin: 0 0 1.375rem;
+      font-size: 0.875rem;
       color: var(--ink-soft);
     }
 
     .win-card .row {
       display: flex;
-      gap: 10px;
+      gap: 0.625rem;
       justify-content: center;
     }
 
     .win-card button {
-      padding: 11px 22px;
-      font-size: 15px;
+      padding: 0.6875rem 1.375rem;
+      font-size: 0.94rem;
       font-weight: 600;
-      border-radius: 14px;
+      border-radius: 0.875rem;
       corner-shape: squircle;
       transition: transform 100ms ease-out;
     }

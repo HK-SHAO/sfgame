@@ -62,6 +62,13 @@ export class SfGame extends LitElement {
   }
 
   static styles = css`
+    /* shadow DOM 不继承全局 box-sizing */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     :host {
       display: block;
       width: 100%;

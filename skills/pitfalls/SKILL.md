@@ -27,6 +27,7 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - vitest 长模拟超时 → G3
 - 搜索类算法跑不完 → G4
 - 布局测量与预期不符 → A1、H1
+- 挂进宿主元素的覆盖层元素"消失"（getBoundingClientRect 全 0/视口外）→ A9
 - 想用 wasm/代码生成/Worker 加速、移动端"应该更慢"的想当然 → I1、I5
 - 只有 iOS Safari 卡、其他平台都好 → I6（Metal 后端渲染路径）
 - headless Chrome 截图/验证画面空白或只有背景色 → I7
@@ -68,6 +69,11 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 
 ### A8 canvas 的 parentElement 恒为 null
 canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配的宿主必须显式传入。
+
+### A9 无 `<slot>` 的 shadow 组件：append 到宿主的 light DOM 子元素不可见
+**症状**：往宿主元素 `host.appendChild(el)` 挂覆盖层（计时条/弹层），元素在 DOM 树里、`querySelector` 找得到，但 `getBoundingClientRect` 返回 0 或视口外坐标（不渲染）。
+**根因**：自定义元素有 shadow root 且 render 模板没有 `<slot>` 时，light DOM 子元素不参与渲染（shadow 模式默认不显示 light 内容）。
+**修法**：要么给组件加 `<slot>`，要么把覆盖层挂到 `document.body`（fixed 定位，与视口对齐；游戏内 app 的 shadow 外挂 perfEl 即此先例）。验证时注意查询路径：body 下直接 `document.querySelector`，shadow 内要逐层进 `shadowRoot`。
 
 ## B. 布局 / 响应式 / 单位
 

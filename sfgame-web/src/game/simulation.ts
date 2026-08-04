@@ -1,6 +1,7 @@
 import { Fluid, type FluidConfig } from '../sim/fluid'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import type { SourceKind } from '../sim/types'
+import { penaltySeconds } from './timer'
 import type { HudState, LevelDef, Source, SourcePlacement } from './types'
 
 /** 流体物理调参：所有关卡共享同一套"空气性格"。 */
@@ -84,6 +85,10 @@ export class LevelSimulation {
       hotLeft: this.hotLeft,
       coldLeft: this.coldLeft,
       placed: this.placed,
+      // 模拟耗时（won 后冻结 = 通关时刻）+ 惩罚性耗时（按当前场上源数）
+      time: this.time,
+      extra: penaltySeconds(this.sources.length),
+      sources: this.sources.length,
     }
   }
 
@@ -188,7 +193,8 @@ export class LevelSimulation {
   }
 
   step(dt: number) {
-    this.time += dt
+    // 计时随模拟推进；通关后冻结（hud 展示的即是通关时刻，物理演示继续跑）
+    if (this.phase === 'playing') this.time += dt
     const rate = FLUID_TUNING.heatRate * dt
     for (const s of this.sources) {
       this.fluid.addHeat(s.x, s.y, s.kind === 'hot' ? rate : -rate)

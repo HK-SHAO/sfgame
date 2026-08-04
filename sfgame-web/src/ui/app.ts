@@ -6,6 +6,7 @@ import { LEVELS, UPCOMING_LEVELS } from '../game/levels'
 import { SfGame } from './sf-game'
 import './solutions-view'
 import { urlState } from '../game/state'
+import { formatPenalty, formatTime } from '../game/timer'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
 import {
@@ -36,6 +37,9 @@ export class SfApp extends LitElement {
     hotLeft: FIRST_LEVEL.budget.hot,
     coldLeft: FIRST_LEVEL.budget.cold,
     placed: 0,
+    time: 0,
+    extra: 0,
+    sources: 0,
   }
   @state() private muted = sfx.muted
   /** 游戏速率档位：点按向减速方向循环（1× 默认，0.5× 细看，2×~4× 快进；
@@ -95,6 +99,9 @@ export class SfApp extends LitElement {
         hotLeft: b.hot,
         coldLeft: b.cold,
         placed: 0,
+        time: 0,
+        extra: 0,
+        sources: 0,
       }
     }
   }
@@ -280,7 +287,7 @@ export class SfApp extends LitElement {
           </div>
         </header>
 
-        ${this.hud.placed === 0 && !won
+        ${this.hud.sources === 0 && !won
           ? html`
               <p class="caption">
                 轻点放热源 · 长按放冷源 · 点按已放置的源可移除<br />
@@ -293,7 +300,14 @@ export class SfApp extends LitElement {
               <div class="overlay" role="dialog" aria-label="过关">
                 <div class="win-card">
                   <h2>${this.activeLevel.win.title}</h2>
-                  <p>${this.activeLevel.win.text}</p>
+                  <p class="desc">${this.activeLevel.win.text}</p>
+                  <p class="stats">
+                    <b class="total">合计 ${formatTime(this.hud.time + this.hud.extra)}</b>
+                    <span class="line">用时 ${formatTime(this.hud.time)}</span>
+                    <span class="line extra"
+                      >额外 ${this.hud.extra > 0 ? `${formatPenalty(this.hud.extra)}（使用 ${this.hud.sources} 个道具）` : '无'}</span
+                    >
+                  </p>
                   <div class="row">
                     <button class="primary" @click=${this.restart}>再玩一次</button>
                     <button class="ghost" @click=${this.backToTitle}>选关</button>
@@ -396,7 +410,7 @@ export class SfApp extends LitElement {
     .tagline {
       margin: 0 0 1rem;
       color: var(--ink-soft);
-      font-size: 0.94rem;
+      font-size: 0.875rem;
       letter-spacing: 0.06em;
     }
 
@@ -489,7 +503,7 @@ export class SfApp extends LitElement {
       gap: 0.375rem;
       margin-top: 0.75rem;
       padding: 0.5rem 1rem;
-      font-size: 0.81rem;
+      font-size: 0.75rem;
       color: var(--ink-soft);
       background: rgba(255, 253, 248, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.6);
@@ -589,8 +603,9 @@ export class SfApp extends LitElement {
       height: 1.19rem;
     }
 
+    /* 速率按钮与并排的 chip 同字号（正文档 0.875rem），保持 HUD 一致性 */
     .icon-btn.speed {
-      font-size: 0.75rem;
+      font-size: 0.875rem;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
@@ -633,6 +648,7 @@ export class SfApp extends LitElement {
       opacity: 0.42;
     }
 
+    /* 底部文案保持原位（新手提示，放置后消失）；常驻计时条在其上方（见 run-timer.ts） */
     .caption {
       position: absolute;
       left: 50%;
@@ -645,7 +661,7 @@ export class SfApp extends LitElement {
       margin: 0;
       padding: 0.625rem 1.125rem;
       text-align: center;
-      font-size: 0.81rem;
+      font-size: 0.75rem;
       line-height: 1.65;
       color: var(--ink);
       background: rgba(255, 253, 248, 0.72);
@@ -710,16 +726,51 @@ export class SfApp extends LitElement {
     }
 
     .win-card h2 {
-      margin: 0 0 0.375rem;
+      margin: 0 0 0.5rem;
       font-size: 1.625rem;
       font-weight: 700;
       letter-spacing: -0.01em;
     }
 
-    .win-card p {
+    .win-card .desc {
       margin: 0 0 1.375rem;
       font-size: 0.875rem;
+      line-height: 1.7;
       color: var(--ink-soft);
+    }
+
+    /* 耗时块：暖色底卡突出，竖排三行（合计/用时/额外）利用竖向空间，
+       行距宽松；与文案/按钮保持一致的间距节奏（1.375rem 统一） */
+    .win-card .stats {
+      margin: 0 0 1.375rem;
+      padding: 0.875rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.375rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+      background: rgba(255, 237, 209, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 0.875rem;
+      corner-shape: squircle;
+    }
+
+    .win-card .stats .total {
+      font-size: 1.375rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .win-card .stats .line {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+      white-space: nowrap;
+    }
+
+    .win-card .stats .extra {
+      font-size: 0.75rem;
     }
 
     .win-card .row {
@@ -730,7 +781,7 @@ export class SfApp extends LitElement {
 
     .win-card button {
       padding: 0.6875rem 1.375rem;
-      font-size: 0.94rem;
+      font-size: 0.875rem;
       font-weight: 600;
       border-radius: 0.875rem;
       corner-shape: squircle;

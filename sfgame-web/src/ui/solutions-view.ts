@@ -189,7 +189,7 @@ export class SfSolutions extends LitElement {
     }
 
     .row-head .name {
-      font-size: 0.94rem;
+      font-size: 0.875rem;
       font-weight: 600;
     }
 

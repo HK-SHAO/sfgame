@@ -8,7 +8,9 @@ import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/t
 import { GestureInput } from './input'
 import { Renderer } from './render'
 import { SfPerf } from './perf'
+import { SfRunTimer } from './run-timer'
 import { urlState } from '../game/state'
+import { penaltySeconds } from '../game/timer'
 
 /** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。
  * 渲染已 GPU 化，粒子数主要消耗 CPU 采样预算，档位只按模拟成本取舍。 */
@@ -75,6 +77,8 @@ export class GameController {
   private ground: (x: number) => number
   /** dev 模式（?dev=1）调试叠加层（独立 Lit 组件，见 perf.ts） */
   private perfEl: SfPerf | null = null
+  /** 底部常驻计时条（实时模拟耗时 + 罚时，见 run-timer.ts） */
+  private timerEl: SfRunTimer | null = null
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -93,6 +97,11 @@ export class GameController {
       document.body.appendChild(el)
       this.perfEl = el
     }
+    // 底部计时条：常驻 UI（非 dev）。挂 document.body（fixed 定位，
+    // 与 perfEl 同款；sf-game 无 slot，挂宿主 light DOM 不可见）
+    const timer = new SfRunTimer()
+    document.body.appendChild(timer)
+    this.timerEl = timer
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const coarse = window.matchMedia('(pointer: coarse)').matches
     this.dprTiers = coarse ? DPR_TIERS_COARSE : DPR_TIERS_FINE
@@ -171,6 +180,8 @@ export class GameController {
     window.removeEventListener('resize', this.fit)
     this.perfEl?.remove()
     this.perfEl = null
+    this.timerEl?.remove()
+    this.timerEl = null
     // 淡出风声：否则返回标题页后风声残留
     sfx.fadeOutWind()
   }
@@ -297,6 +308,10 @@ export class GameController {
       press: this.press,
       now: performance.now(),
     })
+    // 实时计时：每帧直推（文本不变时组件内部短路，零渲染开销）；
+    // 场上无道具（底部文案显示期）时隐藏计时条——两 UI 同一位置交替出现
+    this.timerEl?.refresh(this.sim.time, penaltySeconds(this.sim.sources.length))
+    this.timerEl!.hidden = this.sim.sources.length === 0
     this.perfEl?.record({
       tickMs: this.tickMs,
       batchMs: performance.now() - t0,

@@ -42,6 +42,12 @@ export interface HudState {
   coldLeft: number
   /** 累计放置次数，用于隐藏新手引导 */
   placed: number
+  /** 模拟耗时（秒）；通关后冻结 = 通关时刻 */
+  time: number
+  /** 惩罚性耗时（秒）：按当前场上源数计，叠加在通关总耗时上 */
+  extra: number
+  /** 当前场上源数（惩罚计费依据） */
+  sources: number
 }
 
 export interface PressVisual {

@@ -199,3 +199,46 @@ test('基准策略可通关：沿谷底→崖脚→崖顶→目标放置热源�
   // 飞行抵达：过关瞬间飞机在目标圈上方（悬停阈值之上）
   expect(sim.plane.y).toBeLessThan(LEVEL_1.ground(sim.plane.x) - 1)
 }, 30000)
+
+test('计时与惩罚性耗时：按场上源数计费，移除减免，restart 保留，won 冻结', () => {
+  const sim = new LevelSimulation(LEVEL_1)
+  // 初始：无源无惩罚，计时从 0 起
+  let hud = sim.hudState()
+  expect(hud.time).toBe(0)
+  expect(hud.extra).toBe(0)
+  expect(hud.sources).toBe(0)
+  // 放 3 源（基准解规模）→ 惩罚 = 3 × 4s = 12s；计时随模拟推进
+  sim.placeSource(20, 44, 'hot')
+  sim.placeSource(38, 28, 'hot')
+  sim.placeSource(48, 14, 'hot')
+  for (let i = 0; i < 60; i++) sim.step(DT)
+  hud = sim.hudState()
+  expect(hud.time).toBeCloseTo(1, 5)
+  expect(hud.extra).toBe(12)
+  expect(hud.sources).toBe(3)
+  // 移除一个源 → 惩罚按当前场上数减免
+  const removed = sim.sources.find((s) => s.x === 48)!
+  sim.removeSource(removed.id)
+  expect(sim.hudState().extra).toBe(8)
+  // restart（再玩一次）：保留源 → 惩罚保留；计时归零重新计
+  sim.restart()
+  hud = sim.hudState()
+  expect(hud.time).toBe(0)
+  expect(hud.extra).toBe(8)
+  // 补齐基准解（[20,44][38,28][48,14][54,12]）→ 通关；won 后计时冻结
+  sim.placeSource(48, 14, 'hot')
+  sim.placeSource(54, 12, 'hot')
+  let wonAt = -1
+  for (let t = 0; t < 60; t += DT) {
+    sim.step(DT)
+    if (sim.phase === 'won') {
+      wonAt = t
+      break
+    }
+  }
+  expect(wonAt).toBeGreaterThan(0)
+  const frozen = sim.hudState().time
+  for (let i = 0; i < 60; i++) sim.step(DT)
+  expect(sim.hudState().time).toBe(frozen) // 冻结
+  expect(sim.phase).toBe('won')
+}, 30000)

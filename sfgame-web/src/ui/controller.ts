@@ -24,6 +24,8 @@ const WIND_PROBE_FY = [0.2, 0.35]
 const LAND_ALT_BEFORE = 0.9
 const LAND_ALT_AFTER = 0.55
 const LAND_IMPACT_MIN = 0.8
+/** 落地音最小间隔（ms）：贴地滚动颠簸时防止连发叠加成轰隆 */
+const LAND_SOUND_MIN_INTERVAL = 150
 /** 触屏 dpr 档位（逐级下调，栅格像素成本非线性下降）；桌面档位更宽。 */
 const DPR_TIERS_COARSE = [1.5, 1.25, 1.0]
 const DPR_TIERS_FINE = [2, 1.5]
@@ -67,6 +69,7 @@ export class GameController {
   private frameEma = 0
   private slowFrames = 0
   private tickMs = 0
+  private lastLand = -Infinity
   private fitW = 0
   private fitH = 0
   private world: { w: number; h: number }
@@ -155,6 +158,8 @@ export class GameController {
     this.ro?.disconnect()
     this.ro = null
     window.removeEventListener('resize', this.fit)
+    // 淡出风声：否则返回标题页后风声残留
+    sfx.fadeOutWind()
   }
 
   reset() {
@@ -234,9 +239,14 @@ export class GameController {
     this.planeTrail.push(p.x, p.y)
 
     sfx.updateWind(this.fieldWind(), this.planeRelWind(), dt)
+    sfx.setPlanePan(p.x, this.world.w)
     const altAfter = this.sim.level.ground(p.x) - p.y
     if (altBefore > LAND_ALT_BEFORE && altAfter <= LAND_ALT_AFTER && Math.abs(vyBefore) > LAND_IMPACT_MIN) {
-      sfx.land(Math.abs(vyBefore))
+      const now = performance.now()
+      if (now - this.lastLand > LAND_SOUND_MIN_INTERVAL) {
+        this.lastLand = now
+        sfx.land(Math.abs(vyBefore))
+      }
     }
 
     if (this.sim.phase !== this.lastPhase) {

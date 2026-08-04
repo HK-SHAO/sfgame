@@ -51,6 +51,8 @@ class WindVoice {
   private opts: WindVoiceOptions
   private gainNode: GainNode
   private filter: BiquadFilterNode
+  /** 可选立体声定位（仅飞机摩擦声用：按横向位置左右移动） */
+  private panner: StereoPannerNode | null = null
   private level = 0
 
   constructor(
@@ -58,6 +60,7 @@ class WindVoice {
     dest: AudioNode,
     noise: AudioBuffer,
     opts: WindVoiceOptions,
+    stereo = false,
   ) {
     this.opts = opts
     const src = ctx.createBufferSource()
@@ -71,8 +74,18 @@ class WindVoice {
     this.gainNode.gain.value = 0
     src.connect(this.filter)
     this.filter.connect(this.gainNode)
-    this.gainNode.connect(dest)
+    if (stereo) {
+      this.panner = ctx.createStereoPanner()
+      this.gainNode.connect(this.panner)
+      this.panner.connect(dest)
+    } else {
+      this.gainNode.connect(dest)
+    }
     src.start()
+  }
+
+  setPan(value: number) {
+    if (this.panner) this.panner.pan.value = value
   }
 
   update(speed: number, dt: number) {
@@ -82,6 +95,12 @@ class WindVoice {
     this.level += (target - this.level) * k
     this.gainNode.gain.value = this.level
     this.filter.frequency.value = this.opts.baseFreq + this.opts.freqSpan * t
+  }
+
+  /** 淡出到静音并复位内部电平（离开游戏场景时调用，防风声残留） */
+  silence() {
+    this.level = 0
+    this.gainNode.gain.setTargetAtTime(0, this.gainNode.context.currentTime, 0.25)
   }
 }
 
@@ -142,7 +161,7 @@ class Sfx {
           vFull: 8,
           maxGain: 0.3,
           tau: 0.18,
-        })
+        }, true)
         // 页面隐藏时挂起音频，避免后台持续出声；恢复可见时立即恢复（不依赖下次触摸）
         document.addEventListener('visibilitychange', () => {
           if (!this.ctx) return
@@ -168,6 +187,17 @@ class Sfx {
     if (!this.ctx || !this.bed || !this.planeWind) return
     this.bed.update(fieldWind, dt)
     this.planeWind.update(planeRel, dt)
+  }
+
+  /** 离开游戏场景时淡出风声：防止标题页/解法页残留风声（游戏内 tick 会重新驱动） */
+  fadeOutWind() {
+    this.bed?.silence()
+    this.planeWind?.silence()
+  }
+
+  /** 飞机摩擦声左右定位：按飞机横向位置（x∈[0,worldW]）在声道间移动 */
+  setPlanePan(x: number, worldW: number) {
+    this.planeWind?.setPan(Math.max(-1, Math.min(1, (x / worldW) * 2 - 1)))
   }
 
   /** 落地/擦地撞击声：响度与低通截止随撞击速度增大（动能 → 声能） */
@@ -262,11 +292,14 @@ class Sfx {
   }
 
   placeHot() {
-    this.tone(620, 320, 0.14, 'sine', 0.5)
+    // 音高 ±5% 随机：连放不机械
+    const f = 620 * (0.95 + Math.random() * 0.1)
+    this.tone(f, f * 0.52, 0.14, 'sine', 0.5)
   }
 
   placeCold() {
-    this.tone(340, 200, 0.16, 'sine', 0.5)
+    const f = 340 * (0.95 + Math.random() * 0.1)
+    this.tone(f, f * 0.59, 0.16, 'sine', 0.5)
   }
 
   remove() {
@@ -275,6 +308,27 @@ class Sfx {
 
   deny() {
     this.tone(150, 120, 0.09, 'square', 0.1)
+  }
+
+  /**
+   * UI 交互音效族：同一家族（短促软 sine/triangle、音量低于玩法反馈音），
+   * 语义区分——前进上行、后退下行、重置双音、通用单音。
+   */
+  uiClick() {
+    this.tone(620, 480, 0.06, 'sine', 0.22)
+  }
+
+  uiEnter() {
+    this.tone(520, 860, 0.09, 'sine', 0.25)
+  }
+
+  uiBack() {
+    this.tone(520, 320, 0.08, 'sine', 0.22)
+  }
+
+  uiReset() {
+    this.tone(440, 440, 0.05, 'triangle', 0.25)
+    this.tone(440, 440, 0.05, 'triangle', 0.25, 0.07)
   }
 
   win() {

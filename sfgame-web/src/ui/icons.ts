@@ -8,7 +8,7 @@ export const iconFlame = html`<svg
   aria-hidden="true"
 >
   <path
-    d="M12 2.8c1.9 2.6 4.8 5 4.8 8.6a4.8 4.8 0 0 1-9.6 0c0-1.3.4-2.5 1.1-3.6.6 1 1.5 1.7 2.4 1.9-.6-2.3.1-4.8 1.3-6.9z"
+    d="M12 4.98c2.4 2.62 6 4.92 6 8.53a6 6 0 0 1-12 0c0-1.31.5-2.54 1.4-3.61.8.98 1.9 1.72 3 1.97-.8-2.38.1-4.92 1.6-6.89z"
   />
 </svg>`
 
@@ -20,10 +20,10 @@ export const iconSnow = html`<svg
   stroke-linecap="round"
   aria-hidden="true"
 >
-  <line x1="12" y1="3" x2="12" y2="21" />
-  <line x1="4.2" y1="7.5" x2="19.8" y2="16.5" />
-  <line x1="19.8" y1="7.5" x2="4.2" y2="16.5" />
-  <path d="M12 3l-2 2m2-2l2 2M12 21l-2-2m2 2l2-2" stroke-width="1.6" />
+  <line x1="12" y1="5.25" x2="12" y2="18.75" />
+  <line x1="6.15" y1="8.63" x2="17.85" y2="15.38" />
+  <line x1="17.85" y1="8.63" x2="6.15" y2="15.38" />
+  <path d="M12 5.25l-2 2m2-2l2 2M12 18.75l-2-2m2 2l2-2" stroke-width="1.6" />
 </svg>`
 
 export const iconBack = html`<svg
@@ -35,7 +35,7 @@ export const iconBack = html`<svg
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <polyline points="14.5 5.5 8 12 14.5 18.5" />
+  <polyline points="16.2 5 8 12 16.2 19" />
 </svg>`
 
 export const iconReset = html`<svg
@@ -47,8 +47,8 @@ export const iconReset = html`<svg
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <path d="M4.6 9.5a8 8 0 1 1-.6 4" />
-  <polyline points="4.5 4.5 4.5 9.5 9.5 9.5" />
+  <path d="M5.9 9.45a6.6 6.6 0 1 1-.5 3.3" />
+  <polyline points="5.8 5.35 5.8 9.45 9.9 9.45" />
 </svg>`
 
 export const iconSoundOn = html`<svg
@@ -60,9 +60,9 @@ export const iconSoundOn = html`<svg
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" fill="currentColor" stroke="none" />
-  <path d="M15.5 9a4.2 4.2 0 0 1 0 6" />
-  <path d="M18 6.8a7.4 7.4 0 0 1 0 10.4" />
+  <path d="M4.5 9.8v4.4h3L11.5 17.8V6.2L7.5 9.8H4.5z" fill="currentColor" stroke="none" />
+  <path d="M14.7 9.2a3.6 3.6 0 0 1 0 5.6" />
+  <path d="M16.9 6.9a6.3 6.3 0 0 1 0 10.2" />
 </svg>`
 
 export const iconSoundOff = html`<svg
@@ -74,9 +74,9 @@ export const iconSoundOff = html`<svg
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" fill="currentColor" stroke="none" />
-  <line x1="15.5" y1="9.5" x2="20.5" y2="14.5" />
-  <line x1="20.5" y1="9.5" x2="15.5" y2="14.5" />
+  <path d="M4.5 9.8v4.4h3L11.5 17.8V6.2L7.5 9.8H4.5z" fill="currentColor" stroke="none" />
+  <line x1="14.7" y1="9.7" x2="18.7" y2="14.3" />
+  <line x1="18.7" y1="9.7" x2="14.7" y2="14.3" />
 </svg>`
 
 export const iconLock = html`<svg

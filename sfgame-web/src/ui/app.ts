@@ -51,7 +51,11 @@ export class SfApp extends LitElement {
     // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态
     urlState.onChange('level', () => this.syncScreen())
     urlState.onChange('view', () => this.syncScreen())
-    urlState.onChange('sources', (v) => this.gameEl?.applySources(v))
+    urlState.onChange('sources', (v) => {
+      this.gameEl?.applySources(v)
+      // 撤销/重做（仅外部 URL 变化触发，玩家自身操作不触发）轻反馈
+      sfx.uiClick()
+    })
   }
 
   /** 从 URL 状态统一推导屏幕：view=solutions 优先；其次 level 有效 → 游戏；否则标题。
@@ -87,6 +91,7 @@ export class SfApp extends LitElement {
   }
 
   private startGame(id: number) {
+    sfx.uiEnter()
     const level = LEVELS.find((l) => l.id === id) ?? FIRST_LEVEL
     this.activeLevel = level
     // 点关卡 = 新开一局：不继承 URL 里任何旧放置（否则跨关/残留 sources 会串到新局）
@@ -98,6 +103,7 @@ export class SfApp extends LitElement {
 
   private backToTitle() {
     // 切回标题页即卸载 sf-game，其 disconnectedCallback 负责销毁游戏
+    sfx.uiBack()
     this.screen = 'title'
     urlState.clear('level')
     urlState.clear('sources')
@@ -105,16 +111,20 @@ export class SfApp extends LitElement {
   }
 
   private openSolutions() {
+    sfx.uiEnter()
     this.screen = 'solutions'
     urlState.set('view', 'solutions')
   }
 
   private reset() {
+    sfx.uiReset()
     this.gameEl?.reset()
   }
 
   private toggleSound() {
     this.muted = sfx.toggleMuted()
+    // 恢复声音时给确认音；静音时静默（静默本身即反馈）
+    if (!this.muted) sfx.uiClick()
   }
 
   private onHudChange(e: CustomEvent<HudState>) {

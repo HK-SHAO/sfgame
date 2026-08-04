@@ -40,9 +40,31 @@ export const LEVEL_1_SOLUTIONS: LevelSolution[] = [
   },
 ]
 
+export const LEVEL_2_SOLUTIONS: LevelSolution[] = [
+  {
+    name: '双源稳降',
+    sources: [
+      { x: 50, y: 24, kind: 'cold' },
+      { x: 60, y: 32, kind: 'cold' },
+    ],
+    winTime: 19.6,
+    note: '航线前段一级预压 + 目标上方二级压实，两段下沉帘把飞机稳稳送进谷底',
+  },
+  {
+    name: '后置紧凑',
+    sources: [
+      { x: 52, y: 26, kind: 'cold' },
+      { x: 61, y: 34, kind: 'cold' },
+    ],
+    winTime: 21.7,
+    note: '下沉区整体后移，让飞机多飘一段再压落，容错略宽',
+  },
+]
+
 /** 关卡 → 解列表；未知关卡返回空数组。 */
 export const SOLUTIONS: Record<number, LevelSolution[]> = {
   1: LEVEL_1_SOLUTIONS,
+  2: LEVEL_2_SOLUTIONS,
 }
 
 export function solutionsFor(levelId: number): LevelSolution[] {

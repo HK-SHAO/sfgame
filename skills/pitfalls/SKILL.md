@@ -16,7 +16,9 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - 刷新后页面/状态丢失 → C6
 - 后退/前进"没反应"、源删不掉 → C5
 - 后退后历史条目异常 → C3、C4、C7
-- iOS 卡顿/掉帧 → D1、D2、D5
+- iOS 卡顿/掉帧 → D1、D2、D5、D7
+- Canvas 2D 描边/渐变负载高、想上 WebGL → D7
+- 淡出/裁剪逻辑让物体整体消失 → D8
 - 切后台回前台无声 → F2
 - 长按弹系统菜单/双击缩放 → E1
 - 右键放错源 → E2
@@ -127,6 +129,21 @@ canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配
 
 ### D6 自适应降级要防误触发
 帧开销 EMA（平滑 0.95）+ 慢帧计数（如持续 150 帧超 13ms 才降级）——偶发卡顿不降级；先降粒子档，到底再降 dpr。
+
+### D7 Canvas 2D → WebGL1 批量渲染（#7 性能重构的结论与要点）
+iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描边是瓶颈；WebGL1 在 iOS 8+/全部 WebView 可用且 GPU 加速，是兼容性最优解（WebGPU 太新、WASM 物理收益不抵工具链复杂度）。落地要点：
+- **公共 API 不变**：Renderer 的 constructor/resize/toWorld/draw 保持原签名，控制器与 UI 零改动。
+- **顶点批 `core/batch.ts`（纯计算无 DOM，可无头测试）+ `ui/gl.ts`（上下文/着色器/缓冲薄层）**：整帧一个动态 VBO、一次 drawArrays(TRIANGLES)。
+- **GL `lineWidth` 多平台恒为 1**：线宽必须几何化——线段沿法线展开为四边形（`stroke()`），别指望 `gl.lineWidth`。
+- **逐顶点颜色取代分桶**：透明度/颜色不再离散分桶（Canvas 的 strokeStyle 状态机所迫），每段直接带精确 RGBA，一次提交。
+- **径向渐变 = 扇形逐顶点插值**：中心色→边缘色线性插值即等价两端色标的 createRadialGradient，免每帧建渐变与精灵烘焙。
+- **顶点缓冲是 float32**：无头测试断言用 toBeCloseTo（容差 1e-5），别用 toEqual 精确比较。
+- **上下文回收**：iOS 内存压力会销毁 WebGL 上下文——`webglcontextlost` 要 preventDefault，`webglcontextrestored` 重建程序/缓冲。
+- **混合**：`SRC_ALPHA / ONE_MINUS_SRC_ALPHA`（非预乘），与 Canvas rgba 语义一致；`alpha:false` 画布不透明，天空由场景自铺满。
+- 静态背景不必再离屏缓存：天空/地形/光晕每帧重建仅数百顶点，GPU 可忽略，还省掉 bgKey/bg 位图的缓存复杂度。
+
+### D8 淡出/裁剪的早退别跳过物体本体
+旧 `drawPlane` 在 `alt >= SHADOW_FADE_ALT` 时直接 `return`——连飞机本体都不画，高空飞机凭空消失。**影子淡出是"局部效果"，早退只能跳过影子那段**；任何"某效果随条件淡出"的代码，先确认早退范围不含主体绘制。重构渲染时优先审这类 early-return。
 
 ## E. 手势 / 移动端
 

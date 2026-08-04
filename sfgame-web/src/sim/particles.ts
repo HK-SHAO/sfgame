@@ -137,7 +137,9 @@ export class Tracers {
       fluid.sampleVelocity(this.x[i], this.y[i], air)
       const nx = this.x[i] + (air.x + (Math.random() - 0.5) * 0.5) * dt
       const ny = this.y[i] + (air.y + (Math.random() - 0.5) * 0.5) * dt
-      this.odo[i] += Math.hypot(nx - this.x[i], ny - this.y[i])
+      const dx = nx - this.x[i]
+      const dy = ny - this.y[i]
+      this.odo[i] += Math.sqrt(dx * dx + dy * dy)
       this.x[i] = nx
       this.y[i] = ny
       if (this.odo[i] - this.lastOdo[i] >= TRAIL_SAMPLE) this.recordTrail(i)

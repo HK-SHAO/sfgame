@@ -128,7 +128,9 @@ export class Fluid {
       for (let i = x0; i <= x1; i++) {
         const idx = i + j * nx
         if (this.solid[idx]) continue
-        const d = Math.hypot(i - gx, j - gy)
+        const dx = i - gx
+        const dy = j - gy
+        const d = Math.sqrt(dx * dx + dy * dy)
         if (d >= gr) continue
         const falloff = 1 - d / gr
         let val = t[idx] + amount * falloff
@@ -351,7 +353,8 @@ export class Fluid {
 
     // 红黑 Gauss-Seidel：两色交替扫描，收敛约两倍于顺序 GS，
     // 且天然可并行。网格四边恒为固体，内圈邻域索引必在界内。
-    for (let it = 0; it < this.cfg.iterations; it++) {
+    const iterations = this.cfg.iterations
+    for (let it = 0; it < iterations; it++) {
       for (let parity = 0; parity < 2; parity++) {
         for (let j = 1; j < ny - 1; j++) {
           const i0 = ((parity ^ (j & 1)) & 1) ? 1 : 2

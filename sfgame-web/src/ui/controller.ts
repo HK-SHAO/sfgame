@@ -1,6 +1,6 @@
 import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
-import { Tracers } from '../sim/particles'
+import { Tracers, TRAIL_LEN } from '../sim/particles'
 import { Trail } from '../sim/trail'
 import type { SourceKind } from '../sim/types'
 import { LevelSimulation } from '../game/simulation'
@@ -9,12 +9,9 @@ import { GestureInput } from './input'
 import { Renderer } from './render'
 
 /** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。
- * 桌面初始 400 只（富表现优先），触屏降一档起步。 */
+ * 渲染已 GPU 化，粒子数主要消耗 CPU 采样预算，档位只按模拟成本取舍。 */
 const TRACER_TIERS = [400, 320, 240, 180, 128, 96]
-const COARSE_TRACER_TIER = 4
-/** 轨迹点上限：移动端缩短（描边负载 ∝ 粒子数 × 轨迹长度，iOS CPU 栅格化最敏感）。 */
-const TRAIL_LEN_MOBILE = 12
-const TRAIL_LEN_DESKTOP = 24
+const COARSE_TRACER_TIER = 2
 const PLANE_TRAIL_MAX_POINTS = 150
 const PLANE_TRAIL_SAMPLE = 0.3
 const PLANE_TRAIL_FADE = 42
@@ -26,8 +23,8 @@ const LAND_ALT_AFTER = 0.55
 const LAND_IMPACT_MIN = 0.8
 /** 落地音最小间隔（ms）：贴地滚动颠簸时防止连发叠加成轰隆 */
 const LAND_SOUND_MIN_INTERVAL = 150
-/** 触屏 dpr 档位（逐级下调，栅格像素成本非线性下降）；桌面档位更宽。 */
-const DPR_TIERS_COARSE = [1.5, 1.25, 1.0]
+/** dpr 档位（GPU 栅格化后仅持续过载时的最后手段，上限放宽到 2）。 */
+const DPR_TIERS_COARSE = [2, 1.5, 1.0]
 const DPR_TIERS_FINE = [2, 1.5]
 /** 持续该时长（帧）帧开销超限才降级，避免偶发卡顿误触发。 */
 const SLOW_FRAMES_TO_DEGRADE = 150
@@ -63,7 +60,6 @@ export class GameController {
   private windProbes: { x: number; y: number }[]
   private tmpAir = { x: 0, y: 0 }
   private tracerLevel: number
-  private trailLen: number
   private dprTier = 0
   private dprTiers: number[]
   private frameEma = 0
@@ -89,18 +85,17 @@ export class GameController {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const coarse = window.matchMedia('(pointer: coarse)').matches
     this.dprTiers = coarse ? DPR_TIERS_COARSE : DPR_TIERS_FINE
-    // 移动端（触屏）Canvas 2D 在 iOS 上为 CPU 栅格化，初始档位放低省绘制预算
+    // 触屏设备初始粒子档略低（CPU 采样预算），帧率压力下由降级阶梯继续收敛
     this.tracerLevel = reduced
       ? TRACER_TIERS.length - 1
       : coarse
         ? COARSE_TRACER_TIER
         : 0
-    this.trailLen = coarse || reduced ? TRAIL_LEN_MOBILE : TRAIL_LEN_DESKTOP
     this.tracers = new Tracers(
       TRACER_TIERS[this.tracerLevel],
       this.world,
       this.ground,
-      this.trailLen,
+      TRAIL_LEN,
     )
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
@@ -176,7 +171,7 @@ export class GameController {
     this.events.onHud(this.sim.hudState())
   }
 
-  /** 像素比：随档位下调（持续重载时最后手段），Canvas 2D 栅格分辨率直接决定绘制成本。 */
+  /** 像素比：随档位下调（持续重载时的最后手段），帧缓冲尺寸决定 GPU 光栅化负载。 */
   private pixelRatio(): number {
     return Math.min(window.devicePixelRatio || 1, this.dprTiers[this.dprTier])
   }
@@ -299,7 +294,7 @@ export class GameController {
             TRACER_TIERS[this.tracerLevel],
             this.world,
             this.ground,
-            this.trailLen,
+            TRAIL_LEN,
           )
         } else if (this.dprTier < this.dprTiers.length - 1) {
           this.dprTier++

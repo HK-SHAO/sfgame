@@ -103,7 +103,7 @@ export function stepBody(
     }
   }
 
-  const speed = Math.hypot(body.vx, body.vy)
+  const speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy)
   body.clock += dt * (1.5 + speed * 0.4)
   if (speed > 1.2) {
     const target = Math.atan2(body.vy, body.vx)

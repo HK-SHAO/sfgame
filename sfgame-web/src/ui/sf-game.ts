@@ -57,7 +57,7 @@ export class SfGame extends LitElement {
 
   protected override render() {
     return html`
-      <canvas role="img" aria-label="造风：放置热源与冷源，用气流把纸飞机送上山崖"></canvas>
+      <canvas role="img" aria-label="造风：放置热源与冷源，用气流把纸飞机送达目标"></canvas>
     `
   }
 

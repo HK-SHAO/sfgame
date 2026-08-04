@@ -268,8 +268,8 @@ export class SfApp extends LitElement {
           ? html`
               <div class="overlay" role="dialog" aria-label="过关">
                 <div class="win-card">
-                  <h2>飞起来了！</h2>
-                  <p>纸飞机乘着热气流抵达了目标。</p>
+                  <h2>${this.activeLevel.win.title}</h2>
+                  <p>${this.activeLevel.win.text}</p>
                   <div class="row">
                     <button class="primary" @click=${this.reset}>再玩一次</button>
                     <button class="ghost" @click=${this.backToTitle}>选关</button>

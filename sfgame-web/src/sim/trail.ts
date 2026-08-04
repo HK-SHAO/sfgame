@@ -43,7 +43,9 @@ export class Trail {
       this.record(x, y)
       return
     }
-    const d = Math.hypot(x - this.lastX, y - this.lastY)
+    const dx = x - this.lastX
+    const dy = y - this.lastY
+    const d = Math.sqrt(dx * dx + dy * dy)
     if (d === 0) return
     this.odometer += d
     this.lastX = x

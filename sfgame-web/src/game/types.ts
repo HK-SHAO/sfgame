@@ -22,6 +22,8 @@ export interface LevelDef {
   tagline: string
   /** 过关思路提示（显示在底部） */
   hint: string
+  /** 过关结算文案：每关自己的表达，不写死在 UI 层 */
+  win: { title: string; text: string }
   world: { w: number; h: number; cell: number }
   /** 地形高度（世界坐标，y 向下） */
   ground: (x: number) => number

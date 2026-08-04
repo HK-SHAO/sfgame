@@ -66,6 +66,8 @@ export class SfSolutions extends LitElement {
     :host {
       display: block;
       height: 100%;
+      /* 显式颜色基线：不依赖 light DOM 继承（防 iOS 系统色泄漏） */
+      color: var(--ink);
     }
 
     .page {

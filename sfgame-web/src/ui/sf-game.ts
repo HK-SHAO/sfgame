@@ -80,6 +80,7 @@ export class SfGame extends LitElement {
       display: block;
       width: 100%;
       height: 100%;
+      color: var(--ink);
     }
 
     canvas {

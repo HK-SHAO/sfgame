@@ -324,6 +324,7 @@ export class SfApp extends LitElement {
       background: none;
       padding: 0;
       cursor: pointer;
+      color: inherit;
       -webkit-user-select: none;
       user-select: none;
     }
@@ -405,6 +406,8 @@ export class SfApp extends LitElement {
       gap: 0.875rem;
       width: 100%;
       padding: 0.5rem 1rem;
+      /* 标题卡片 text-align:center 会被继承，按钮内文本须回归居左 */
+      text-align: left;
       border-radius: 1rem;
       corner-shape: squircle;
       transition: transform 120ms ease-out, box-shadow 120ms ease-out;

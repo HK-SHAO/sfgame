@@ -108,6 +108,8 @@ export class LevelSimulation {
     this.fluid.clear()
     this.phase = 'playing'
     this.time = 0
+    // 源在新的一局重放生长动画：born 归零（否则 time < born，渲染 pop 为负 → 源隐形）
+    for (const s of this.sources) s.born = 0
     this.plane.x = this.level.spawn.x
     this.plane.y = this.spawnY
     this.plane.vx = this.spawnVx

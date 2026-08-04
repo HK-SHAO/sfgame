@@ -79,6 +79,8 @@ test('restart 保留玩家已放置的源与预算，仅清场与复位飞机（
   expect(sim.sources).toHaveLength(2)
   expect(sim.sources.map((s) => ({ id: s.id, x: s.x, y: s.y, kind: s.kind }))).toEqual(sourcesBefore)
   expect(sim.hotLeft).toBe(2)
+  // born 归零：time < born 会让渲染 pop 为负、源隐形（回归守护）
+  expect(sim.sources.every((s) => s.born === 0)).toBe(true)
   expect(sim.fluid.t.every((v) => v === 0)).toBe(true)
   expect(sim.plane.x).toBeLessThan(0)
   expect(sim.plane.vx).toBeGreaterThan(6)

@@ -262,7 +262,8 @@ export class Renderer {
   private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null) {
     for (const s of sim.sources) {
       const grabbed = press?.kind === 'remove' && press.sourceId === s.id
-      const pop = 1 - Math.exp(-(sim.time - s.born) * SOURCE_POP_RATE)
+      // pop 钳制非负：防任何 future 路径出现 time < born 导致源隐形
+      const pop = Math.max(0, 1 - Math.exp(-(sim.time - s.born) * SOURCE_POP_RATE))
       const pulse = 1 + 0.05 * Math.sin(sim.time * 4 + s.id * 1.7)
       const c = s.kind === 'hot' ? HOT : COLD
 

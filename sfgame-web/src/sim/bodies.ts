@@ -1,4 +1,4 @@
-import type { FluidLike } from './fluid-like'
+import type { Fluid } from './fluid'
 import type { WorldBounds } from './types'
 
 /**
@@ -53,7 +53,7 @@ const GROUND_FRICTION = 0.3
 
 export function stepBody(
   body: Body,
-  fluid: FluidLike,
+  fluid: Fluid,
   dt: number,
   groundY: (x: number) => number,
   world: WorldBounds,

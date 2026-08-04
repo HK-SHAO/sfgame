@@ -6,12 +6,11 @@
  * - 玩家设备（尤其 iPhone）直接打开即可得到本机数据，回报给研发
  * 结果可一键复制为纯文本。
  */
-import { ensureWasmFluid, runBench, type BenchStat } from './bench-core'
+import { runBench, type BenchStat } from './bench-core'
 
 const params = new URLSearchParams(location.search)
 const seconds = Math.max(2, Math.min(60, Number(params.get('seconds') ?? 10)))
 const rate = Math.max(1, Math.min(32, Number(params.get('rate') ?? 16)))
-const wantWasm = params.get('wasm') !== '0'
 
 const status = document.getElementById('status')!
 const tableBody = document.getElementById('results')!
@@ -75,28 +74,22 @@ copyBtn.addEventListener('click', async () => {
 rerunBtn.addEventListener('click', () => location.reload())
 
 async function main() {
-  status.textContent = `设备：${deviceSummary()} · ${uaShort()}`
-  status.textContent += ` · 模拟 ${seconds}s`
-  if (wantWasm) {
-    status.textContent += (await ensureWasmFluid()) ? ' · wasm 已装载' : ' · wasm 不可用'
-  }
+  status.textContent = `设备：${deviceSummary()} · ${uaShort()} · 模拟 ${seconds}s · 倍速帧 ${rate}×`
   // 让状态先绘制再进入密集计算
   await new Promise((r) => setTimeout(r, 60))
   const t0 = performance.now()
   const results = runBench({
     seconds,
     rate,
-    includeWasm: wantWasm,
     onProgress: (p) => {
       status.textContent = `运行中 ${(p * 100).toFixed(0)}%…（页面短暂卡顿属正常）`
     },
   })
   const wall = ((performance.now() - t0) / 1000).toFixed(1)
-  const engine = results.some((r) => r.name.includes('wasm')) ? 'js+wasm' : 'js'
   report = [
     `造风 bench · ${new Date().toISOString()}`,
     `UA: ${navigator.userAgent}`,
-    `设备: ${deviceSummary()} · ${uaShort()} · 引擎 ${engine}`,
+    `设备: ${deviceSummary()} · ${uaShort()}`,
     ...results.map(
       (r) => `${r.name}: mean ${r.mean.toFixed(3)}ms p95 ${r.p95.toFixed(3)}ms (${r.detail})`,
     ),

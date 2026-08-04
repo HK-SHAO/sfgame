@@ -1,8 +1,8 @@
 /**
  * 真实浏览器性能验证（bun scripts/bench-browser.ts）：
  * headless Chrome（CDP 直连，零依赖）加载 bench.html，
- * 按 CPU 节流档位（Emulation.setCPUThrottlingRate）采集 JS/wasm 引擎
- * 各组件帧预算占用，模拟弱设备（无 JIT 的 iOS WebView 近似）下的表现。
+ * 按 CPU 节流档位（Emulation.setCPUThrottlingRate）采集各组件帧预算占用，
+ * 模拟弱设备下的表现。
  *
  * 用法：bun scripts/bench-browser.ts [节流档位,逗号分隔] [seconds]
  * 例：  bun scripts/bench-browser.ts 1,4,6 5
@@ -21,7 +21,7 @@ const VITE_PORT = 5199
 const CDP_PORT = 9333
 const USER_DATA = `/tmp/sfgame-bench-chrome-${process.pid}`
 // vite 默认只绑 IPv6 回环（::1），必须用 localhost 访问
-const BENCH_URL = `http://localhost:${VITE_PORT}/bench.html?seconds=${SECONDS}&wasm=1`
+const BENCH_URL = `http://localhost:${VITE_PORT}/bench.html?seconds=${SECONDS}`
 
 function findChrome(): boolean {
   return existsSync(CHROME)
@@ -143,7 +143,7 @@ async function main() {
       let done = false
       while (Date.now() - t0 < 120000) {
         const status = (await page.evaluate('document.getElementById("status")?.textContent ?? ""')) as string
-        if (status.includes('完成') || status.includes('wasm 不可用') || status.includes('Error')) {
+        if (status.includes('完成') || status.includes('Error')) {
           done = status.includes('完成')
           break
         }

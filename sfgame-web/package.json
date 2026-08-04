@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b",
-    "check": "npm run typecheck && npm run test && npm run build",
-    "build:native": "cd native && moon build --target wasm --release && cp _build/wasm/release/build/fluid.wasm ../src/sim/fluid.wasm"
+    "check": "npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
     "lit": "^3.3.3"

@@ -2,7 +2,6 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
-import { installFluidWasm } from '../sim/fluid-wasm'
 import { LEVELS, UPCOMING_LEVELS } from '../game/levels'
 import { SfGame } from './sf-game'
 import './solutions-view'
@@ -50,8 +49,6 @@ export class SfApp extends LitElement {
     super()
     // 尽早武装音频解锁：任意首次交互（pointerdown/keydown）即获得权限
     sfx.unlock()
-    // 弱引擎（iOS WebView 无 JIT）预载 wasm 求解器并在慢引擎上自动启用
-    void installFluidWasm()
     // 初始化即从 URL 推导屏幕（?lv=N 直达 / ?v=solutions 解法参考页）
     this.syncScreen()
     // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态

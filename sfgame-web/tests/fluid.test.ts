@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
 import { Fluid } from '../src/sim/fluid'
+import { LevelSimulation } from '../src/game/simulation'
+import { LEVEL_1 } from '../src/game/levels'
 
 function makeFluid() {
   return new Fluid({
@@ -82,4 +84,41 @@ test('固体掩码内无速度', () => {
   f.sampleVelocity(30, 46.5, air)
   expect(Math.abs(air.x)).toBe(0)
   expect(Math.abs(air.y)).toBe(0)
+})
+
+test('物理确定性：相同输入两次模拟逐位一致（跨平台/引擎一致性的根基）', () => {
+  const run = () => {
+    const f = makeFluid()
+    f.setGroundMask((x) => (x < 30 ? 50 : 40))
+    f.setAmbient(1.5, 0)
+    const u = new Float32Array(f.u.length)
+    const v = new Float32Array(f.v.length)
+    const t = new Float32Array(f.t.length)
+    for (let s = 0; s < 240; s++) {
+      f.addHeat(20 + (s % 10), 35, 6 * DT)
+      f.addHeat(40, 15, -4 * DT)
+      f.step(DT)
+    }
+    u.set(f.u)
+    v.set(f.v)
+    t.set(f.t)
+    return { u, v, t }
+  }
+  const a = run()
+  const b = run()
+  expect(a.u).toEqual(b.u)
+  expect(a.v).toEqual(b.v)
+  expect(a.t).toEqual(b.t)
+})
+
+test('物理确定性：LevelSimulation 同输入两次整局逐位一致（速率/平台一致性的根基）', () => {
+  const run = () => {
+    const sim = new LevelSimulation(LEVEL_1)
+    sim.placeSource(20, 44, 'hot', true)
+    sim.placeSource(36, 28, 'hot', true)
+    sim.placeSource(50, 22, 'cold', true)
+    for (let i = 0; i < 360; i++) sim.step(DT)
+    return { x: sim.plane.x, y: sim.plane.y, vx: sim.plane.vx, vy: sim.plane.vy, phase: sim.phase }
+  }
+  expect(run()).toEqual(run())
 })

@@ -4,16 +4,12 @@
  * 组件与真实游戏一致：第 1 关网格（76×56 / cell 0.75）、4 源、
  * 移动端初始粒子档（240 × 24 轨迹点）。输出 ms/frame 统计，
  * 对照 16.7ms（60fps）帧预算判断瓶颈构成。
- *
- * 引擎对比：fluid 基准可选跑 JS 求解器或 wasm 求解器（后者未就绪时自动跳过），
- * 用于验证 wasm 加速的真实收益与数值一致性。
  */
 import { LevelSimulation } from '../game/simulation'
 import { LEVEL_1 } from '../game/levels'
 import { Tracers } from '../sim/particles'
 import { MeshBatch } from '../core/batch'
 import { SIM_DT } from '../core/loop'
-import { setFluidEngine, wasmFluidAvailable, loadFluidWasm } from '../sim/fluid-wasm'
 
 export const BENCH_TRACER_COUNT = 240
 export const BENCH_TRAIL_LEN = 24
@@ -39,8 +35,6 @@ export interface BenchStat {
 export interface BenchOptions {
   /** 模拟时长（秒），默认 20 */
   seconds?: number
-  /** 是否包含 wasm 求解器对比（需先调用 ensureWasmFluid） */
-  includeWasm?: boolean
   /** 倍速帧基准的倍率（默认 16，即游戏中最高速档） */
   rate?: number
   /** 进度回调（0..1），供浏览器端展示 */
@@ -60,16 +54,6 @@ function makeLoadedSim(): LevelSimulation {
   return sim
 }
 
-/** 让浏览器端先行装载 wasm 求解器（返回是否可用）；node 端无 fetch 时返回 false。 */
-export async function ensureWasmFluid(): Promise<boolean> {
-  try {
-    await loadFluidWasm()
-    return true
-  } catch {
-    return false
-  }
-}
-
 function fluidBench(sim: LevelSimulation, steps: number, label: string): BenchStat {
   const samples: number[] = []
   const rate = 10 * SIM_DT
@@ -86,16 +70,8 @@ function fluidBench(sim: LevelSimulation, steps: number, label: string): BenchSt
     name: label,
     mean,
     p95,
-    detail: `网格 ${sim.fluid.nx}×${sim.fluid.ny}（${sim.fluid.engine}）`,
+    detail: `网格 ${sim.fluid.nx}×${sim.fluid.ny}`,
   }
-}
-
-/** 以指定引擎模式构造一个满载关卡（source 已放、已预热）。 */
-function makeLoadedSimFor(mode: 'js' | 'wasm'): LevelSimulation {
-  setFluidEngine(mode)
-  const sim = makeLoadedSim()
-  setFluidEngine('auto')
-  return sim
 }
 
 export function runBench(opts: BenchOptions = {}): BenchStat[] {
@@ -105,15 +81,10 @@ export function runBench(opts: BenchOptions = {}): BenchStat[] {
   const progress = opts.onProgress ?? (() => {})
 
   // 1. 流体求解器（含源注入）——整帧的主导 CPU 成本
-  results.push(fluidBench(makeLoadedSimFor('js'), steps, 'fluid.step（JS）'))
-  progress(0.25)
+  results.push(fluidBench(makeLoadedSim(), steps, 'fluid.step'))
+  progress(0.3)
 
-  if (opts.includeWasm && wasmFluidAvailable()) {
-    results.push(fluidBench(makeLoadedSimFor('wasm'), steps, 'fluid.step（wasm）'))
-  }
-  progress(0.5)
-
-  // 2. 完整关卡步进（刚体 + 源 + 流体）——按游戏实际引擎选择
+  // 2. 完整关卡步进（刚体 + 源 + 流体）
   {
     const s2 = makeLoadedSim()
     const samples: number[] = []
@@ -123,7 +94,7 @@ export function runBench(opts: BenchOptions = {}): BenchStat[] {
       samples.push(performance.now() - t0)
     }
     const { mean, p95 } = stats(samples)
-    results.push({ name: 'LevelSim.step', mean, p95, detail: `流体+刚体+源（${s2.fluid.engine}）` })
+    results.push({ name: 'LevelSim.step', mean, p95, detail: '流体+刚体+源' })
   }
   progress(0.7)
 

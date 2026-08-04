@@ -107,9 +107,10 @@
     </div>
     <p class="note">
       测量与真实游戏相同的物理负载（第 1 关网格、4 源、240 示踪粒子），不含 GPU
-      渲染。帧预算占比超 50%（红色）即该组件是本机掉帧主因。 参数：?seconds=秒数（2–60）
-      · ?wasm=0 禁用 wasm 对比。
+      渲染。帧预算占比超 50%（红色）即该组件是本机掉帧主因。「倍速帧」模拟游戏
+      最高速档下每 60Hz 帧的真实 CPU 成本（>16.7ms 即掉帧）。 参数：?seconds=秒数（2–60）
+      · ?rate=倍率（1–32，倍速帧用）。
     </p>
-    <script type="module" src="/src/dev/bench.ts"></script>
+    <script type="module" src="./src/dev/bench.ts"></script>
   </body>
 </html>

@@ -67,14 +67,17 @@ const SOURCE_POP_RATE = 9
 const SOURCE_GLOW_RADIUS = 4.8
 const SOURCE_CORE_RADIUS = 1.15
 
-/** 飞机阴影：平行光投影（沿太阳方向随高度偏移）+ 贴地坡度旋转 */
+/** 地形采样：基础步长；平坦段最大合并间距；相邻段转角阈值（弧度，≈1.1°） */
+const TERRAIN_STEP = 0.25
+const TERRAIN_MAX_STEP = 2
+const TERRAIN_ANG_TOL = 0.02
+
+/** 飞机阴影：顶光垂直投影（光从 12 点方向直照到 6 点方向）——
+ * 影子即飞机在地面的竖直投影（同 x），随坡度旋转贴合地形，任意高度可见 */
 const SHADOW_RADIUS = 1.5
 const SHADOW_RY = 0.32
 const SHADOW_LIFT = 0.12
 const SHADOW_MAX_ALPHA = 0.3
-/** 光投影的水平偏移系数：偏移量 = 高度 × 该值（太阳高度角高则小） */
-const SHADOW_OFFSET_RATIO = 0.35
-const SHADOW_FADE_ALT = 16
 
 /**
  * WebGL 渲染器：极简矢量风，整帧所有图元汇入一个顶点批、一次 draw call。
@@ -97,7 +100,7 @@ export class Renderer {
   private scale = 1
   private ox = 0
   private oy = 0
-  /** 地形折线 scratch：按需扩容（每整数 x 一点 + 左右延伸端点，各 2 float） */
+  /** 地形采样点 scratch：自适应采样按需扩容（最坏 = 视口宽 / 基础步长） */
   private terrainPts = new Float32Array(256)
   /** 各粒子本帧包络与温度档：头部绘制免重复采样 */
   private tracerEnv = new Float32Array(0)
@@ -172,24 +175,42 @@ export class Renderer {
     if (bottomBandTop < viewB) b.rect(viewL, bottomBandTop, viewR, viewB, ...SKY_BOTTOM, 1)
   }
 
-  /** 地形延伸出世界边界：填满竖屏/宽屏视口 */
+  /**
+   * 地形延伸出世界边界：填满竖屏/宽屏视口。
+   * 采样自适应：smoothstep 地形弯曲段每 0.25 单位取点，平坦段合并到 2 单位
+   * （转角角度变化超过阈值才加密）——视觉平滑的同时点数更少；
+   * 边缘线用斜接折线（batch.polyline），转角处无缝不"断裂"。
+   */
   private drawTerrain(b: MeshBatch, sim: LevelSimulation, viewL: number, viewR: number, viewB: number) {
-    const { w } = sim.level.world
     const ground = sim.level.ground
-    const x0 = Math.max(0, Math.floor(viewL))
-    const x1 = Math.min(w, Math.ceil(viewR))
-    const need = (x1 - x0 + 3) * 2
-    if (this.terrainPts.length < need) this.terrainPts = new Float32Array(need * 2)
+    // 最坏情况点数 = 视口宽 / 基础步长（含左右延伸端点）
+    const need = Math.ceil((viewR - viewL) / TERRAIN_STEP + 3) * 2
+    if (this.terrainPts.length < need) this.terrainPts = new Float32Array(need)
     const pts = this.terrainPts
     let n = 0
     pts[n++] = viewL
-    pts[n++] = ground(x0)
-    for (let x = x0; x <= x1; x++) {
-      pts[n++] = x
-      pts[n++] = ground(x)
+    pts[n++] = ground(viewL)
+    let lastX = viewL
+    let lastY = pts[n - 1]
+    let lastAng = 0
+    let haveAng = false
+    for (let x = Math.max(0, viewL) + TERRAIN_STEP; x <= viewR + 1e-9; x += TERRAIN_STEP) {
+      const y = ground(x)
+      const ang = Math.atan2(y - lastY, x - lastX)
+      if (!haveAng || Math.abs(ang - lastAng) > TERRAIN_ANG_TOL || x - lastX >= TERRAIN_MAX_STEP) {
+        pts[n++] = x
+        pts[n++] = y
+        lastX = x
+        lastY = y
+        lastAng = ang
+        haveAng = true
+      }
     }
-    pts[n++] = viewR
-    pts[n++] = ground(x1)
+    // 终点对齐视口右缘（末段不足一步时补齐）
+    if (viewR - lastX > 1e-6) {
+      pts[n++] = viewR
+      pts[n++] = ground(viewR)
+    }
 
     for (let i = 0; i + 3 < n; i += 2) {
       const ax = pts[i]
@@ -199,9 +220,7 @@ export class Renderer {
       b.tri(ax, ay, bx, by, ax, viewB, ...GROUND_FILL, 1)
       b.tri(bx, by, bx, viewB, ax, viewB, ...GROUND_FILL, 1)
     }
-    for (let i = 0; i + 3 < n; i += 2) {
-      b.stroke(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], 0.5, ...GROUND_EDGE, 1)
-    }
+    b.polyline(pts, n, 0.5, ...GROUND_EDGE, 1)
   }
 
   private drawSunHalo(b: MeshBatch) {
@@ -361,19 +380,12 @@ export class Renderer {
 
   private drawPlane(b: MeshBatch, sim: LevelSimulation) {
     const p = sim.plane
-    const ground = sim.level.ground(p.x)
-    const alt = Math.max(0, ground - p.y)
-    if (alt < SHADOW_FADE_ALT) {
-      // 平行光投影：影子沿光方向外移，坡度/落点按影子位置采样
-      const sx = p.x + alt * SHADOW_OFFSET_RATIO
-      const g0 = sim.level.ground(sx - SHADOW_RADIUS)
-      const g1 = sim.level.ground(sx + SHADOW_RADIUS)
-      const slope = Math.atan2(g1 - g0, SHADOW_RADIUS * 2)
-      const sy = sim.level.ground(sx) - SHADOW_LIFT
-      // sqrt 缓降：中空仍可见，仅在高空（接近上限）快速衰减
-      const fade = Math.sqrt(Math.max(0, 1 - alt / SHADOW_FADE_ALT))
-      b.disc(sx, sy, SHADOW_RADIUS, SHADOW_RY, slope, 16, ...INK_DARK, SHADOW_MAX_ALPHA * fade)
-    }
+    // 顶光垂直投影：影子 = 飞机正下方的地面投影（同 x），坡度旋转贴合地形
+    const g0 = sim.level.ground(p.x - SHADOW_RADIUS)
+    const g1 = sim.level.ground(p.x + SHADOW_RADIUS)
+    const slope = Math.atan2(g1 - g0, SHADOW_RADIUS * 2)
+    const sy = sim.level.ground(p.x) - SHADOW_LIFT
+    b.disc(p.x, sy, SHADOW_RADIUS, SHADOW_RY, slope, 16, ...INK_DARK, SHADOW_MAX_ALPHA)
 
     const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
     const idle = Math.max(0, 1 - speed / 3)

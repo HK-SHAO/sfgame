@@ -162,6 +162,42 @@ describe('MeshBatch', () => {
     expect(vertex(b, 50 * 6)[0]).toBeCloseTo(50, 5)
   })
 
+  test('polyline：单段与 stroke 几何等价', () => {
+    const b1 = new MeshBatch()
+    b1.stroke(0, 0, 2, 0, 0.4, 1, 1, 1, 1)
+    const b2 = new MeshBatch()
+    b2.polyline(new Float32Array([0, 0, 2, 0]), 4, 0.4, 1, 1, 1, 1)
+    expect(b2.count).toBe(b1.count)
+    for (let k = 0; k < b1.count; k++) expectVertex(b2, k, vertex(b1, k))
+  })
+
+  test('polyline：直角转角处斜接相连（外角沿角平分线延伸，无缺口）', () => {
+    // 折线 (0,0)→(2,0)→(2,2)，宽 1：
+    // 段1 法线 (0,1)，段2 法线 (-1,0)，转角斜接向量 = (-0.5,0.5)
+    const b = new MeshBatch()
+    b.polyline(new Float32Array([0, 0, 2, 0, 2, 2]), 6, 1, 1, 1, 1, 1)
+    expect(b.count).toBe(12)
+    const corners = new Set<string>()
+    for (let k = 0; k < 12; k++) {
+      const [x, y] = vertex(b, k)
+      corners.add(`${x.toFixed(4)},${y.toFixed(4)}`)
+    }
+    expect(corners.has('2.5000,-0.5000')).toBe(true) // 外角斜接顶点
+    expect(corners.has('1.5000,0.5000')).toBe(true) // 内角顶点
+    expect(corners.has('0.0000,0.5000')).toBe(true) // 首端平头
+    expect(corners.has('1.5000,2.0000')).toBe(true) // 末端平头
+    expect(corners.has('2.5000,2.0000')).toBe(true)
+  })
+
+  test('polyline：共线段连续直通，无冗余折角', () => {
+    const b = new MeshBatch()
+    b.polyline(new Float32Array([0, 0, 1, 0, 2, 0]), 6, 0.4, 1, 1, 1, 1)
+    expect(b.count).toBe(12)
+    for (let k = 0; k < 12; k++) {
+      const [, y] = vertex(b, k)
+      expect(Math.abs(y)).toBeCloseTo(0.2, 5) // 全部顶点在 ±0.2，无外延
+    }
+  })
   test('reset 只清计数，缓冲复用', () => {
     const b = new MeshBatch()
     b.tri(0, 0, 1, 0, 0, 1, 1, 1, 1, 1)

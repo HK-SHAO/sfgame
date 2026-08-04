@@ -112,6 +112,97 @@ export class MeshBatch {
     this.push(x0 - nx, y0 - ny, r, g, b, a)
   }
 
+  /** 斜接长度钳制系数（相对半宽）：过锐转角等效斜切，防尖刺 */
+  private static MITER_LIMIT = 4
+
+  /**
+   * 折线描边：相邻线段在转角处按角平分线斜接（miter）相连，转角无缝无缺口。
+   * 首尾端点平头；零长段自动跳过。要求折线方向一致（各段法线同侧），
+   * 适用于地形等单调折线；随机折回的轨迹仍用逐段 stroke。
+   * pts 为 [x0,y0,x1,y1,...] 平铺，n 为浮点数个数（偶数）。
+   */
+  polyline(pts: Float32Array, n: number, w: number, r: number, g: number, b: number, a: number) {
+    if (n < 4) return
+    const hw = w / 2
+    const limit = MeshBatch.MITER_LIMIT * hw
+    // 上段状态：起点 (sx,sy)、起点端斜接向量 (mx,my)（已含半宽）、上段单位法线 (pnx,pny)
+    let sx = 0
+    let sy = 0
+    let mx = 0
+    let my = 0
+    let pnx = 0
+    let pny = 0
+    let ready = false
+    for (let i = 0; i + 3 < n; i += 2) {
+      const ax = pts[i]
+      const ay = pts[i + 1]
+      const bx = pts[i + 2]
+      const by = pts[i + 3]
+      const dx = bx - ax
+      const dy = by - ay
+      const len = Math.sqrt(dx * dx + dy * dy)
+      if (len < 1e-8) continue
+      const nx = -dy / len
+      const ny = dx / len
+      if (!ready) {
+        // 首段：起点平头
+        sx = ax
+        sy = ay
+        mx = nx * hw
+        my = ny * hw
+        pnx = nx
+        pny = ny
+        ready = true
+        continue
+      }
+      // 本段起点 = 上段终点：斜接向量 = 两段法线之和（角平分线方向）
+      let tx = pnx + nx
+      let ty = pny + ny
+      let fl = Math.sqrt(tx * tx + ty * ty)
+      if (fl < 1e-6) {
+        // 180° 折返：退化，按平头退避
+        tx = nx
+        ty = ny
+        fl = 1
+      } else {
+        tx /= fl
+        ty /= fl
+        fl = hw / (pnx * tx + pny * ty) // = hw / cos(θ/2)
+        if (fl > limit) fl = limit
+      }
+      const ex = tx * fl
+      const ey = ty * fl
+      // 上段四边形：起点 ±(mx,my)，终点 ±(ex,ey)
+      this.ensure(6)
+      this.push(sx + mx, sy + my, r, g, b, a)
+      this.push(ax + ex, ay + ey, r, g, b, a)
+      this.push(sx - mx, sy - my, r, g, b, a)
+      this.push(ax + ex, ay + ey, r, g, b, a)
+      this.push(ax - ex, ay - ey, r, g, b, a)
+      this.push(sx - mx, sy - my, r, g, b, a)
+      sx = ax
+      sy = ay
+      mx = ex
+      my = ey
+      pnx = nx
+      pny = ny
+    }
+    // 末段：终点平头
+    if (ready) {
+      const bx = pts[n - 2]
+      const by = pts[n - 1]
+      const ex = pnx * hw
+      const ey = pny * hw
+      this.ensure(6)
+      this.push(sx + mx, sy + my, r, g, b, a)
+      this.push(bx + ex, by + ey, r, g, b, a)
+      this.push(sx - mx, sy - my, r, g, b, a)
+      this.push(bx + ex, by + ey, r, g, b, a)
+      this.push(bx - ex, by - ey, r, g, b, a)
+      this.push(sx - mx, sy - my, r, g, b, a)
+    }
+  }
+
   /** 椭圆扇形填充：rot 为长轴旋转角（弧度）。rx = ry 时即正圆。 */
   disc(
     cx: number, cy: number, rx: number, ry: number, rot: number, seg: number,

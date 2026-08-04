@@ -53,7 +53,6 @@ export class GameController {
   private loop: GameLoop
   private input: GestureInput
   private events: ControllerEvents
-  private canvas: HTMLCanvasElement
   /** 尺寸适配宿主：画布随其缩放。默认取画布的父元素（light DOM 下可用）。 */
   private host: HTMLElement
   private ro: ResizeObserver | null = null
@@ -79,7 +78,6 @@ export class GameController {
     events: ControllerEvents,
     host?: HTMLElement,
   ) {
-    this.canvas = canvas
     this.events = events
     this.host = host ?? canvas.parentElement ?? canvas
     this.world = level.world
@@ -138,10 +136,7 @@ export class GameController {
       },
       secondaryTap: (w) => this.tryPlace(w.x, w.y, 'cold'),
     })
-    canvas.addEventListener('pointerdown', this.unlockAudio)
   }
-
-  private unlockAudio = () => sfx.unlock()
 
   start() {
     if ('ResizeObserver' in window) {
@@ -160,7 +155,6 @@ export class GameController {
     this.ro?.disconnect()
     this.ro = null
     window.removeEventListener('resize', this.fit)
-    this.canvas.removeEventListener('pointerdown', this.unlockAudio)
   }
 
   reset() {

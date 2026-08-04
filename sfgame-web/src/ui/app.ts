@@ -44,6 +44,8 @@ export class SfApp extends LitElement {
 
   constructor() {
     super()
+    // 尽早武装音频解锁：任意首次交互（pointerdown/keydown）即获得权限
+    sfx.unlock()
     // 初始化即从 URL 推导屏幕（?level=N 直达 / ?view=solutions 解法参考页）
     this.syncScreen()
     // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态
@@ -85,7 +87,6 @@ export class SfApp extends LitElement {
   }
 
   private startGame(id: number) {
-    sfx.unlock()
     const level = LEVELS.find((l) => l.id === id) ?? FIRST_LEVEL
     this.activeLevel = level
     // 点关卡 = 新开一局：不继承 URL 里任何旧放置（否则跨关/残留 sources 会串到新局）

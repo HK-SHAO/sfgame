@@ -86,9 +86,7 @@ class WindVoice {
 }
 
 /**
- * 零依赖音效：WebAudio 合成。iOS 要求 AudioContext 必须在用户手势中
- * 创建/恢复，因此 unlock() 由任意 pointerdown 触发。
- *
+ * 零依赖音效：WebAudio 合成。
  * 两层声音：离散 UI 音（振荡器）+ 连续物理风声（噪声滤波，见 WindVoice）。
  */
 class Sfx {
@@ -97,17 +95,28 @@ class Sfx {
   private noiseBuf: AudioBuffer | null = null
   private bed: WindVoice | null = null
   private planeWind: WindVoice | null = null
+  private unlockArmed = false
   muted = false
 
   constructor() {
     try {
       this.muted = localStorage.getItem(STORAGE_KEY) === '1'
     } catch {
-      /* 无 localStorage 环境时保持默认开启 */
     }
   }
 
+  /**
+   * 解锁音频（浏览器自动播放策略：AudioContext 须在用户手势内创建/恢复）。
+   * 首次调用即挂全局一次性监听（pointerdown/keydown）——整个应用任意位置
+   * 的第一次用户交互即完成解锁，此后音频恒可播放，不依赖具体交互路径。
+   */
   unlock() {
+    if (!this.unlockArmed) {
+      this.unlockArmed = true
+      const fire = () => this.unlock()
+      document.addEventListener('pointerdown', fire, { once: true })
+      document.addEventListener('keydown', fire, { once: true })
+    }
     if (!this.ctx) {
       const Ctor =
         window.AudioContext ??

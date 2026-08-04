@@ -60,6 +60,16 @@ const SOURCE_POP_RATE = 9
 const SOURCE_GLOW_RADIUS = 4.8
 const SOURCE_CORE_RADIUS = 1.15
 
+/** 飞机阴影：平行光投影（沿太阳方向随高度偏移）+ 贴地坡度旋转。
+ * 单层椭圆填充（半影柔边在 1.5 单位尺度下收益过低，省去双层的路径构建） */
+const SHADOW_RADIUS = 1.5
+const SHADOW_RY = 0.32
+const SHADOW_LIFT = 0.12
+const SHADOW_MAX_ALPHA = 0.3
+/** 光投影的水平偏移系数：偏移量 = 高度 × 该值（太阳高度角高则小） */
+const SHADOW_OFFSET_RATIO = 0.35
+const SHADOW_FADE_ALT = 16
+
 /**
  * Canvas 2D 渲染器：极简矢量风。
  * 世界坐标 y 向下；视口按 contain 适配，世界边界外由延伸的天空与大地填充，
@@ -490,13 +500,19 @@ export class Renderer {
     const p = sim.plane
     const ground = sim.level.ground(p.x)
     const alt = Math.max(0, ground - p.y)
-    if (alt < 16) {
-      const sa = 0.16 * (1 - alt / 16)
-      ctx.fillStyle = `rgba(61, 52, 39, ${sa.toFixed(3)})`
-      ctx.beginPath()
-      ctx.ellipse(p.x, ground - 0.12, 1.5, 0.32, 0, 0, Math.PI * 2)
-      ctx.fill()
-    }
+    if (alt >= SHADOW_FADE_ALT) return
+    // 平行光投影：影子沿光方向外移，坡度/落点按影子位置采样
+    const sx = p.x + alt * SHADOW_OFFSET_RATIO
+    const g0 = sim.level.ground(sx - SHADOW_RADIUS)
+    const g1 = sim.level.ground(sx + SHADOW_RADIUS)
+    const slope = Math.atan2(g1 - g0, SHADOW_RADIUS * 2)
+    const sy = sim.level.ground(sx) - SHADOW_LIFT
+    // sqrt 缓降：中空仍可见，仅在高空（接近上限）快速衰减
+    const fade = Math.sqrt(Math.max(0, 1 - alt / SHADOW_FADE_ALT))
+    ctx.fillStyle = `rgba(61, 52, 39, ${(SHADOW_MAX_ALPHA * fade).toFixed(3)})`
+    ctx.beginPath()
+    ctx.ellipse(sx, sy, SHADOW_RADIUS, SHADOW_RY, slope, 0, Math.PI * 2)
+    ctx.fill()
 
     const speed = Math.hypot(p.vx, p.vy)
     const idle = Math.max(0, 1 - speed / 3)

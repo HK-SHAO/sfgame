@@ -27,6 +27,9 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - vitest 长模拟超时 → G3
 - 搜索类算法跑不完 → G4
 - 布局测量与预期不符 → A1、H1
+- wasm/MoonBit 构建、JS↔wasm 数据交换、双环境（浏览器+node）加载资源 → I1~I6
+- 弱引擎（无 JIT）性能差、想上 wasm 加速 → I7
+- bun 跑脚本但 node 与 bun 行为不一致（WebAssembly/fetch/spawn）→ I2、I3、I5
 
 ## A. Lit + Shadow DOM
 
@@ -199,6 +202,40 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 **隔离复现不可信**：布局 bug 往往只在真实内容量级下触发（如 A4 百分比循环），必须用真实页面测。
 
 ### H2 三数值不一致 → 先查 transform/zoom（A1）；样式对但布局错 → 查 box-sizing（A2）
+
+## I. wasm / MoonBit / 双环境（实测）
+
+### I1 MoonBit 新版配置与内存导出（2026-08 实测）
+- `moon.pkg.json` 即将移除，新格式 `moon.pkg`（`moon new` 生成；`pkgtype(kind: "foreign_library")`）。**两种格式并存会解析失败**——只留一种。
+- DSL 里 link 配置键必须加引号：`options( "link": { "wasm": { "export-memory-name": "memory", ... } } )`——不引号会报 `BoolOrLink` 解析错；JSON 里 `memory-limits` 的 `min`/`max` 都要给。
+- 经典 wasm 目标默认**不导出 memory**，JS 侧拿不到共享内存 → 必须 `export-memory-name`；暂存区与 MoonBit 堆冲突 → 用 `heap-start-address` 抬堆（低地址留给 JS 视图）。
+- 顶层不能 `let mut` 全局可变 → 用 `Ref::Ref(None)`（`Ref::new` 已弃用）；Float 字面量要类型标注 `FixedArray::make(n, 0.0 : Float)`；f32↔f64 显式 `to_double()`/`to_float()`。
+- `extern "wasm" fn f(addr: Int) -> Double = #|(func (param i32) (result f64) ...f32.load f64.promote_f32)`——返回类型必须与 MoonBit 声明一致。
+
+### I2 bun 的 `WebAssembly.instantiate(bytes)` 返回空实例
+**症状**：bun 里 `WebAssembly.instantiate(bytes)` 的返回值 `exports` 为 undefined、`instance` 为 `{}`；node 正常。
+**修法**：bun 下用 `new WebAssembly.Instance(WebAssembly.compile(bytes), {})`（实测 JSC 可正常实例化并访问 exports）。
+
+### I3 Node fetch 不支持 file://
+**症状**：vitest（node 跑）里 `fetch(new URL('./x.wasm', import.meta.url))` 抛 "fetch failed"；bun 的 fetch 支持 file://。
+**修法**：加载器按 `url.protocol === 'file:'` 分叉——node/bun 走 `import('node:fs/promises').readFile(url)`（src 配置无 node 类型时补最小 `declare module 'node:fs/promises'`），浏览器走 fetch；vite build 会把 node:fs 外部化（警告无害，浏览器分支不触达）。**别用 `?url` 导入**：vitest 里返回 dev-server 路径 `/src/x.wasm`，node fetch 不可用。
+
+### I4 vite dev 只绑 IPv6 回环
+**症状**：vite dev 起来了，`curl http://127.0.0.1:端口` 连接失败（000），`localhost` 正常。
+**根因**：vite（新版本）只监听 `::1`。自动化脚本访问 dev server 一律用 `http://localhost:端口`。
+**信号**：headless 自动化/curl 探测 127.0.0.1 失败但浏览器手开正常。
+
+### I5 bun 的 node:child_process 兼容坑
+- `spawn` 的 `stdio` 传 stream（createWriteStream 等）报 "TODO: stream.Readable stdio"；传 `Bun.file()` 报 "Invalid stdio option"。
+- **修法**：脚本统一用原生 `Bun.spawn([cmd, ...args], { cwd, stdout: 'ignore', stderr: 'ignore' })`，cwd 必须显式（vite 从 cwd 找配置/根，cwd 错会 404）。
+- `bunx` 会产生孙进程，kill 不掉会占端口——直接跑 `node_modules/xxx/bin/xxx.js`。
+
+### I6 CDP 自动化零依赖可用
+headless Chrome 加 `--remote-debugging-port` 后，用 bun 原生 `WebSocket` 直连 `http://127.0.0.1:PORT/json/version` 的 webSocketDebuggerUrl 即可驱动（Target.createTarget → Runtime.evaluate 轮询），无需 puppeteer/playwright。CPU 节流：`Emulation.setCPUThrottlingRate { rate }`（真实浏览器弱设备近似）。
+
+### I7 wasm 求解器不是万能药：先测再定默认
+**实测（2026-08）**：同负载下 MoonBit wasm 求解器 vs JS JIT——bun/JSC 持平（0.73 vs 0.66ms）、node/V8 慢 ~2.5×、headless Chrome 6× 节流时 wasm 9.2ms vs JS 4.4ms。**但无 JIT 的 iOS WKWebView 里 JS 数值循环慢 10~30×（13~45ms 掉帧），wasm 恒定编译速度（1.5~9ms）**。
+**修法**：逐位一致的 wasm 双引擎 + 启动探测（与求解器同构小循环，≥2.5ms 判定弱引擎）+ 弱引擎才切 wasm；强引擎永远 JS——不牺牲任何现有体验。**判断 wasm 值不值前必须先跑基准**（scripts/bench.ts + bench.html），不要凭"wasm 必然快"的直觉。
 
 ### H3 Lit 3 样式在 `shadowRoot.adoptedStyleSheets`
 无 `<style>` 标签，查生效规则读 `cssRules` 的 `cssText`。

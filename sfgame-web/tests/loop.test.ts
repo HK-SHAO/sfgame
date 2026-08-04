@@ -120,15 +120,15 @@ test('16×：60Hz 帧十六个 tick', () => {
   expect(ticks).toBe(32)
 })
 
-test('暂停回归的追赶尖峰封顶：单帧最多消化 60 步，剩余留待下帧', () => {
+test('暂停回归的追赶尖峰封顶：单帧最多消化 24 步，剩余留待下帧（不爆帧）', () => {
   let ticks = 0
   const loop = new GameLoop({ tick: () => ticks++, render: () => {} })
   loop.setRate(16)
   loop.start()
-  frame(300) // 0.3s×16 = 4.8s 模拟 ≈ 288 步，单帧封顶 60
-  expect(ticks).toBe(60)
+  frame(300) // 0.3s×16 = 4.8s 模拟 ≈ 288 步，单帧封顶 24（防倍速追帧爆帧）
+  expect(ticks).toBe(24)
   frame(17)
-  expect(ticks).toBe(120) // pending 仍超封顶，继续消化
+  expect(ticks).toBe(48) // pending 仍超封顶，继续消化
   run(40, 17)
   // 总模拟时间 ≈ 16s，全部消化完毕（>800 证明未丢弃 pending、封顶已释放）
   expect(ticks).toBeGreaterThan(800)

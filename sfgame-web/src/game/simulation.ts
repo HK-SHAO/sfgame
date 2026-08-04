@@ -1,10 +1,12 @@
-import { Fluid, type FluidConfig } from '../sim/fluid'
+import { type FluidConfig } from '../sim/fluid'
+import { createFluid, type FluidLike } from '../sim/fluid-wasm'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import type { SourceKind } from '../sim/types'
 import type { HudState, LevelDef, Source, SourcePlacement } from './types'
 
-/** 流体物理调参：所有关卡共享同一套"空气性格"。 */
-const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
+/** 流体物理调参：所有关卡共享同一套"空气性格"。
+ * 导出供 wasm 一致性测试复用（两套引擎必须用同一组参数验证）。 */
+export const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
   buoyancy: 2.0,
   tMax: 9,
   heatRate: 10,
@@ -37,7 +39,7 @@ const URL_PRECISION_TOLERANCE = 0.06
  */
 export class LevelSimulation {
   readonly level: LevelDef
-  readonly fluid: Fluid
+  readonly fluid: FluidLike
   readonly plane: Body
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
@@ -51,15 +53,17 @@ export class LevelSimulation {
   private spawnVx: number
   private spawnVy: number
 
-  constructor(level: LevelDef) {
+  constructor(level: LevelDef, fluid?: FluidLike) {
     this.level = level
     const { w, h, cell } = level.world
-    this.fluid = new Fluid({
-      nx: Math.round(w / cell),
-      ny: Math.round(h / cell),
-      cell,
-      ...FLUID_TUNING,
-    })
+    this.fluid =
+      fluid ??
+      createFluid({
+        nx: Math.round(w / cell),
+        ny: Math.round(h / cell),
+        cell,
+        ...FLUID_TUNING,
+      })
     this.fluid.setGroundMask(level.ground)
     this.fluid.setAmbient(level.ambient?.x ?? 0, level.ambient?.y ?? 0)
     this.spawnY = level.spawn.y ?? level.ground(level.spawn.x) - 1.4

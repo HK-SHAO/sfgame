@@ -1,0 +1,10 @@
+pkgtype(kind: "foreign_library")
+options(
+  "link": {
+    "wasm": {
+      "export-memory-name": "memory",
+      "heap-start-address": 131072,
+      "memory-limits": { "min": 16, "max": 64 },
+    },
+  },
+)

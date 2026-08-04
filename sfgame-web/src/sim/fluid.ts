@@ -43,6 +43,8 @@ export class Fluid {
   readonly nx: number
   readonly ny: number
   readonly cell: number
+  /** 引擎标识（FluidLike 约定）：JS 实现 */
+  readonly engine = 'js' as const
   /** 温度绝对值上限（与 cfg.tMax 同步，供渲染等只读使用） */
   readonly tMax: number
   private cfg: FluidConfig
@@ -60,7 +62,11 @@ export class Fluid {
   private q2: Float32Array
   private p: Float32Array
   private div: Float32Array
+  /** h²×div 预乘（f64 存储，与逐次计算 h2*div[idx] 逐位相同——div 在 GS 期间不变） */
+  private divH2: Float64Array
   private curl: Float32Array
+  /** 固体格索引表（setGroundMask 时构建）：enforceBoundary 只扫固体，免全阵扫描 */
+  private solidIdx = new Int32Array(0)
 
   constructor(cfg: FluidConfig) {
     this.cfg = cfg
@@ -80,6 +86,7 @@ export class Fluid {
     this.q2 = new Float32Array(n)
     this.p = new Float32Array(n)
     this.div = new Float32Array(n)
+    this.divH2 = new Float64Array(n)
     this.curl = new Float32Array(n)
   }
 
@@ -111,6 +118,16 @@ export class Fluid {
         this.solid[i + j * nx] = edge || cy >= groundY(cx) ? 1 : 0
       }
     }
+    let n = 0
+    for (let i = 0; i < this.solid.length; i++) {
+      if (this.solid[i]) n++
+    }
+    const list = new Int32Array(n)
+    n = 0
+    for (let i = 0; i < this.solid.length; i++) {
+      if (this.solid[i]) list[n++] = i
+    }
+    this.solidIdx = list
   }
 
   /** 在世界坐标 (wx, wy) 附近注入温度（热为正、冷为负），按半径线性衰减。 */
@@ -214,13 +231,13 @@ export class Fluid {
   }
 
   private applyBuoyancy(dt: number) {
-    const { nx, ny, v, t, solid } = this
+    const { nx, ny, v, t } = this
     const k = this.cfg.buoyancy * dt
+    // 固体格 t=0 不变量 → v -= k*0 恒为无操作，分支可去（逐位不变）
     for (let j = 1; j < ny - 1; j++) {
+      const row = j * nx
       for (let i = 1; i < nx - 1; i++) {
-        const idx = i + j * nx
-        if (solid[idx]) continue
-        v[idx] -= k * t[idx]
+        v[i + row] -= k * t[i + row]
       }
     }
   }
@@ -229,8 +246,9 @@ export class Fluid {
     const { nx, ny, u, v, solid, curl, cell } = this
     const h2 = 2 * cell
     for (let j = 1; j < ny - 1; j++) {
+      const row = j * nx
       for (let i = 1; i < nx - 1; i++) {
-        const idx = i + j * nx
+        const idx = i + row
         if (solid[idx]) {
           curl[idx] = 0
           continue
@@ -240,8 +258,9 @@ export class Fluid {
     }
     const f = this.cfg.vorticity * cell * dt
     for (let j = 2; j < ny - 2; j++) {
+      const row = j * nx
       for (let i = 2; i < nx - 2; i++) {
-        const idx = i + j * nx
+        const idx = i + row
         if (solid[idx]) continue
         const dwdx = (Math.abs(curl[idx + 1]) - Math.abs(curl[idx - 1])) / h2
         const dwdy = (Math.abs(curl[idx + nx]) - Math.abs(curl[idx - nx])) / h2
@@ -267,22 +286,44 @@ export class Fluid {
     this.advectPass(q1, src, dt, 1)
     this.advectPass(q2, q1, dt, -1)
     for (let j = 1; j < ny - 1; j++) {
+      const row = j * nx
       for (let i = 1; i < nx - 1; i++) {
-        const idx = i + j * nx
+        const idx = i + row
         if (solid[idx]) {
           dst[idx] = 0
           continue
         }
-        // 3×3 邻域极值（含固体格，其值为 0，钳制方向安全）
+        // 3×3 邻域极值（含固体格，其值为 0，钳制方向安全）——展开保持原比较次序
         let lo = src[idx]
         let hi = lo
-        for (let jj = j - 1; jj <= j + 1; jj++) {
-          for (let ii = i - 1; ii <= i + 1; ii++) {
-            const v = src[ii + jj * nx]
-            if (v < lo) lo = v
-            else if (v > hi) hi = v
-          }
-        }
+        let v: number
+        v = src[idx - nx - 1]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
+        v = src[idx - nx]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
+        v = src[idx - nx + 1]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
+        v = src[idx - 1]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
+        v = src[idx]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
+        v = src[idx + 1]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
+        v = src[idx + nx - 1]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
+        v = src[idx + nx]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
+        v = src[idx + nx + 1]
+        if (v < lo) lo = v
+        else if (v > hi) hi = v
         let val = q1[idx] + (src[idx] - q2[idx]) * 0.5
         if (val < lo) val = lo
         else if (val > hi) val = hi
@@ -299,8 +340,9 @@ export class Fluid {
     const { nx, ny, u0, v0, solid, cell } = this
     const dt0 = (dt / cell) * sign
     for (let j = 1; j < ny - 1; j++) {
+      const row = j * nx
       for (let i = 1; i < nx - 1; i++) {
-        const idx = i + j * nx
+        const idx = i + row
         if (solid[idx]) {
           dst[idx] = 0
           continue
@@ -311,8 +353,9 @@ export class Fluid {
         else if (x > nx - 1.5) x = nx - 1.5
         if (y < 0.5) y = 0.5
         else if (y > ny - 1.5) y = ny - 1.5
-        const i0 = Math.floor(x)
-        const j0 = Math.floor(y)
+        // 钳制后 x/y 恒为正：|0 与 floor 逐位等价
+        const i0 = x | 0
+        const j0 = y | 0
         const fx = x - i0
         const fy = y - j0
         const a = i0 + j0 * nx
@@ -329,15 +372,16 @@ export class Fluid {
   }
 
   private project() {
-    const { nx, ny, u, v, p, div, solid, cell } = this
+    const { nx, ny, u, v, p, div, divH2, solid, cell } = this
     const h = cell
     const inv2h = 1 / (2 * h)
     const h2 = h * h
 
     // 散度场。p 不清零：warm-start，沿用上一帧压强做初值（收敛更快）。
     for (let j = 1; j < ny - 1; j++) {
+      const row = j * nx
       for (let i = 1; i < nx - 1; i++) {
-        const idx = i + j * nx
+        const idx = i + row
         if (solid[idx]) {
           div[idx] = 0
           p[idx] = 0
@@ -351,6 +395,10 @@ export class Fluid {
       }
     }
 
+    // h²×div 预乘一次：与逐迭代 h2*div[idx] 逐位相同（div 在 GS 期间不变）
+    const n = div.length
+    for (let i = 0; i < n; i++) divH2[i] = h2 * div[i]
+
     // 红黑 Gauss-Seidel：两色交替扫描，收敛约两倍于顺序 GS，
     // 且天然可并行。网格四边恒为固体，内圈邻域索引必在界内。
     const iterations = this.cfg.iterations
@@ -358,22 +406,24 @@ export class Fluid {
       for (let parity = 0; parity < 2; parity++) {
         for (let j = 1; j < ny - 1; j++) {
           const i0 = ((parity ^ (j & 1)) & 1) ? 1 : 2
+          const row = j * nx
           for (let i = i0; i < nx - 1; i += 2) {
-            const idx = i + j * nx
+            const idx = i + row
             if (solid[idx]) continue
             const pL = solid[idx - 1] ? p[idx] : p[idx - 1]
             const pR = solid[idx + 1] ? p[idx] : p[idx + 1]
             const pU = solid[idx - nx] ? p[idx] : p[idx - nx]
             const pD = solid[idx + nx] ? p[idx] : p[idx + nx]
-            p[idx] = (pL + pR + pU + pD - h2 * div[idx]) * 0.25
+            p[idx] = (pL + pR + pU + pD - divH2[idx]) * 0.25
           }
         }
       }
     }
 
     for (let j = 1; j < ny - 1; j++) {
+      const row = j * nx
       for (let i = 1; i < nx - 1; i++) {
-        const idx = i + j * nx
+        const idx = i + row
         if (solid[idx]) continue
         const pL = solid[idx - 1] ? p[idx] : p[idx - 1]
         const pR = solid[idx + 1] ? p[idx] : p[idx + 1]
@@ -386,13 +436,12 @@ export class Fluid {
   }
 
   private enforceBoundary() {
-    const { u, v, t, solid } = this
-    for (let idx = 0; idx < u.length; idx++) {
-      if (solid[idx]) {
-        u[idx] = 0
-        v[idx] = 0
-        t[idx] = 0
-      }
+    const { u, v, t, solidIdx } = this
+    for (let k = 0; k < solidIdx.length; k++) {
+      const idx = solidIdx[k]
+      u[idx] = 0
+      v[idx] = 0
+      t[idx] = 0
     }
   }
 }

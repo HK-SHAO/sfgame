@@ -178,7 +178,8 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 **症状**：偶现"地面/天空没了"，飞机/粒子还在动；刷新或改窗口大小即恢复。
 **根因**：restored 只重建 program/缓冲，离屏背景纹理/FBO 随上下文销毁后没有重建，且 Renderer 的 `bgDirty` 为 false 不会重烘焙——draw 落入"背景未就绪"兜底清屏，只画动态层。
 **修法**：restored 里 init 成功后立即 `resizeBg()` 重建纹理/FBO 并置 `bgStale`，Renderer 烘焙条件为 `bgDirty || gl.bgStale`；`bakeBg` 检查 `checkFramebufferStatus`，不完整则重建 FBO 并保留脏标记下帧重试。
-**信号**：离屏纹理/缓存的资源在"上下文恢复"路径没有重建入口。
+**2026-08 续坑（原修法仍有洞）**：`bakeBg` 失败路径（FBO 瞬态不完整/纹理分配失败）返回后，Renderer **无条件**清掉了 `bgDirty`/`bgStale`——重建出的空纹理或兜底清屏会一直顶到下次 resize/上下文事件，即"刷新或改窗口大小才恢复"的偶现白底。**修法三件套**：(1) `bakeBg`/`resizeBg` 返回 boolean，烘焙失败时调用方**保留脏标记**，且 `bakeBg` 失败路径就地重建 FBO/纹理，下一帧的检查即对新建对象进行；(2) `resizeBg` 里 `createTexture`/`createFramebuffer` 返回 null（显存压力）时指针置 null 返回 false，走同一重试链；(3) 烘焙条件加 `!gl.bgReady`，纹理缺失即使无脏标记也强制进块自愈。浏览器实测：注入纹理丢失后 ~2 帧内自动恢复。
+**信号**：离屏纹理/缓存的资源在"上下文恢复"路径没有重建入口；烘焙失败路径出现"无条件清脏标记"。
 
 ### D8 淡出/裁剪的早退别跳过物体本体
 旧 `drawPlane` 在 `alt >= SHADOW_FADE_ALT` 时直接 `return`——连飞机本体都不画，高空飞机凭空消失。**影子淡出是"局部效果"，早退只能跳过影子那段**；任何"某效果随条件淡出"的代码，先确认早退范围不含主体绘制。重构渲染时优先审这类 early-return。

@@ -86,6 +86,10 @@ export class GlRenderer {
   private lost = false
   /** 上下文恢复后 FBO/纹理已重建但内容为空，需要 Renderer 重新烘焙背景 */
   bgStale = false
+  /** 背景纹理是否已分配（Renderer 据此在纹理丢失时强制重烘焙自愈） */
+  get bgReady(): boolean {
+    return this.bgTexture !== null
+  }
 
   private constructor(canvas: HTMLCanvasElement, gl: WebGLRenderingContext) {
     this.canvas = canvas
@@ -224,15 +228,20 @@ export class GlRenderer {
   /**
    * 背景离屏纹理尺寸跟随画布（设备像素），1:1 呈现保证视觉一致。
    * canvas 尺寸变更会重置上下文状态，这里同时重建 FBO/纹理。
+   * 分配失败（显存压力等偶发）返回 false：纹理指针保持 null，draw 落兜底清屏，
+   * bake 会重建重试，直到成功。
    */
-  resizeBg() {
+  resizeBg(): boolean {
     const gl = this.gl
-    if (!this.tex || !this.texBuffer) return
+    if (!this.tex || !this.texBuffer) return false
     const w = Math.max(1, this.canvas.width)
     const h = Math.max(1, this.canvas.height)
     if (this.bgTexture) gl.deleteTexture(this.bgTexture)
     if (this.bgFbo) gl.deleteFramebuffer(this.bgFbo)
+    this.bgTexture = null
+    this.bgFbo = null
     const tex = gl.createTexture()
+    if (!tex) return false
     gl.bindTexture(gl.TEXTURE_2D, tex)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -240,28 +249,40 @@ export class GlRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
     const fbo = gl.createFramebuffer()
+    if (!fbo) {
+      gl.bindTexture(gl.TEXTURE_2D, null)
+      gl.deleteTexture(tex)
+      return false
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     gl.bindTexture(gl.TEXTURE_2D, null)
     this.bgTexture = tex
     this.bgFbo = fbo
+    return true
   }
 
   /** 把静态背景 batch 烘焙进离屏纹理（resize/上下文恢复后调用；需先 resizeBg）。
    * 烘焙保持 alpha 混合：背景含半透明渐变（太阳辉光/目标光柱/虚线圆），
    * 关混合会让它们变不透明实心。烘焙仅 resize 时一次，混合成本可忽略；
-   * 主 draw 的纹理 blit 才关混合（纹理已是合成结果）。 */
-  bakeBg(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number) {
+   * 主 draw 的纹理 blit 才关混合（纹理已是合成结果）。
+   * 返回 false = 未烘焙（上下文瞬态/FBO 不完整/分配失败）：调用方必须保留脏标记，
+   * 下帧重试——否则空纹理或兜底清屏会一直顶到下次 resize/上下文事件。
+   * 失败路径就地重建 FBO/纹理，下一帧的检查即对新建对象进行。 */
+  bakeBg(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number): boolean {
     const gl = this.gl
-    if (this.lost || !this.program || !this.buffer || !this.bgFbo || !this.bgTexture) return
-    if (batch.count === 0) return
+    if (this.lost || !this.program || !this.buffer) return false
+    if (batch.count === 0) return false
+    if (!this.bgFbo || !this.bgTexture) {
+      if (!this.resizeBg()) return false
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.bgFbo)
-    // FBO 不完整（纹理分配失败等偶发）：重建后由 bgDirty 保留下次重试，别静默烘焙进空气
+    // FBO 不完整（恢复后/分配后偶发瞬态）：重建并返回 false，下帧重试
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
       this.resizeBg()
-      return
+      return false
     }
     gl.viewport(0, 0, this.canvas.width, this.canvas.height)
     gl.enable(gl.BLEND)
@@ -285,6 +306,7 @@ export class GlRenderer {
     gl.vertexAttribPointer(this.aColor, 4, gl.FLOAT, false, VERTEX_STRIDE * 4, 8)
     gl.drawArrays(gl.TRIANGLES, 0, batch.count)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    return true
   }
 
   /**

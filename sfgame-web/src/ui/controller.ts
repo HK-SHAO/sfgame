@@ -203,7 +203,9 @@ export class GameController {
     const rect = this.host.getBoundingClientRect()
     const w = Math.round(rect.width)
     const h = Math.round(rect.height)
-    if (w === 0 && h === 0) return
+    // 任一边为 0（布局瞬态）跳过：0 高会算出 scale=0 的 NaN/Inf 视口坐标，
+    // 渲染错乱之外还会在 drawTerrain 分配时抛 RangeError 杀死游戏循环
+    if (w === 0 || h === 0) return
     // 尺寸未变则跳过：防止 ResizeObserver 抖动/循环导致画布每帧重建（iOS 已知坑）
     if (w === this.fitW && h === this.fitH) return
     this.fitW = w

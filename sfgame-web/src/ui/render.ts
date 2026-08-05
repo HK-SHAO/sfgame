@@ -151,7 +151,8 @@ export class Renderer {
 
   draw(scene: SceneState) {
     const gl = this.gl
-    if (!gl || this.cssW === 0) return
+    // cssH 也为 0 时 scale=0 会产生 NaN/Inf 视口坐标（还可能在 drawTerrain 分配时抛错）
+    if (!gl || this.cssW === 0 || this.cssH === 0) return
     const { sim, tracers, planeTrail, press, now } = scene
     const { w, h } = sim.level.world
     this.world = sim.level.world
@@ -167,16 +168,20 @@ export class Renderer {
     // 静态背景（天空/旗杆/地形/光晕）烘焙进离屏纹理，仅 resize 后重做；
     // 旗杆先于地形绘制，杆根沉入地面被遮挡；旗面与虚线圆随站点状态/风变化，
     // 必须留在动态层每帧重建
-    if (this.bgDirty || gl.bgStale) {
+    // 纹理缺失也强制进块：兜住纹理指针被清但脏标记未置的路径（自愈）
+    if (this.bgDirty || gl.bgStale || !gl.bgReady) {
       const bg = this.batch
       bg.reset()
       this.drawSky(bg, viewL, viewT, viewR, viewB, h)
       this.drawGoalPoles(bg, sim)
       this.drawTerrain(bg, sim, viewL, viewR, viewB)
       this.drawSunHalo(bg)
-      gl.bakeBg(bg, viewL, viewT, viewR, viewB)
-      this.bgDirty = false
-      gl.bgStale = false
+      // 烘焙失败（FBO 瞬态不完整/纹理分配失败）必须保留脏标记下帧重试，
+      // 否则空纹理/兜底清屏会一直顶到下次 resize/上下文事件
+      if (gl.bakeBg(bg, viewL, viewT, viewR, viewB)) {
+        this.bgDirty = false
+        gl.bgStale = false
+      }
     }
 
     const b = this.batch

@@ -6,10 +6,11 @@ import {
   type UrlStateSource,
 } from '../src/core/url-state'
 
-/** 内存假源：模拟 location.search + pushState + popstate。 */
+/** 内存假源：模拟 location.search + pushState/replaceState + popstate。 */
 function fakeSource(initial = '') {
   let params = new URLSearchParams(initial)
   const pushes: string[] = []
+  const replaces: string[] = []
   let cb: (() => void) | null = null
   return {
     source: {
@@ -17,6 +18,10 @@ function fakeSource(initial = '') {
       pushState: (p: URLSearchParams) => {
         params = new URLSearchParams(p)
         pushes.push(params.toString())
+      },
+      replaceState: (p: URLSearchParams) => {
+        params = new URLSearchParams(p)
+        replaces.push(params.toString())
       },
       onChange: (f: () => void) => {
         cb = f
@@ -26,6 +31,7 @@ function fakeSource(initial = '') {
       },
     } as UrlStateSource,
     pushes,
+    replaces,
     /** 模拟浏览器前进/后退：改 URL 并触发 popstate */
     applyUrl(url: string) {
       params = new URLSearchParams(url)
@@ -101,6 +107,42 @@ test('等值 set 跳过：不重复写 URL、不触发通知', async () => {
   await flush()
   expect(fake.pushes).toHaveLength(0)
   expect(notified).toBe(0)
+})
+
+test('replace 写入：replaceState 改写当前条目，不新增历史', async () => {
+  const { state, fake } = make('')
+  state.set('flag', true, { replace: true })
+  await flush()
+  expect(fake.pushes).toHaveLength(0)
+  expect(fake.replaces).toEqual(['flag=1'])
+  // replace 后的 URL 与内存状态一致，后退/前进同步照常
+  fake.applyUrl('flag=0')
+  expect(state.get('flag')).toBe(false)
+})
+
+test('clear 也支持 replace 模式', async () => {
+  const { state, fake } = make('level=2&count=3')
+  state.clear('level', { replace: true })
+  await flush()
+  expect(fake.pushes).toHaveLength(0)
+  expect(fake.replaces).toEqual(['count=3'])
+})
+
+test('同批混合写入：最后一次写入决定历史模式', async () => {
+  const { state, fake } = make('')
+  state.set('level', 1)
+  state.set('flag', true, { replace: true })
+  await flush()
+  expect(fake.pushes).toHaveLength(0)
+  expect(fake.replaces).toEqual(['level=1&flag=1'])
+})
+
+test('等值 set + replace 同样跳过', async () => {
+  const { state, fake } = make('flag=1')
+  state.set('flag', true, { replace: true })
+  await flush()
+  expect(fake.pushes).toHaveLength(0)
+  expect(fake.replaces).toHaveLength(0)
 })
 
 test('写读分离：set/clear 不回调订阅者，onChange 仅响应外部 URL 变化', async () => {

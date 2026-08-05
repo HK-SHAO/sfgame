@@ -2,6 +2,8 @@
  * 通用 URL 状态模块：声明式 schema ↔ URL 查询参数双向绑定。
  * 写读分离：set/clear 不回调订阅者（杜绝"写入→回读→再写入"反馈环），
  * onChange 仅响应外部 URL 变化；解码永不抛错，等值 set 跳过（防历史污染）。
+ * 两种写入模式：默认 pushState（导航类，可后退撤销）；opts.replace 用
+ * replaceState（开关等轻量操作，不占历史，后退不会被开关噪声污染）。
  * 无头可测：URL 源可注入。
  */
 export interface UrlStateCodec<T> {
@@ -20,10 +22,18 @@ export interface UrlStateListCodec<T> {
 /** URL 状态源（浏览器适配器实现于本文件；测试可注入内存假源） */
 export interface UrlStateSource {
   getParams(): URLSearchParams
-  /** pushState 语义：新增历史条目，可后退撤销 */
+  /** pushState 语义：新增历史条目，可后退撤销（导航类写入） */
   pushState(params: URLSearchParams): void
+  /** replaceState 语义：改写当前条目，不占历史（开关类轻量写入） */
+  replaceState(params: URLSearchParams): void
   /** 订阅外部 URL 变化（popstate + pageshow/bfcache 恢复）；返回退订函数 */
   onChange(cb: () => void): () => void
+}
+
+/** 写入选项：replace=true 用 replaceState 改写当前历史条目（不新增），
+ * 适用于开关等轻量操作——连续切换不产生"撤销切换"的历史条目 */
+export interface UrlStateWriteOptions {
+  replace?: boolean
 }
 
 export const codecs = {
@@ -100,6 +110,8 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
   private applying = false
   private disposed = false
   private unsubscribe: () => void
+  /** 本批 flush 的历史模式：最近一次写入决定（默认 pushState） */
+  private replaceMode = false
 
   constructor(def: D, source?: UrlStateSource) {
     this.def = def
@@ -113,8 +125,9 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
   }
 
   /** 更新值：等价于当前值则跳过（防历史污染）；写 URL（微任务批量）。
-   * 不回调订阅者——onChange 仅响应外部 URL 变化，写方自知。 */
-  set<K extends KeyOf<D>>(key: K, value: ReturnType<D[K]['decode']>): void {
+   * 不回调订阅者——onChange 仅响应外部 URL 变化，写方自知。
+   * opts.replace 用 replaceState（开关等轻量操作，不占历史）。 */
+  set<K extends KeyOf<D>>(key: K, value: ReturnType<D[K]['decode']>, opts?: UrlStateWriteOptions): void {
     const codec = this.def[key]
     const cur = this.values.get(key)
     const encoded = codec.encode(value as never)
@@ -122,11 +135,12 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
     this.values.set(key, value)
     this.dirty.add(key)
     this.removed.delete(key)
+    this.replaceMode = opts?.replace ?? false
     this.scheduleFlush()
   }
 
   /** 从 URL 移除该键，值回落为默认（def 的 decode(null)）。不回调订阅者。 */
-  clear<K extends KeyOf<D>>(key: K): void {
+  clear<K extends KeyOf<D>>(key: K, opts?: UrlStateWriteOptions): void {
     const codec = this.def[key]
     const cur = this.values.get(key)
     const fallback = codec.decode(null)
@@ -134,6 +148,7 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
     this.values.set(key, fallback)
     this.removed.add(key)
     this.dirty.delete(key)
+    this.replaceMode = opts?.replace ?? false
     this.scheduleFlush()
   }
 
@@ -195,6 +210,8 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
 
   private flush(): void {
     this.pendingFlush = false
+    const replace = this.replaceMode
+    this.replaceMode = false
     if (this.disposed || (this.dirty.size === 0 && this.removed.size === 0)) return
     const params = this.source.getParams()
     for (const key of this.dirty) {
@@ -206,15 +223,20 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
     // 我们自己的写入不应再次触发 sync（防御异常环境回环）
     this.applying = true
     try {
-      this.source.pushState(params)
+      if (replace) this.source.replaceState(params)
+      else this.source.pushState(params)
     } finally {
       this.applying = false
     }
   }
 }
 
-/** 浏览器适配器：location.search ↔ history.pushState + popstate/pageshow。 */
+/** 浏览器适配器：location.search ↔ history.pushState/replaceState + popstate/pageshow。 */
 function createBrowserSource(): UrlStateSource {
+  const buildUrl = (params: URLSearchParams) => {
+    const q = params.toString()
+    return (q ? `${window.location.pathname}?${q}` : window.location.pathname) + window.location.hash
+  }
   return {
     getParams() {
       try {
@@ -225,11 +247,16 @@ function createBrowserSource(): UrlStateSource {
     },
     pushState(params) {
       try {
-        const q = params.toString()
-        const url = (q ? `${window.location.pathname}?${q}` : window.location.pathname) + window.location.hash
-        window.history.pushState(null, '', url)
+        window.history.pushState(null, '', buildUrl(params))
       } catch {
         /* 沙箱/受限环境：静默降级，状态仍在内存中生效 */
+      }
+    },
+    replaceState(params) {
+      try {
+        window.history.replaceState(null, '', buildUrl(params))
+      } catch {
+        /* 同上：静默降级 */
       }
     },
     onChange(cb) {

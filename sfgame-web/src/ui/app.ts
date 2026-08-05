@@ -59,9 +59,6 @@ export class SfApp extends LitElement {
   }
 
   @query('sf-game') private gameEl!: SfGame
-  @query('.hud') private hudEl!: HTMLElement | null
-  /** HUD 是否横向溢出（窄屏）：溢出时启用横向滚动并接管该条带指针（见 syncHudOverflow） */
-  @state() private hudOverflow = false
 
   constructor() {
     super()
@@ -76,27 +73,6 @@ export class SfApp extends LitElement {
       // 撤销/重做（仅外部 URL 变化触发，玩家自身操作不触发）轻反馈
       sfx.uiClick()
     })
-    window.addEventListener('resize', this.onWinResize)
-  }
-
-  override disconnectedCallback() {
-    window.removeEventListener('resize', this.onWinResize)
-    super.disconnectedCallback()
-  }
-
-  /** 窗口尺寸变化后复查 HUD 溢出状态（旋转/缩放会改变布局） */
-  private onWinResize = () => {
-    this.syncHudOverflow()
-  }
-
-  /**
-   * HUD 横向溢出检测：title 常显（不折行不省略），空间不够时整个条带
-   * 变成横向滚动区（scroll 类接管指针事件，否则 touch/wheel 会被 canvas 吃掉）。
-   */
-  private syncHudOverflow() {
-    const el = this.hudEl
-    const over = !!el && el.scrollWidth > el.clientWidth + 1
-    if (over !== this.hudOverflow) this.hudOverflow = over
   }
 
   /** 从 URL 统一推导屏幕（view=solutions/dev/storage 优先 → level 有效 → 标题）。写读分离：set/clear 不触发通知，UI 操作需自行设 screen。 */
@@ -143,13 +119,6 @@ export class SfApp extends LitElement {
     // 进关卡前重置 HUD（willUpdate 属当前周期不额外调度；避免上局结算覆盖层闪现）
     if (changed.has('screen') && this.screen === 'game') {
       this.resetHud(this.activeLevel)
-    }
-  }
-
-  protected override updated(_changed: PropertyValues) {
-    // 渲染完成后再测 HUD 溢出（首次进入关卡时布局才就绪）
-    if (this.screen === 'game') {
-      void this.updateComplete.then(() => this.syncHudOverflow())
     }
   }
 
@@ -212,10 +181,11 @@ export class SfApp extends LitElement {
     urlState.set('v', 'storage')
   }
 
-  /** 开发者选项内开关 dev 模式（?dev=1 控制 perf 叠加层/高速档/空格暂停/主菜单开发者入口） */
+  /** 开发者选项内开关 dev 模式（?dev=1 控制 perf 叠加层/高速档/空格暂停/主菜单开发者入口）。
+   * 开关是轻量操作：replace 改写当前历史条目，来回切换不产生"撤销切换"的后退噪声 */
   private toggleDev(e: CustomEvent<boolean>) {
     this.dev = e.detail
-    urlState.set('dev', e.detail)
+    urlState.set('dev', e.detail, { replace: true })
     sfx.uiClick()
   }
 
@@ -366,25 +336,27 @@ export class SfApp extends LitElement {
           ></sf-game>`,
         )}
 
-        <header class="hud ${this.hudOverflow ? 'scroll' : ''}">
-          <button class="icon-btn" @click=${this.backToTitle} aria-label="回到主页" title="回到主页">
-            ${iconHome}
-          </button>
-          <button class="icon-btn" @click=${this.goBack} aria-label="返回上一状态" title="返回上一状态">
-            ${iconBack}
-          </button>
+        <header class="hud">
+          <div class="hud-left">
+            <button class="icon-btn" @click=${this.backToTitle} aria-label="回到主页" title="回到主页">
+              ${iconHome}<span class="lbl">主页</span>
+            </button>
+            <button class="icon-btn" @click=${this.goBack} aria-label="返回上一状态" title="返回上一状态">
+              ${iconBack}<span class="lbl">返回</span>
+            </button>
+          </div>
           <div class="hud-right">
             <span class="chip hot ${this.hud.hotLeft === 0 ? 'empty' : ''}" title="剩余热源">
-              ${iconFlame}<b>${this.hud.hotLeft}</b>
+              ${iconFlame}<span class="lbl">热源</span><b>${this.hud.hotLeft}</b>
             </span>
             <span class="chip cold ${this.hud.coldLeft === 0 ? 'empty' : ''}" title="剩余冷源">
-              ${iconSnow}<b>${this.hud.coldLeft}</b>
+              ${iconSnow}<span class="lbl">冷源</span><b>${this.hud.coldLeft}</b>
             </span>
             <button class="icon-btn speed" @click=${this.cycleSpeed} aria-label="游戏速率 ${this.speedLabel()}">
-              ${this.speedLabel()}
+              <span class="lbl">速率</span><b>${this.speedLabel()}</b>
             </button>
             <button class="icon-btn" @click=${this.restart} aria-label="重置关卡">
-              ${iconReset}
+              ${iconReset}<span class="lbl">重置</span>
             </button>
             <button
               class="icon-btn"
@@ -392,7 +364,7 @@ export class SfApp extends LitElement {
               aria-label=${this.muted ? '开启声音' : '关闭声音'}
               aria-pressed=${!this.muted}
             >
-              ${this.muted ? iconSoundOff : iconSoundOn}
+              ${this.muted ? iconSoundOff : iconSoundOn}<span class="lbl">声音</span>
             </button>
           </div>
         </header>
@@ -446,6 +418,9 @@ export class SfApp extends LitElement {
       height: 100dvh;
       overflow: hidden;
       color: var(--ink);
+      /* HUD 两态自适应（标签显隐/滚动兜底）用容器查询，零 JS；
+         组件尺寸全 rem，临界宽度按内容宽取（见 .hud 下的 @container） */
+      container-type: inline-size;
     }
 
     svg {
@@ -668,11 +643,12 @@ export class SfApp extends LitElement {
       right: 0;
       display: flex;
       align-items: center;
+      /* 两端对齐：左侧导航组/右侧操作组贴边，组内间距统一 0.5rem */
       justify-content: space-between;
       gap: 0.5rem;
       padding: calc(0.5rem + env(safe-area-inset-top, 0px)) 0.625rem 0.5rem;
       pointer-events: none;
-      /* 子项不压缩；空间不够时整条横向滚动（scroll 类接管指针） */
+      /* 子项不压缩；空间不够时整条横向滚动（见下方 @container） */
       overflow-x: auto;
       overflow-y: hidden;
       scrollbar-width: none;
@@ -683,24 +659,45 @@ export class SfApp extends LitElement {
       flex: none;
     }
 
-    /* 溢出时：显示滚动条并接管指针（touch/wheel 滚动；否则事件会被下方 canvas 吃掉） */
-    .hud.scroll {
-      pointer-events: auto;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(61, 52, 39, 0.25) transparent;
-    }
-
+    /* 左右两组：space-between 的弹性空隙只出现在两组之间，组内间距统一 0.5rem */
+    .hud-left,
     .hud-right {
       display: flex;
       align-items: center;
       gap: 0.5rem;
     }
 
+    /* 按钮文本标签：默认隐藏，宽屏（内容放得下）时由容器查询显示 */
+    .lbl {
+      display: none;
+      white-space: nowrap;
+    }
+
+    /* 窄容器（<25rem ≈ 无标签内容宽）：内容放不下 → 显示滚动条并接管指针
+       （touch/wheel 滚动；否则事件会被下方 canvas 吃掉） */
+    @container (max-width: 25rem) {
+      .hud {
+        pointer-events: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(61, 52, 39, 0.25) transparent;
+      }
+    }
+
+    /* 宽容器（≥39.7rem ≈ 带标签内容宽）：按钮显示简短文本 */
+    @container (min-width: 39.7rem) {
+      .lbl {
+        display: inline;
+      }
+    }
+
     .icon-btn {
-      width: 2.5rem;
+      min-width: 2.5rem;
       height: 2.5rem;
-      display: grid;
-      place-items: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.375rem;
+      padding: 0 0.75rem;
       border-radius: 0.75rem;
       corner-shape: squircle;
       background: rgba(255, 253, 248, 0.66);
@@ -718,7 +715,8 @@ export class SfApp extends LitElement {
     }
 
     /* 速率按钮与并排的 chip 同字号（正文档 0.875rem），保持 HUD 一致性 */
-    .icon-btn.speed {
+    .icon-btn.speed,
+    .icon-btn.speed b {
       font-size: 0.875rem;
       font-weight: 600;
       font-variant-numeric: tabular-nums;

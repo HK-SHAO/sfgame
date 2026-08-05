@@ -64,6 +64,9 @@ const VISIBLE_ALPHA = 0.02
 const SOURCE_POP_RATE = 9
 const SOURCE_GLOW_RADIUS = 4.8
 const SOURCE_CORE_RADIUS = 1.15
+/** 旗面平滑响应率（1/秒）：常驻基准 + 随风速增强的分量（见 drawGoal） */
+const FLAG_RESPONSE_BASE = 1.2
+const FLAG_RESPONSE_WIND = 3
 
 /** 地形采样：基础步长；平坦段最大合并间距；相邻段转角阈值（弧度，≈1.1°） */
 const TERRAIN_STEP = 0.25
@@ -260,6 +263,7 @@ export class Renderer {
    */
   private drawGoal(b: MeshBatch, sim: LevelSimulation) {
     const goals = sim.level.goals
+    this.ensureFlagState(goals.length)
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]
       const gy = sim.level.ground(g.x)
@@ -272,18 +276,47 @@ export class Renderer {
 
       // 未抵达：虚线圆（抵达范围）+ 旗帜
       b.dashRing(g.x, gy - 2, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
-      // 旗帜：摆动真实跟随"旗帜自身位置"的气流矢量——顺风侧、随风速
-      // 拉伸、上升/下沉气流影响旗面；相位用模拟时钟，物理冻结时旗面静止
+      // 旗帜：旗面跟随"旗帜自身位置"的气流矢量，经一阶低通平滑——风向改变时
+      // 旗面缓转（先缩回再反向展开），不会瞬间翻转；拉伸长度、摆动幅度与频率
+      // 随风速增强，旗面张弛即可读气流速度；相位用模拟时钟，物理冻结时旗面静止
       const air = Renderer.tmpAir
       sim.fluid.sampleVelocity(g.x + 1.6, top + 1.4, air)
-      const speed = Math.min(1.4, Math.hypot(air.x, air.y))
-      const dir = air.x >= 0 ? 1 : -1
+      const dt = sim.time - this.flagT[i]
+      this.flagT[i] = sim.time
+      if (dt > 0) {
+        // 响应率：常驻基准 + 随风速增强——强风里旗面立刻跟上，弱风里缓缓摆回
+        const k = 1 - Math.exp(-dt * (FLAG_RESPONSE_BASE + Math.hypot(air.x, air.y) * FLAG_RESPONSE_WIND))
+        this.flagX[i] += (air.x - this.flagX[i]) * k
+        this.flagY[i] += (air.y - this.flagY[i]) * k
+      }
+      const sx = this.flagX[i]
+      const sy = this.flagY[i]
+      const u = Math.hypot(sx, sy)
+      const uN = Math.min(1.4, u)
+      const len = 0.9 + uN * 2.2 // 旗面长度随风速拉伸
+      const dx = u > 0.05 ? sx / u : 0 // 顺风方向；无风退化为垂挂
+      const dy = u > 0.05 ? sy / u : 0
+      const droop = 0.85 * Math.exp(-uN * 1.6) // 弱风时重力占优，旗面下垂
+      const wave = (0.1 + uN * 0.45) * Math.sin(sim.time * (5 + uN * 4) + i * 1.7)
+      // 摆动沿旗面垂直方向：水平风里上下飘，垂直气流里左右抖
+      const tipX = g.x + dx * len - dy * wave
+      const tipY = top + dy * len * 0.55 + droop * len + dx * wave
       b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 1)
-      const wave = (0.12 + speed * 0.5) * Math.sin(sim.time * 6 + i * 1.7)
-      const stretch = dir * (0.2 + speed * 0.5)
-      const lift = Math.max(-0.7, Math.min(0.7, air.y * 0.1))
-      b.tri(g.x, top, g.x + dir * 3.2 + stretch, top + 0.9 + wave + lift, g.x, top + 2.1, ...GOAL, 1)
+      b.tri(g.x, top, tipX, tipY, g.x, top + 1.8, ...GOAL, 1)
     }
+  }
+
+  /** 每面旗的平滑气流矢量（惯性）与上次平滑时刻（按模拟时钟，冻结时 dt=0）。 */
+  private flagX = new Float32Array(0)
+  private flagY = new Float32Array(0)
+  private flagT = new Float32Array(0)
+
+  private ensureFlagState(n: number) {
+    if (this.flagX.length >= n) return
+    this.flagX = new Float32Array(n)
+    this.flagY = new Float32Array(n)
+    this.flagT = new Float32Array(n)
+    this.flagT.fill(-Infinity) // 首帧 dt=∞ → 立即吸附当前风，再进入平滑
   }
 
   private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null) {

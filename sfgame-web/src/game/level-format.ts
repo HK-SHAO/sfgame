@@ -59,9 +59,11 @@ export function validateLevelJson(raw: unknown): string[] {
   }
 
   const s = j.spawn
+  // world 非法时以 0 兜底：校验器只列事实，不得因缺字段抛 TypeError
   const wMax = w ? w.w : 0
+  const hMax = w ? w.h : 0
   if (!s || !isFin(s.x) || s.x < -20 || s.x > wMax + 20) errs.push(`${id} spawn.x 超出 [-20, w+20]`)
-  if (s?.y !== undefined && (!isFin(s.y) || s.y < -20 || s.y > w.h + 20)) errs.push(`${id} spawn.y 超出范围`)
+  if (s?.y !== undefined && (!isFin(s.y) || s.y < -20 || s.y > hMax + 20)) errs.push(`${id} spawn.y 超出范围`)
   if (s?.vx !== undefined && !isFin(s.vx)) errs.push(`${id} spawn.vx 必须为数值`)
   if (s?.vy !== undefined && !isFin(s.vy)) errs.push(`${id} spawn.vy 必须为数值`)
 

@@ -123,7 +123,7 @@ class Parser {
       this.i++
       return { k: 'call', fn: word, args }
     }
-    throw new ExprError(`无法解析 "${word || c}"（位置 ${this.i}）`)
+    throw new ExprError(`无法解析 "${word || (c ?? '')}"（位置 ${this.i}）`)
   }
 
   private number(): Node {

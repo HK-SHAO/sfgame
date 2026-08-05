@@ -33,7 +33,6 @@ export class SfSolutions extends LitElement {
           <button class="icon-btn" @click=${this.onBack} aria-label="返回">${iconBack}</button>
           <div class="head-text">
             <h1>解法参考</h1>
-            <p>点击解，进入对应摆放</p>
           </div>
         </header>
         ${LEVELS.map((l) =>
@@ -123,12 +122,6 @@ export class SfSolutions extends LitElement {
       font-size: 1.25rem;
       font-weight: 700;
       letter-spacing: 0.01em;
-    }
-
-    .head-text p {
-      margin: 0.125rem 0 0;
-      font-size: 0.75rem;
-      color: var(--ink-soft);
     }
 
     .level {

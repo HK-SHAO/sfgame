@@ -37,10 +37,14 @@ const level = loadLevel(levelFile)
 console.log(`关卡 ${level.id}「${level.name}」 ${level.world.w}×${level.world.h} 预算 热${level.budget.hot}/冷${level.budget.cold}`)
 
 function parseSources(raw: string): SourceTuple[] {
-  return raw.split(',').map((part) => {
-    const [xs, ys, ks] = part.split('-')
-    return [Number(xs), Number(ys), ks === 'c' ? 'cold' : 'hot'] as SourceTuple
-  })
+  return raw
+    .split(',')
+    // 空段（`--verify ""` 或尾部逗号）会解析成 (0,0,cold) 假源，直接丢弃
+    .filter((part) => part.length > 0)
+    .map((part) => {
+      const [xs, ys, ks] = part.split('-')
+      return [Number(xs), Number(ys), ks === 'c' ? 'cold' : 'hot'] as SourceTuple
+    })
 }
 
 function fmt(m: CandidateMetric): string {
@@ -234,11 +238,15 @@ function child(
   return c
 }
 
+/** worker 异常退出时的兜底评估结果：按"失败"计（GA 只会因此丢弃该候选）。 */
+const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0 }
+
 /** 并行评估池：多 worker 子进程，逐行 JSON 请求/响应。 */
 class WorkerPool {
-  private procs: Array<{ proc: import('bun').Subprocess; buf: string; idle: boolean }> = []
+  private procs: Array<{ proc: import('bun').Subprocess; buf: string; idle: boolean; jobId: number }> = []
   private queue: Array<{ src: SourceTuple[]; resolve: (m: CandidateMetric) => void }> = []
   private open = 0
+  private closed = false
 
   constructor(count: number) {
     for (let i = 0; i < count; i++) this.spawn()
@@ -251,8 +259,22 @@ class WorkerPool {
       stdout: 'pipe',
       stderr: 'pipe',
     })
-    const w = { proc, buf: '', idle: true }
+    const w = { proc, buf: '', idle: true, jobId: 0 }
     this.procs.push(w)
+    // worker 意外退出（OOM/被杀）：丢弃其在途任务（按失败计）并补起替身——
+    // 否则在途 Promise 永不 resolve，evaluate 无声挂死
+    void proc.exited.then(() => {
+      if (this.closed) return
+      const i = this.procs.indexOf(w)
+      if (i >= 0) this.procs.splice(i, 1)
+      if (w.jobId > 0 && this.pending.has(w.jobId)) {
+        this.open--
+        this.pending.get(w.jobId)!(FALLBACK_METRIC)
+        this.pending.delete(w.jobId)
+      }
+      this.spawn()
+      this.pump()
+    }).catch(() => {})
     const decoder = new TextDecoder()
     void (async () => {
       if (proc.stderr) {
@@ -295,6 +317,7 @@ class WorkerPool {
       const job = this.queue.shift()!
       const id = ++this.nextId
       w.idle = false
+      w.jobId = id
       this.open++
       this.pending.set(id, job.resolve)
       if (w.proc.stdin && typeof w.proc.stdin !== 'number') {
@@ -323,6 +346,7 @@ class WorkerPool {
   }
 
   async close() {
+    this.closed = true
     for (const w of this.procs) w.proc.kill()
     this.procs = []
   }

@@ -16,6 +16,7 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - 刷新后页面/状态丢失 → C6
 - 后退/前进"没反应"、源删不掉 → C5
 - 后退后历史条目异常 → C3、C4、C7
+- 点链接/跳转后 URL 状态（如 ?dev=1）丢失 → C9
 - iOS 卡顿/掉帧 → D1、D2、D5、D7
 - Canvas 2D 描边/渐变负载高、想上 WebGL → D7
 - WebGL 上下文恢复后白屏/资源泄漏 → D9
@@ -126,6 +127,12 @@ canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配
 
 ### C8 iOS bfcache 后退 popstate 不可靠
 `pageshow` 兜底重对齐；幂等——URL 未变则 sync 无变化零开销。
+
+### C9 新建/替换 URL 时先复制当前参数，只动目标键
+**症状**：从解法参考页带 `?dev=1` 点进解法，dev 消失（dev 模式被关）。
+**根因**：`solutionUrl` 从零拼 `?lv=..&src=..`——其他状态全丢。
+**修法**：`new URLSearchParams(base)` 复制当前查询参数，仅 `set`/`delete` 目标键（与 urlState.flush 同构）；被跳转的"页面视图"键（如 `v`）须显式删，因其优先于目标视图。
+**信号**：手写拼 URL 字符串、链接 href 不含当前其他参数。
 
 ## D. 渲染性能（Canvas 2D）
 

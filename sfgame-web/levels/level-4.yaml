@@ -12,6 +12,7 @@ ground:
   expr: 44 - 24*smoothstep((x-34)/4)*smoothstep((50-x)/4)
 budget: { hot: 2, cold: 2 }
 spawn: { x: -4, y: 30, vx: 30 }
+# 站点：每站抵达范围半径 r（虚线圆即此范围，可逐站调整，校验 0<r≤15）
 goals:
   - { x: 42, r: 10 }
 ambient:

@@ -5,6 +5,8 @@
   --ink-soft: #8a7d68;
   --hot: #ff5a3c;
   --cold: #3d8bff;
+  /* 游戏目标色（与画布旗帜/抵达圆同色系） */
+  --goal: #2fbf71;
   --card: rgba(255, 252, 245, 0.82);
   font-family:
     -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',

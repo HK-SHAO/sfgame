@@ -8,8 +8,8 @@ import { MeshBatch, VERTEX_STRIDE } from '../core/batch'
  * 上全量可用且由 Metal/厂商驱动 GPU 加速。alpha:false 画布不透明，天空由场景铺满。
  *
  * iOS Safari（ANGLE→Metal 后端）优化要点（2026-08，详见 docs/issues/#7.md）：
- * - antialias:false：iOS 上 MSAA 4× 作用于整个帧缓冲，是 iOS Metal 后端最大开销
- *   之一；线条/色块为几何化矢量，边缘由分辨率保证（dpr 补偿）。
+ * - MSAA 在 iOS 上作用于整个帧缓冲，是 iOS Metal 后端最大开销之一，故 iOS 关闭
+ *   （且 iOS 屏 dpr≥2，锯齿本不明显）；桌面/Android 开启 MSAA 平滑矢量边缘（#11）。
  * - 两趟绘制：静态背景（烘焙到离屏纹理）不混合先画，动态层保持 alpha 混合——
  *   PowerVR 平铺 GPU 上全屏混合开销直接放大，不透明像素应跳过混合。
  * - blend 状态每帧幂等设置：canvas 尺寸变更会重置上下文状态（resize 后
@@ -111,9 +111,14 @@ export class GlRenderer {
 
   /** 上下文不可用（极老旧内核）时返回 null，由调用方降级为不渲染。 */
   static create(canvas: HTMLCanvasElement): GlRenderer | null {
+    // MSAA 取舍（#7 实测 + #11 需求）：iOS Metal 后端 MSAA 是最大开销且 iOS 屏
+    // dpr≥2 锯齿本不明显，故 iOS 关；桌面/Android 开，消除矢量边缘锯齿
+    const ios =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     const opts: WebGLContextAttributes = {
       alpha: false,
-      antialias: false,
+      antialias: !ios,
       depth: false,
       stencil: false,
       powerPreference: 'high-performance',

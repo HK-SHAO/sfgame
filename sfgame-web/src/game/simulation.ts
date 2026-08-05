@@ -25,15 +25,16 @@ const SOURCE_HIT_RADIUS = 3.0
 /** 放置下限：地面之上该高度内均可放置；贴地吸附高度 */
 const GROUND_PLACE_MARGIN = 0.6
 const GROUND_SNAP_LIFT = 0.7
-/** 目标区圆心在地面上的抬升高度 / 判胜所需最小飞行高度 */
-const GOAL_LIFT = 2
-const FLYING_ALT = 1
+/** 目标区圆心在地面上的抬升高度（虚线圆渲染与检测共用，见 render.ts） */
+export const GOAL_LIFT = 2
 /** URL 位置匹配容差：对齐 URL 的 1 位小数精度（舍入误差 ≤0.05） */
 const URL_PRECISION_TOLERANCE = 0.06
 
 /**
  * 无头关卡模拟（不依赖 DOM，可在 bun 中测试）。
- * 胜负语义：全部站点被飞机"飞行抵达过"即过关，顺序不限（贴地滑入不算）。
+ * 胜负语义：飞机进入抵达圆（圆心 = 目标点上方 GOAL_LIFT，半径 = 关卡 g.r，
+ * 与渲染的虚线圆完全一致）即算"抵达过"，贴地滑入同样计数；顺序不限。
+ * 挂机不可通关由关卡设计保证（见 tests/solutions.test.ts 的零操作回归）。
  * 过关瞬间与显式暂停都会冻结物理与时钟——结算弹窗弹出时背景不再运行。
  */
 export class LevelSimulation {
@@ -237,9 +238,8 @@ export class LevelSimulation {
       if (this.visited[i]) continue
       const g = this.level.goals[i]
       const gy = this.level.ground(g.x) - GOAL_LIFT
+      // 圆心/半径与渲染虚线圆一致：滑行与飞行同等计数（#11）
       if (Math.hypot(this.plane.x - g.x, this.plane.y - gy) >= g.r) continue
-      // 必须飞行抵达：贴地滑进目标区不算（杜绝"放着不动被风吹进圈"的挂机通关）
-      if (this.plane.y >= this.level.ground(this.plane.x) - FLYING_ALT) continue
       this.visited[i] = true
       this.visitedCount++
       changed = true

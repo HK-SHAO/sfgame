@@ -130,11 +130,12 @@ describe('MeshBatch', () => {
     expect(b.count).toBe(12 * 6)
   })
 
-  test('arc：只覆盖给定角度范围（含线宽外扩余量）', () => {
+  test('arc：只覆盖给定角度范围（含线宽外扩余量），两端圆头', () => {
     const b = new MeshBatch()
     // 四分之一圆弧（0 → π/2，y 向下），半径 2，线宽 0.2 → 外扩 ≤0.1
     b.arc(0, 0, 2, 0, Math.PI / 2, 4, 0.2, 1, 1, 1, 1)
-    expect(b.count).toBe(4 * 6)
+    // 4 条斜接段（6 顶点/段）+ 两端圆头（各 8 段盘 = 24 顶点）
+    expect(b.count).toBe(4 * 6 + 2 * 24)
     for (let k = 0; k < b.count; k++) {
       const [x, y] = vertex(b, k)
       expect(x).toBeGreaterThanOrEqual(-0.11)
@@ -144,13 +145,12 @@ describe('MeshBatch', () => {
     }
   })
 
-  test('dashRing：按周长铺排虚线段', () => {
+  test('dashRing：按周长铺排虚线段（每段两端圆头）', () => {
     const b = new MeshBatch()
     const r = 10 / (Math.PI * 2) // 周长恰为 10
     b.dashRing(0, 0, r, 1.2, 1.4, 0.2, 1, 1, 1, 1)
-    // 周期 2.6 → 虚线段起点 s = 0, 2.6, 5.2, 7.8 共 4 段，每段 ≥2 条 stroke
-    expect(b.count).toBeGreaterThanOrEqual(4 * 2 * 6)
-    expect(b.count).toBeLessThan(4 * 8 * 6)
+    // 周期 2.6 → 虚线段起点 s = 0, 2.6, 5.2, 7.8 共 4 段；每段 = 3 条斜接段（18 顶点）+ 两端圆头（48 顶点）
+    expect(b.count).toBe(4 * (3 * 6 + 2 * 24))
   })
 
   test('容量不足时自动扩容且不丢数据', () => {

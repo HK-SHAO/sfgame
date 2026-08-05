@@ -38,6 +38,20 @@ export const iconBack = html`<svg
   <polyline points="16.2 5 8 12 16.2 19" />
 </svg>`
 
+export const iconHome = html`<svg
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2.2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="M4.5 10.8 12 4.6l7.5 6.2" />
+  <path d="M6.4 9.6v9h11.2v-9" />
+  <path d="M10.2 18.6v-4.6h3.6v4.6" />
+</svg>`
+
 export const iconReset = html`<svg
   viewBox="0 0 24 24"
   fill="none"

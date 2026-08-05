@@ -11,7 +11,8 @@ export class SfSolutions extends LitElement {
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))
 
   private row(level: LevelDef, sol: LevelSolution) {
-    const href = solutionUrl(level.id, sol)
+    // 基于当前 URL 状态生成链接：dev 等参数保留，只替换 lv/src（见 solutionUrl）
+    const href = solutionUrl(level.id, sol, new URLSearchParams(window.location.search))
     return html`
       <a class="row" href=${href}>
         <div class="row-head">

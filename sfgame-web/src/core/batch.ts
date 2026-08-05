@@ -83,9 +83,10 @@ export class MeshBatch {
 
   /**
    * 线段 → 沿法线加宽的四边形（GL lineWidth 恒为 1，宽度必须几何化）。
-   * 平头端：拖尾/轨迹由连续短段组成，段间缝隙可忽略。
+   * 平头端：拖尾/轨迹由连续短段组成，段间缝隙可忽略；
+   * round=true 时两端补半圆头（圆帽）——旗杆顶、虚线断点、折线轮廓的"首尾圆润"。
    */
-  stroke(x0: number, y0: number, x1: number, y1: number, w: number, r: number, g: number, b: number, a: number) {
+  stroke(x0: number, y0: number, x1: number, y1: number, w: number, r: number, g: number, b: number, a: number, round = false) {
     const dx = x1 - x0
     const dy = y1 - y0
     const len = Math.sqrt(dx * dx + dy * dy)
@@ -100,6 +101,10 @@ export class MeshBatch {
     this.push(x1 + nx, y1 + ny, r, g, b, a)
     this.push(x1 - nx, y1 - ny, r, g, b, a)
     this.push(x0 - nx, y0 - ny, r, g, b, a)
+    if (round) {
+      this.disc(x0, y0, w / 2, w / 2, 0, 8, r, g, b, a)
+      this.disc(x1, y1, w / 2, w / 2, 0, 8, r, g, b, a)
+    }
   }
 
   /** 斜接长度钳制系数（相对半宽）：过锐转角等效斜切，防尖刺 */
@@ -261,22 +266,28 @@ export class MeshBatch {
     }
   }
 
-  /** 圆弧描边：角度 a0 → a1（弧度，y 向下坐标系），线宽 w */
+  /** 圆弧/虚线展开的采样点 scratch：按需扩容（最坏 = 弧线分段数 + 1） */
+  private arcPts = new Float32Array(0)
+
+  /** 圆弧描边：角度 a0 → a1（弧度，y 向下坐标系），线宽 w。
+   * 相邻段斜接相连（转角无缝），弧线两端补圆头——虚线/圆弧首尾不再平头截断。 */
   arc(
     cx: number, cy: number, radius: number, a0: number, a1: number, seg: number, w: number,
     r: number, g: number, b: number, a: number,
   ) {
     if (radius <= 0 || a <= 0 || a1 === a0) return
-    let px = cx + radius * Math.cos(a0)
-    let py = cy + radius * Math.sin(a0)
-    for (let i = 1; i <= seg; i++) {
+    const n = seg + 1
+    if (this.arcPts.length < n * 2) this.arcPts = new Float32Array(n * 2)
+    const pts = this.arcPts
+    for (let i = 0; i <= seg; i++) {
       const th = a0 + ((a1 - a0) * i) / seg
-      const qx = cx + radius * Math.cos(th)
-      const qy = cy + radius * Math.sin(th)
-      this.stroke(px, py, qx, qy, w, r, g, b, a)
-      px = qx
-      py = qy
+      pts[i * 2] = cx + radius * Math.cos(th)
+      pts[i * 2 + 1] = cy + radius * Math.sin(th)
     }
+    this.polyline(pts, n * 2, w, r, g, b, a)
+    const hw = w / 2
+    this.disc(pts[0], pts[1], hw, hw, 0, 8, r, g, b, a)
+    this.disc(pts[seg * 2], pts[seg * 2 + 1], hw, hw, 0, 8, r, g, b, a)
   }
 
   /** 虚线圆：on/off 为弧长（世界单位），从角度 0 起按周长铺排 */

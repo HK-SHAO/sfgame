@@ -5,6 +5,7 @@ import { TRAIL_FADE_T } from '../sim/particles'
 import type { Trail } from '../sim/trail'
 import type { Vec2 } from '../sim/types'
 import type { LevelSimulation } from '../game/simulation'
+import { GOAL_LIFT } from '../game/simulation'
 import type { PressVisual } from '../game/types'
 import { LONG_PRESS_MS } from './input'
 
@@ -42,19 +43,18 @@ const SUN_RADIUS = 4
 const SUN_BREATH_AMP = 0.12
 const SUN_BREATH_PERIOD = 700
 
-const TEMP_LEVELS = 5
-/** 温度归一化基准：实测四源解粒子温度 p95≈5.3，取 5 定"赤热"满饱和档 */
-const T_REF = 5
-const LINE_COLORS: RGB[] = [
-  rgb(61, 139, 255),
-  rgb(116, 154, 208),
-  rgb(170, 168, 160),
-  rgb(212, 129, 110),
-  rgb(255, 90, 60),
-]
-/** 头部点不透明度按档递减：自然温度最透（半透明浅灰），冷热端更实 */
-const HEAD_ALPHA = [0.8, 0.65, 0.45, 0.65, 0.85]
-const LINE_ALPHA_MAX = 0.2
+/** 常温气色：暖白浅灰（比奶油底色深半档），风感由透明度与线条密度表达 */
+const AIR_AMBIENT = rgb(200, 197, 183)
+/** 温度→颜色软饱和（tanh 半宽）：实测空气格 ~92% 温度落在 ±0.5 内，线性映射
+ * 会让绝大多数空气呈灰；tanh 使 |t|=半宽 即 76% 饱和、4×半宽 以上满饱和。
+ * 半宽 0.35（#11 两轮反馈后收窄）：|t|≥0.22 即有明确冷/暖色，常温色区间
+ * （u<0.25）收窄到 |t|<0.09；温度场 p10~p90≈0 的安静分布保证常温区不染色 */
+const AIR_SOFT = 0.35
+const HEAD_ALPHA_AMBIENT = 0.45
+const HEAD_ALPHA_STRONG = 0.85
+/** 线条不透明度随饱和度抬高：常温最淡（保留风感而不显灰），冷/热端更实更艳 */
+const LINE_ALPHA_AMBIENT = 0.18
+const LINE_ALPHA_COLORED = 0.42
 const TRACER_LINE_WIDTH = 0.3
 const TRACER_HEAD_RADIUS = 0.3
 const GUST_BASE = 0.7
@@ -67,6 +67,10 @@ const SOURCE_CORE_RADIUS = 1.15
 /** 旗面平滑响应率（1/秒）：常驻基准 + 随风速增强的分量（见 drawGoal） */
 const FLAG_RESPONSE_BASE = 1.2
 const FLAG_RESPONSE_WIND = 3
+/** 旗杆高（地面以上）/ 旗面沿旗杆附着长 / 旗杆沉入地面量（被地形遮挡）；旗面顶与旗杆顶齐平 */
+const POLE_HEIGHT = 5.7
+const POLE_FABRIC_LEN = 1.8
+const POLE_SINK = 0.6
 
 /** 地形采样：基础步长；平坦段最大合并间距；相邻段转角阈值（弧度，≈1.1°） */
 const TERRAIN_STEP = 0.25
@@ -103,9 +107,9 @@ export class Renderer {
   private oy = 0
   /** 地形采样点 scratch：自适应采样按需扩容（最坏 = 视口宽 / 基础步长） */
   private terrainPts = new Float32Array(256)
-  /** 各粒子本帧包络与温度档：头部绘制免重复采样 */
+  /** 各粒子本帧包络与连续色（r,g,b,头部α）：头部绘制与线条共用 */
   private tracerEnv = new Float32Array(0)
-  private tracerTemp = new Uint8Array(0)
+  private tracerColor = new Float32Array(0)
   /**
    * 静态背景脏标记：resize（视口/画布尺寸变化）后置 true，下一帧 draw 时
    * 把天空/地形/光晕/目标静态烘焙进离屏纹理。烘焙与运行时共用同一套
@@ -160,13 +164,14 @@ export class Renderer {
     const viewR = viewL + this.cssW / this.scale
     const viewB = viewT + this.cssH / this.scale
 
-    // 静态背景（天空/地形/光晕）烘焙进离屏纹理，仅 resize 后重做；
-    // 动态层（太阳呼吸/站点旗帜/源/粒子/拖尾/飞机）每帧重建——
-    // 站点抵达状态会变化，虚线圆必须放在动态层才能随抵达消失
+    // 静态背景（天空/旗杆/地形/光晕）烘焙进离屏纹理，仅 resize 后重做；
+    // 旗杆先于地形绘制，杆根沉入地面被遮挡；旗面与虚线圆随站点状态/风变化，
+    // 必须留在动态层每帧重建
     if (this.bgDirty || gl.bgStale) {
       const bg = this.batch
       bg.reset()
       this.drawSky(bg, viewL, viewT, viewR, viewB, h)
+      this.drawGoalPoles(bg, sim)
       this.drawTerrain(bg, sim, viewL, viewR, viewB)
       this.drawSunHalo(bg)
       gl.bakeBg(bg, viewL, viewT, viewR, viewB)
@@ -248,36 +253,45 @@ export class Renderer {
   }
 
   private drawSunHalo(b: MeshBatch) {
-    b.discGrad(SUN_POS.x, SUN_POS.y, SUN_RADIUS * 3, 28, ...SUN, 0.4, ...SUN, 0)
+    b.discGrad(SUN_POS.x, SUN_POS.y, SUN_RADIUS * 3, 40, ...SUN, 0.4, ...SUN, 0)
   }
 
   private drawSun(b: MeshBatch, now: number) {
     const r = SUN_RADIUS + SUN_BREATH_AMP * Math.sin(now / SUN_BREATH_PERIOD)
-    b.disc(SUN_POS.x, SUN_POS.y, r, r, 0, 24, ...SUN, 1)
+    b.disc(SUN_POS.x, SUN_POS.y, r, r, 0, 48, ...SUN, 1)
   }
 
   /**
-   * 站点视觉（一致性约定）：未抵达 = 虚线圆（抵达范围）+ 旗帜；
-   * 已抵达 = 只留旗杆，周围的提醒效果（虚线圆等）全部消失。
-   * 刻意去掉底部运动的圆环与旗杆后的半透明绿色矩形光柱——各站点完全同构。
+   * 站点视觉（一致性约定）：未抵达 = 虚线圆（抵达范围）+ 旗帜；已抵达 = 只留旗杆。
+   * 旗杆静态（两状态同形），烘焙进背景且先于地形绘制——杆根被地面遮挡；
+   * 虚线圆圆心 = 检测圆心（GOAL_LIFT 抬升），与 simulation.checkGoals 完全一致。
    */
+  private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {
+    for (const g of sim.level.goals) {
+      const gy = sim.level.ground(g.x)
+      const poleTop = gy - POLE_HEIGHT
+      const fabricBottom = poleTop + POLE_FABRIC_LEN
+      // round：杆顶圆头（矩形/线段首尾圆润）
+      b.stroke(g.x, gy + POLE_SINK, g.x, fabricBottom, 0.34, ...FLAG_POLE, 1, true)
+      // 旗面附着段与旗面同色：旗面被风吹开时，旗杆不从旗面里露棕线
+      b.stroke(g.x, fabricBottom, g.x, poleTop, 0.34, ...GOAL, 1, true)
+    }
+  }
+
   private drawGoal(b: MeshBatch, sim: LevelSimulation) {
     const goals = sim.level.goals
     this.ensureFlagState(goals.length)
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]
+      if (sim.visited[i]) continue
       const gy = sim.level.ground(g.x)
-      const top = gy - 6
-      if (sim.visited[i]) {
-        b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 0.8)
-        continue
-      }
+      const flagTop = gy - POLE_HEIGHT // 旗面顶不高于旗杆顶
 
-      b.dashRing(g.x, gy - 2, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
+      b.dashRing(g.x, gy - GOAL_LIFT, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
       // 旗面跟随所在位置气流，一阶低通平滑（风向改变时缓转不瞬翻）；
       // 拉伸/摆动随风速增强；相位用模拟时钟，物理冻结时旗面静止
       const air = Renderer.tmpAir
-      sim.fluid.sampleVelocity(g.x + 1.6, top + 1.4, air)
+      sim.fluid.sampleVelocity(g.x + 1.6, flagTop + 1.4, air)
       const dt = sim.time - this.flagT[i]
       this.flagT[i] = sim.time
       if (dt > 0) {
@@ -296,9 +310,8 @@ export class Renderer {
       const wave = (0.1 + uN * 0.45) * Math.sin(sim.time * (5 + uN * 4) + i * 1.7)
       // 摆动沿旗面垂直方向：水平风里上下飘，垂直气流里左右抖
       const tipX = g.x + dx * len - dy * wave
-      const tipY = top + dy * len * 0.55 + droop * len + dx * wave
-      b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 1)
-      b.tri(g.x, top, tipX, tipY, g.x, top + 1.8, ...GOAL, 1)
+      const tipY = flagTop + dy * len * 0.55 + droop * len + dx * wave
+      b.tri(g.x, flagTop, tipX, tipY, g.x, flagTop + POLE_FABRIC_LEN, ...GOAL, 1)
     }
   }
 
@@ -324,13 +337,13 @@ export class Renderer {
       const c = s.kind === 'hot' ? HOT : COLD
 
       if (pop > VISIBLE_ALPHA) {
-        b.discGrad(s.x, s.y, SOURCE_GLOW_RADIUS * pop, 20, ...c, 0.32, ...c, 0)
+        b.discGrad(s.x, s.y, SOURCE_GLOW_RADIUS * pop, 24, ...c, 0.32, ...c, 0)
       }
 
       const coreR = SOURCE_CORE_RADIUS * pop * pulse * (grabbed ? 1.18 : 1)
-      b.disc(s.x, s.y, coreR, coreR, 0, 18, ...PAPER, 1)
-      b.ring(s.x, s.y, coreR, coreR, 0, 18, 0.34, ...c, 0.9)
-      b.disc(s.x, s.y, 0.42 * pop, 0.42 * pop, 0, 12, ...c, 0.95)
+      b.disc(s.x, s.y, coreR, coreR, 0, 24, ...PAPER, 1)
+      b.ring(s.x, s.y, coreR, coreR, 0, 24, 0.34, ...c, 0.9)
+      b.disc(s.x, s.y, 0.42 * pop, 0.42 * pop, 0, 16, ...c, 0.95)
 
       if (grabbed) b.dashRing(s.x, s.y, 2.2, 0.9, 1.1, 0.24, ...INK_DARK, 0.55)
     }
@@ -341,8 +354,8 @@ export class Renderer {
 
   /**
    * 风的线条（streakline）+ 头部点。
-   * 逐段计算颜色（温度档）与透明度（时间存留 × 生命包络 × 阵风系数），
-   * 直接写入顶点——无需 Canvas 2D 时代的两级分桶近似。
+   * 逐段计算颜色（温度→tanh 软饱和连续映射）与透明度（时间存留 × 生命包络 × 阵风系数），
+   * 直接写入顶点——连续色取代分档，常温与冷/热一望可分（统计依据见 #11）。
    */
   private drawTracers(b: MeshBatch, sim: LevelSimulation, tracers: Tracers) {
     const { trailX, trailY, trailT, trailN, count } = tracers
@@ -351,10 +364,11 @@ export class Renderer {
     const air = Renderer.tmpAir
     if (this.tracerEnv.length < count) {
       this.tracerEnv = new Float32Array(count)
-      this.tracerTemp = new Uint8Array(count)
+      // 每粒子 5 浮点：r,g,b + 头部α + 线条α上限（连续色，免每段重算）
+      this.tracerColor = new Float32Array(count * 5)
     }
     const envs = this.tracerEnv
-    const levels = this.tracerTemp
+    const colors = this.tracerColor
 
     for (let i = 0; i < count; i++) {
       const env = tracers.envelope(i)
@@ -365,16 +379,21 @@ export class Renderer {
       fluid.sampleVelocity(tracers.x[i], tracers.y[i], air)
       const sp2 = air.x * air.x + air.y * air.y
       envs[i] = env
-      const f = Math.max(-1, Math.min(1, fluid.sampleTemp(tracers.x[i], tracers.y[i]) / T_REF))
-      const tl = Math.min(TEMP_LEVELS - 1, ((f + 1) * 2.5) | 0)
-      levels[i] = tl
+      const t = fluid.sampleTemp(tracers.x[i], tracers.y[i])
+      const u = Math.tanh(Math.abs(t) / AIR_SOFT)
+      const to = t >= 0 ? HOT : COLD
+      const c0 = i * 5
+      colors[c0] = AIR_AMBIENT[0] + (to[0] - AIR_AMBIENT[0]) * u
+      colors[c0 + 1] = AIR_AMBIENT[1] + (to[1] - AIR_AMBIENT[1]) * u
+      colors[c0 + 2] = AIR_AMBIENT[2] + (to[2] - AIR_AMBIENT[2]) * u
+      colors[c0 + 3] = HEAD_ALPHA_AMBIENT + (HEAD_ALPHA_STRONG - HEAD_ALPHA_AMBIENT) * u
+      colors[c0 + 4] = LINE_ALPHA_AMBIENT + (LINE_ALPHA_COLORED - LINE_ALPHA_AMBIENT) * u
 
       const n = trailN[i]
       if (n === 0) continue
       // 线条透明度随风速连续变化（gust 0.7→1.3），不设硬截断：
       // 风速归零的瞬间气流仍以弱残影可见，避免 L4 潮汐过零时"整片消失"
       const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
-      const c = LINE_COLORS[tl]
       const base = i * trailLen
       const now = tracers.time
       let px = trailX[base]
@@ -384,7 +403,7 @@ export class Renderer {
         const ny = k + 1 < n ? trailY[base + k + 1] : tracers.y[i]
         const a = (1 - (now - trailT[base + k]) / TRAIL_FADE_T) * env * gust
         if (a > VISIBLE_ALPHA) {
-          b.stroke(px, py, nx, ny, TRACER_LINE_WIDTH, c[0], c[1], c[2], Math.min(1, a) * LINE_ALPHA_MAX)
+          b.stroke(px, py, nx, ny, TRACER_LINE_WIDTH, colors[c0], colors[c0 + 1], colors[c0 + 2], Math.min(1, a) * colors[c0 + 4])
         }
         px = nx
         py = ny
@@ -395,12 +414,11 @@ export class Renderer {
     for (let i = 0; i < count; i++) {
       const env = envs[i]
       if (env <= 0) continue
-      const tl = levels[i]
-      const c = LINE_COLORS[tl]
+      const c0 = i * 5
       b.disc(
         tracers.x[i], tracers.y[i],
         TRACER_HEAD_RADIUS, TRACER_HEAD_RADIUS, 0, 10,
-        c[0], c[1], c[2], HEAD_ALPHA[tl] * env,
+        colors[c0], colors[c0 + 1], colors[c0 + 2], colors[c0 + 3] * env,
       )
     }
   }
@@ -439,7 +457,7 @@ export class Renderer {
     const g1 = sim.level.ground(p.x + SHADOW_RADIUS)
     const slope = Math.atan2(g1 - g0, SHADOW_RADIUS * 2)
     const sy = sim.level.ground(p.x) - SHADOW_LIFT
-    b.disc(p.x, sy, SHADOW_RADIUS, SHADOW_RY, slope, 16, ...INK_DARK, SHADOW_MAX_ALPHA)
+    b.disc(p.x, sy, SHADOW_RADIUS, SHADOW_RY, slope, 24, ...INK_DARK, SHADOW_MAX_ALPHA)
 
     const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
     const idle = Math.max(0, 1 - speed / 3)
@@ -461,15 +479,16 @@ export class Renderer {
     for (let i = 0; i < 4; i++) {
       const a = outline[i] * 2
       const c = outline[i + 1] * 2
-      b.stroke(w[a], w[a + 1], w[c], w[c + 1], 0.16, ...INK_DARK, 0.5)
+      // round：折线首尾圆润，四角成圆弧过渡
+      b.stroke(w[a], w[a + 1], w[c], w[c + 1], 0.16, ...INK_DARK, 0.5, true)
     }
     b.stroke(w[0], w[1], w[4], w[5], 0.12, ...INK_DARK, 0.26)
   }
 
   private drawPress(b: MeshBatch, press: PressVisual, now: number) {
     const progress = Math.min(1, (now - press.start) / LONG_PRESS_MS)
-    b.disc(press.x, press.y, 1.5, 1.5, 0, 18, ...HOT, 0.12)
-    b.ring(press.x, press.y, 1.5, 1.5, 0, 18, 0.26, ...HOT, 0.75)
+    b.disc(press.x, press.y, 1.5, 1.5, 0, 24, ...HOT, 0.12)
+    b.ring(press.x, press.y, 1.5, 1.5, 0, 24, 0.26, ...HOT, 0.75)
     if (progress > 0.04) {
       b.arc(
         press.x, press.y, 2.2,

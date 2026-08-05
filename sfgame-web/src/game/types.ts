@@ -29,7 +29,7 @@ export interface AmbientDef {
   tide?: TideDef
 }
 
-/** 站点：飞机须以"飞行姿态"抵达过；全部抵达过即过关（顺序无关）。 */
+/** 站点：飞机进入抵达圆（圆心 = 地面上方 GOAL_LIFT，半径 = r，与虚线圆一致）即算抵达过；全部抵达过即过关（顺序无关）。 */
 export interface GoalDef {
   x: number
   r: number

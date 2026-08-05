@@ -46,6 +46,17 @@ test('每个解：初始一次性放置即通关，且实测时间与记录一�
   }
 }, 30000)
 
+test('零操作挂机不能通关：进入抵达圆即算抵达（含贴地滑行），关卡设计须保证挂机轨迹不穿圆', () => {
+  for (const level of LEVELS) {
+    const sim = new LevelSimulation(level)
+    for (let t = 0; t < 150; t += DT) {
+      sim.step(DT)
+      if (sim.phase === 'won') break
+    }
+    expect(sim.phase, `${level.id}「${level.name}」零操作挂机可通关`).toBe('playing')
+  }
+}, 60000)
+
 test('solutionUrl：与 URL 状态模块往返一致，且零百分号编码', () => {
   const sources = codecs.list<SourcePlacement>([], sourceItem, '_')
   for (const level of LEVELS) {
@@ -57,4 +68,15 @@ test('solutionUrl：与 URL 状态模块往返一致，且零百分号编码', (
       expect(url).not.toMatch(/%/)
     }
   }
+})
+
+test('solutionUrl：在现有 URL 状态上替换 lv/src，保留 dev 等其他状态，清掉视图标记', () => {
+  const base = new URLSearchParams('dev=1&v=solutions&src=1-2-h')
+  const level = LEVELS[0]
+  const url = solutionUrl(level.id, solutionsFor(level.id)[0], base)
+  const params = new URLSearchParams(url)
+  expect(params.get('dev')).toBe('1')
+  expect(params.get('lv')).toBe(String(level.id))
+  expect(params.get('v')).toBeNull()
+  expect(params.get('src')).toBe(solutionsFor(level.id)[0].sources.map((s) => sourceItem.encode(s)).join('_'))
 })

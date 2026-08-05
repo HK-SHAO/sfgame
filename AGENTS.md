@@ -48,7 +48,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 ## 玩法不变量（回归测试守护，别破坏）
 
-- 零操作挂机不能通关（崖壁禁止"吸坡瞬移"+ 目标区必须飞行抵达）；`tests/solutions.test.ts`：每个解初始一次性放置必通关且与记录时间一致（±2s）
+- 零操作挂机不能通关：抵达圆（虚线圆 = 检测圆）内滑行与飞行同等计数，故各关卡挂机轨迹必须不穿过任何抵达圆（`tests/solutions.test.ts` 零操作回归 + 崖壁禁止"吸坡瞬移"）；每个解初始一次性放置必通关且与记录时间一致（±2s）
 - 参考解须"基本全程飞行"（贴地累计 ≤1.5s），坐标 1 位小数（URL 可放置），鲁棒性 ≥75%（见 `skills/level-design/SKILL.md` §6）
 - 右键 = 放冷源：`input.ts` 的 `onDown` 只处理 `e.button === 0`，右键走 contextmenu
 

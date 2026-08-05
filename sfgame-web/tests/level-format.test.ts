@@ -73,10 +73,12 @@ test('五个关卡：id 连续、协议一致、可往返序列化', () => {
 })
 
 test('关卡地形高度与设计意图一致（表达式精确、无采样误差）', () => {
-  expect(LEVELS[0].ground(36)).toBeCloseTo(48, 5)
-  expect(LEVELS[0].ground(48)).toBeCloseTo(22, 5)
-  expect(LEVELS[1].ground(0)).toBeCloseTo(42, 5)
-  expect(LEVELS[1].ground(30)).toBeCloseTo(50, 5)
+  // L1 降落（原 L2）：左浅右深的谷地
+  expect(LEVELS[0].ground(0)).toBeCloseTo(42, 5)
+  expect(LEVELS[0].ground(30)).toBeCloseTo(50, 5)
+  // L2 起飞（原 L1）：谷底 → 高原
+  expect(LEVELS[1].ground(36)).toBeCloseTo(48, 5)
+  expect(LEVELS[1].ground(48)).toBeCloseTo(22, 5)
   expect(LEVELS[2].ground(0)).toBeCloseTo(30, 5)
   expect(LEVELS[2].ground(36)).toBeCloseTo(22, 5)
   expect(LEVELS[3].ground(42)).toBeCloseTo(20, 5)

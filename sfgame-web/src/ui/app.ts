@@ -3,6 +3,7 @@ import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
 import { LEVELS } from '../game/levels'
+import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
 import './solutions-view'
 import { urlState } from '../game/state'
@@ -12,6 +13,8 @@ import type { SourceKind } from '../sim/types'
 import {
   iconBack,
   iconFlame,
+  iconHome,
+  iconLock,
   iconLogo,
   iconReset,
   iconRoute,
@@ -41,6 +44,8 @@ export class SfApp extends LitElement {
     sources: 0,
   }
   @state() private muted = sfx.muted
+  /** 最近一次通关在该关成绩榜的排名（-1 = 未进榜），win 卡"新纪录"依据 */
+  private winRank = -1
   /** 游戏速率档位：点按向减速方向循环（1× 默认，0.5× 细看，2×~4× 快进；
    * dev 模式（?dev=1）额外开放 8×/16× 高速档） */
   @state() private rate = 1
@@ -85,19 +90,24 @@ export class SfApp extends LitElement {
     }
   }
 
+  /** 重置结算/HUD 状态（进关与"下一关"复用；HUD 由 sf-game 的 hudchange 事件驱动） */
+  private resetHud(level: LevelDef) {
+    this.hud = {
+      phase: 'playing',
+      hotLeft: level.budget.hot,
+      coldLeft: level.budget.cold,
+      placed: 0,
+      time: 0,
+      extra: 0,
+      sources: 0,
+    }
+    this.winRank = -1
+  }
+
   protected override willUpdate(changed: PropertyValues) {
-    // 进关卡前重置 HUD（willUpdate 属当前周期不额外调度；避免上局结算覆盖层闪现）。HUD 由 sf-game 的 hudchange 事件驱动
+    // 进关卡前重置 HUD（willUpdate 属当前周期不额外调度；避免上局结算覆盖层闪现）
     if (changed.has('screen') && this.screen === 'game') {
-      const b = this.activeLevel.budget
-      this.hud = {
-        phase: 'playing',
-        hotLeft: b.hot,
-        coldLeft: b.cold,
-        placed: 0,
-        time: 0,
-        extra: 0,
-        sources: 0,
-      }
+      this.resetHud(this.activeLevel)
     }
   }
 
@@ -110,6 +120,27 @@ export class SfApp extends LitElement {
     this.screen = 'game'
     urlState.set('lv', level.id)
     urlState.clear('src')
+  }
+
+  /** 过关弹窗「下一关」：顺序前进，仅当存在下一关时显示。 */
+  private playNext() {
+    const next = LEVELS.find((l) => l.id === this.activeLevel.id + 1)
+    if (!next) return
+    sfx.uiEnter()
+    this.activeLevel = next
+    this.initialSources = []
+    // 同屏换关（screen 不变），需手动重置结算状态，避免上局 win 卡闪现
+    this.resetHud(next)
+    urlState.set('lv', next.id)
+    urlState.clear('src')
+  }
+
+  /** 返回上一状态（等同浏览器后退）：URL 驱动屏幕推导（popstate → syncScreen），
+   * 同关卡内退回即撤销 src、跨页退回即回解法页/标题页。直达链接无历史可退时兜底回标题。 */
+  private goBack() {
+    sfx.uiBack()
+    if (window.history.length > 1) window.history.back()
+    else this.backToTitle()
   }
 
   private backToTitle() {
@@ -149,7 +180,20 @@ export class SfApp extends LitElement {
   }
 
   private onHudChange(e: CustomEvent<HudState>) {
-    this.hud = e.detail
+    const next = e.detail
+    const wasWon = this.hud.phase === 'won'
+    this.hud = next
+    // 通关瞬间记录进度（仅每次"进入通关"记录一次，restart 重玩后再赢会再记）
+    if (next.phase === 'won' && !wasWon) this.recordWin()
+  }
+
+  /** 记录通关成绩榜 + 解法：用时/罚时来自 HUD，解法摆放即 URL src（始终镜像场上源）。 */
+  private recordWin() {
+    this.winRank = progress.record(this.activeLevel.id, {
+      time: this.hud.time,
+      extra: this.hud.extra,
+      sources: urlState.get('src'),
+    })
   }
 
   private onDeny(e: CustomEvent<SourceKind>) {
@@ -196,18 +240,24 @@ export class SfApp extends LitElement {
           <p class="tagline">太阳精灵 · 用温度创造风</p>
 
           <nav class="levels" aria-label="关卡列表">
-            ${LEVELS.map(
-              (l) => html`
-                <button class="level play" @click=${() => this.startGame(l.id)}>
+            ${LEVELS.map((l) => {
+              const locked = !progress.isUnlocked(l.id)
+              return html`
+                <button
+                  class="level play ${locked ? 'locked' : ''}"
+                  ?disabled=${locked}
+                  aria-label=${locked ? `第 ${l.id} 关（未解锁）` : `进入第 ${l.id} 关`}
+                  @click=${() => this.startGame(l.id)}
+                >
                   <span class="no">第 ${l.id} 关</span>
                   <span class="meta">
                     <span class="name">${l.name}</span>
                     <span class="concept">${l.tagline}</span>
                   </span>
-                  <span class="go" aria-hidden="true">›</span>
+                  <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
                 </button>
-              `,
-            )}
+              `
+            })}
           </nav>
 
           <p class="footnote">
@@ -224,6 +274,8 @@ export class SfApp extends LitElement {
 
   private renderGame() {
     const won = this.hud.phase === 'won'
+    const bestTotal = won ? progress.best(this.activeLevel.id)[0]?.total : undefined
+    const hasNext = LEVELS.some((l) => l.id === this.activeLevel.id + 1)
     return html`
       <main class="game">
         ${keyed(
@@ -239,7 +291,10 @@ export class SfApp extends LitElement {
         )}
 
         <header class="hud">
-          <button class="icon-btn" @click=${this.backToTitle} aria-label="返回选关">
+          <button class="icon-btn" @click=${this.backToTitle} aria-label="回到主页" title="回到主页">
+            ${iconHome}
+          </button>
+          <button class="icon-btn" @click=${this.goBack} aria-label="返回上一状态" title="返回上一状态">
             ${iconBack}
           </button>
           <div class="hud-title">
@@ -281,9 +336,17 @@ export class SfApp extends LitElement {
                     <span class="line extra"
                       >额外 ${this.hud.extra > 0 ? `${formatPenalty(this.hud.extra)}（使用 ${this.hud.sources} 个道具）` : '无'}</span
                     >
+                    ${bestTotal !== undefined
+                      ? html`<span class="line record"
+                          >本关最佳 ${formatTime(bestTotal)}${this.winRank === 0 ? ' · 新纪录' : ''}</span
+                        >`
+                      : nothing}
                   </p>
                   <div class="row">
-                    <button class="primary" @click=${this.restart}>再玩一次</button>
+                    ${hasNext
+                      ? html`<button class="primary" @click=${this.playNext}>下一关</button>`
+                      : html`<button class="primary" @click=${this.restart}>再玩一次</button>`}
+                    ${hasNext ? html`<button class="ghost" @click=${this.restart}>再玩一次</button>` : nothing}
                     <button class="ghost" @click=${this.backToTitle}>选关</button>
                   </div>
                 </div>
@@ -425,6 +488,24 @@ export class SfApp extends LitElement {
       width: 2.75rem;
     }
 
+    /* 锁定关：灰色 + not-allowed 指针，无悬停反馈；解锁进度 = 上一关通关 */
+    .level.locked {
+      background: rgba(255, 255, 255, 0.42);
+      border-color: rgba(255, 255, 255, 0.5);
+      box-shadow: none;
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .level.locked:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    .level.locked .go {
+      color: var(--ink-soft);
+    }
+
     .level .meta {
       flex: 1;
       display: flex;
@@ -445,10 +526,17 @@ export class SfApp extends LitElement {
     }
 
     .level .go {
+      flex: none;
       font-size: 1.5rem;
       line-height: 1;
       color: var(--hot);
       font-weight: 600;
+    }
+
+    .level .go svg {
+      display: block;
+      width: 1.06rem;
+      height: 1.06rem;
     }
 
     .footnote {
@@ -699,6 +787,12 @@ export class SfApp extends LitElement {
 
     .win-card .stats .extra {
       font-size: 0.75rem;
+    }
+
+    /* 本关最佳 / 新纪录：绿色强调（与游戏目标色一致） */
+    .win-card .stats .record {
+      color: var(--goal);
+      font-weight: 600;
     }
 
     .win-card .row {

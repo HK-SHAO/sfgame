@@ -1,23 +1,25 @@
-# 第 2 关 · 降落 —— 核心物理概念：下沉气流（教学热身 2/2）
+# 第 2 关 · 起飞 —— 核心物理概念：上升气流（教学热身 2/2）
 schema: 1
 id: 2
-name: 降落
-tagline: 下沉气流
+name: 起飞
+tagline: 上升气流
 win:
-  title: 稳稳降落！
-  text: 下沉气流托着飞机缓缓落进山谷。热让风上升，冷让风下沉——落点由你定。
+  title: 飞起来了！
+  text: 纸飞机乘着热气流抵达了目标。
 world: { w: 76, h: 56, cell: 0.75 }
-# 左浅右深的谷地：y=42（左）缓降至 y=50（右，x≥30）
+# 左段谷底 y=48，x∈[36,48] 平滑爬升，右段高原 y=22
 ground:
-  expr: 42 + 8*smoothstep(x/30)
-budget: { hot: 2, cold: 3 }
-spawn: { x: -5, y: 8, vx: 16 }
+  expr: 48 - 26*smoothstep((x-36)/12)
+budget: { hot: 4, cold: 2 }
+spawn: { x: -6, y: 33, vx: 40 }
+# 站点：每站抵达范围半径 r（虚线圆即此范围，可逐站调整，校验 0<r≤15）
 goals:
-  - { x: 62, r: 7.5 }
-ambient: { x: 2.6, y: 0 }
+  - { x: 58, r: 7.5 }
+ambient: { x: 1.8, y: 0 }
 solutions:
-  - name: 冷源双降
+  - name: 冷压热托
     sources:
-      - { x: 36, y: 24, kind: cold }
-      - { x: 45, y: 30, kind: cold }
-    winTime: 14.1
+      # 热源托升翻崖 + 冷源在崖顶把飞机稳稳压向目标——组合原子能力的涌现用法
+      - { x: 38, y: 45.4, kind: hot }
+      - { x: 50, y: 21.3, kind: cold }
+    winTime: 16.9

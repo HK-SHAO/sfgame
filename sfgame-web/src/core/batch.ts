@@ -116,9 +116,24 @@ export class MeshBatch {
    * pts 为 [x0,y0,x1,y1,...] 平铺，n 为浮点数个数（偶数）。
    */
   polyline(pts: Float32Array, n: number, w: number, r: number, g: number, b: number, a: number) {
+    this.miter(pts, n, w, r, g, b, a)
+  }
+
+  /** 折线描边 + 逐顶点透明度（alpha[i] 对应 pts[2i] 处，段内线性渐变）：
+   * 轨迹类线条按时间淡出时保持斜接无缝，避免按段平头四边形露角。 */
+  polylineFade(pts: Float32Array, n: number, w: number, r: number, g: number, b: number, alpha: Float32Array) {
+    this.miter(pts, n, w, r, g, b, alpha)
+  }
+
+  private miter(
+    pts: Float32Array, n: number, w: number,
+    r: number, g: number, b: number,
+    alpha: Float32Array | number,
+  ) {
     if (n < 4) return
     const hw = w / 2
     const limit = MeshBatch.MITER_LIMIT * hw
+    const fade = typeof alpha !== 'number'
     // 上段状态：起点 (sx,sy)、起点端斜接向量 (mx,my)（已含半宽）、上段单位法线 (pnx,pny)
     let sx = 0
     let sy = 0
@@ -165,13 +180,15 @@ export class MeshBatch {
       }
       const ex = tx * fl
       const ey = ty * fl
+      const a0 = fade ? alpha[i / 2 - 1] : alpha
+      const a1 = fade ? alpha[i / 2] : alpha
       this.ensure(6)
-      this.push(sx + mx, sy + my, r, g, b, a)
-      this.push(ax + ex, ay + ey, r, g, b, a)
-      this.push(sx - mx, sy - my, r, g, b, a)
-      this.push(ax + ex, ay + ey, r, g, b, a)
-      this.push(ax - ex, ay - ey, r, g, b, a)
-      this.push(sx - mx, sy - my, r, g, b, a)
+      this.push(sx + mx, sy + my, r, g, b, a0)
+      this.push(ax + ex, ay + ey, r, g, b, a1)
+      this.push(sx - mx, sy - my, r, g, b, a0)
+      this.push(ax + ex, ay + ey, r, g, b, a1)
+      this.push(ax - ex, ay - ey, r, g, b, a1)
+      this.push(sx - mx, sy - my, r, g, b, a0)
       sx = ax
       sy = ay
       mx = ex
@@ -184,13 +201,15 @@ export class MeshBatch {
       const by = pts[n - 1]
       const ex = pnx * hw
       const ey = pny * hw
+      const a0 = fade ? alpha[(n - 4) / 2] : alpha
+      const a1 = fade ? alpha[(n - 2) / 2] : alpha
       this.ensure(6)
-      this.push(sx + mx, sy + my, r, g, b, a)
-      this.push(bx + ex, by + ey, r, g, b, a)
-      this.push(sx - mx, sy - my, r, g, b, a)
-      this.push(bx + ex, by + ey, r, g, b, a)
-      this.push(bx - ex, by - ey, r, g, b, a)
-      this.push(sx - mx, sy - my, r, g, b, a)
+      this.push(sx + mx, sy + my, r, g, b, a0)
+      this.push(bx + ex, by + ey, r, g, b, a1)
+      this.push(sx - mx, sy - my, r, g, b, a0)
+      this.push(bx + ex, by + ey, r, g, b, a1)
+      this.push(bx - ex, by - ey, r, g, b, a1)
+      this.push(sx - mx, sy - my, r, g, b, a0)
     }
   }
 

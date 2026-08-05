@@ -15,6 +15,10 @@ function expectVertex(b: MeshBatch, k: number, expected: number[]) {
   for (let i = 0; i < v.length; i++) expect(v[i]).toBeCloseTo(expected[i], 5)
 }
 
+function alphaOf(b: MeshBatch, k: number) {
+  return b.data[k * VERTEX_STRIDE + 5]
+}
+
 describe('MeshBatch', () => {
   test('tri：写入 3 个顶点，位置与颜色正确', () => {
     const b = new MeshBatch()
@@ -197,6 +201,29 @@ describe('MeshBatch', () => {
       const [, y] = vertex(b, k)
       expect(Math.abs(y)).toBeCloseTo(0.2, 5) // 全部顶点在 ±0.2，无外延
     }
+  })
+
+  test('polylineFade：逐顶点透明度渐变（几何与 polyline 一致）', () => {
+    const b1 = new MeshBatch()
+    b1.polyline(new Float32Array([0, 0, 2, 0, 2, 2]), 6, 1, 1, 1, 1, 1)
+    const b2 = new MeshBatch()
+    b2.polylineFade(new Float32Array([0, 0, 2, 0, 2, 2]), 6, 1, 1, 1, 1, new Float32Array([0.2, 0.8, 0.4]))
+    expect(b2.count).toBe(b1.count)
+    for (let k = 0; k < b1.count; k++) {
+      const [x, y] = vertex(b1, k)
+      expectVertex(b2, k, [x, y, 1, 1, 1, alphaOf(b2, k)])
+    }
+    // 首端顶点（x=0）取首点透明度 0.2；转角顶点（x=2,y=0 附近）取中间点 0.8
+    const at = (x: number, y: number) => {
+      for (let k = 0; k < b2.count; k++) {
+        const v = vertex(b2, k)
+        if (Math.abs(v[0] - x) < 1e-4 && Math.abs(v[1] - y) < 1e-4) return alphaOf(b2, k)
+      }
+      return -1
+    }
+    expect(at(0, 0.5)).toBeCloseTo(0.2, 5)
+    expect(at(2.5, -0.5)).toBeCloseTo(0.8, 5)
+    expect(at(2.5, 2)).toBeCloseTo(0.4, 5)
   })
   test('reset 只清计数，缓冲复用', () => {
     const b = new MeshBatch()

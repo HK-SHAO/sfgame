@@ -22,8 +22,8 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
   },
 }
 
-/** 页面视图：默认 title（无 view 参数）；solutions 为唯一显式值（解法参考页）。 */
-export type AppView = 'title' | 'solutions'
+/** 页面视图：默认 title（无 view 参数）；solutions/dev/storage 为显式值（解法参考/开发者选项/存储管理页）。 */
+export type AppView = 'title' | 'solutions' | 'dev' | 'storage'
 
 /** 应用级 URL 状态 schema（单例）：lv 直达关卡、src 实时双向同步、v 记录页面视图
  * （解法参考页刷新不丢失）、dev 开启开发者功能（perf 叠加层、8×/16× 高速档、空格暂停物理）。
@@ -31,6 +31,6 @@ export type AppView = 'title' | 'solutions'
 export const urlState = new UrlState({
   lv: codecs.int(null, 1, 99),
   src: codecs.list<SourcePlacement>([], sourceItem, '_'),
-  v: codecs.enum<AppView>('title', ['solutions']),
+  v: codecs.enum<AppView>('title', ['solutions', 'dev', 'storage']),
   dev: codecs.bool(false),
 })

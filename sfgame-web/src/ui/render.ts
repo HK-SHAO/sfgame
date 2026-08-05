@@ -270,16 +270,14 @@ export class Renderer {
    * 站点视觉（一致性约定）：未抵达 = 虚线圆（抵达范围）+ 旗帜；已抵达 = 只留旗杆。
    * 旗杆静态（两状态同形），烘焙进背景且先于地形绘制——杆根被地面遮挡；
    * 虚线圆圆心 = 检测圆心（GOAL_LIFT 抬升），与 simulation.checkGoals 完全一致。
+   * 全杆棕杆：绿色附着段由旗面覆盖（drawGoal 的三角旗面左缘即杆线），
+   * 抵达后旗面消失，杆上不再残留绿色段。
    */
   private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {
     for (const g of sim.level.goals) {
       const gy = sim.level.ground(g.x)
-      const poleTop = gy - POLE_HEIGHT
-      const fabricBottom = poleTop + POLE_FABRIC_LEN
       // round：杆顶圆头（矩形/线段首尾圆润）
-      b.stroke(g.x, gy + POLE_SINK, g.x, fabricBottom, 0.34, ...FLAG_POLE, 1, true)
-      // 旗面附着段与旗面同色：旗面被风吹开时，旗杆不从旗面里露棕线
-      b.stroke(g.x, fabricBottom, g.x, poleTop, 0.34, ...GOAL, 1, true)
+      b.stroke(g.x, gy + POLE_SINK, g.x, gy - POLE_HEIGHT, 0.34, ...FLAG_POLE, 1, true)
     }
   }
 
@@ -324,6 +322,9 @@ export class Renderer {
   private flagX = new Float32Array(0)
   private flagY = new Float32Array(0)
   private flagT = new Float32Array(0)
+  /** 粒子轨迹折线 scratch：pts（x,y 平铺）+ 逐点透明度（按需扩容，热路径零分配） */
+  private trailPts = new Float32Array(0)
+  private trailFade = new Float32Array(0)
 
   private ensureFlagState(n: number) {
     if (this.flagX.length >= n) return
@@ -396,23 +397,31 @@ export class Renderer {
 
       const n = trailN[i]
       if (n === 0) continue
-      // 线条透明度随风速连续变化（gust 0.7→1.3），不设硬截断：
-      // 风速归零的瞬间气流仍以弱残影可见，避免 L4 潮汐过零时"整片消失"
+      // 整条轨迹一条斜接折线（转角无缝）+ 逐顶点时间淡出 + 头部圆帽：
+      // 告别逐段平头四边形的"链条/折线"感（顶点 alpha 插值让淡出同样连续）
       const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
       const base = i * trailLen
       const now = tracers.time
-      let px = trailX[base]
-      let py = trailY[base]
-      for (let k = 0; k < n; k++) {
-        const nx = k + 1 < n ? trailX[base + k + 1] : tracers.x[i]
-        const ny = k + 1 < n ? trailY[base + k + 1] : tracers.y[i]
-        const a = (1 - (now - trailT[base + k]) / TRAIL_FADE_T) * env * gust
-        if (a > VISIBLE_ALPHA) {
-          b.stroke(px, py, nx, ny, TRACER_LINE_WIDTH, colors[c0], colors[c0 + 1], colors[c0 + 2], Math.min(1, a) * colors[c0 + 4])
-        }
-        px = nx
-        py = ny
+      const np = n + 1
+      if (this.trailPts.length < np * 2) {
+        this.trailPts = new Float32Array(np * 2)
+        this.trailFade = new Float32Array(np)
       }
+      const pts = this.trailPts
+      const fade = this.trailFade
+      for (let k = 0; k < n; k++) {
+        pts[k * 2] = trailX[base + k]
+        pts[k * 2 + 1] = trailY[base + k]
+        const a = (1 - (now - trailT[base + k]) / TRAIL_FADE_T) * env * gust
+        fade[k] = a > 0 ? Math.min(1, a) * colors[c0 + 4] : 0
+      }
+      // 末尾接到粒子当前位置（最后一段不足采样间距）；头部用粒子本体透明度
+      pts[n * 2] = tracers.x[i]
+      pts[n * 2 + 1] = tracers.y[i]
+      fade[n] = colors[c0 + 3] * env
+      b.polylineFade(pts, np * 2, TRACER_LINE_WIDTH, colors[c0], colors[c0 + 1], colors[c0 + 2], fade)
+      // 头部圆帽：轨迹末端的平头截断感
+      b.disc(tracers.x[i], tracers.y[i], TRACER_LINE_WIDTH / 2, TRACER_LINE_WIDTH / 2, 0, 8, colors[c0], colors[c0 + 1], colors[c0 + 2], fade[n])
     }
 
     // 头部点在所有线条之后绘制，保证点在线上

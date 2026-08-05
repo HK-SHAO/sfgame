@@ -120,6 +120,50 @@ export const iconRoute = html`<svg
   <path d="M6.6 16.6c3.4-1.4 5-6.4 10.8-9.2" stroke-dasharray="1 1.6" />
 </svg>`
 
+/** 开发者选项：滑块设置图标（横线 + 圆形旋钮） */
+export const iconGear = html`<svg
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  aria-hidden="true"
+>
+  <path d="M4 8h9M17 8h3M4 16h3M11 16h9" />
+  <circle cx="15" cy="8" r="2" />
+  <circle cx="9" cy="16" r="2" />
+</svg>`
+
+/** 存储：数据库圆柱体 */
+export const iconDatabase = html`<svg
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" />
+  <path d="M4.5 5.5v13c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8v-13" />
+  <path d="M4.5 12c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8" />
+</svg>`
+
+/** 性能诊断：折线图 */
+export const iconChart = html`<svg
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="M4.5 20V4" />
+  <path d="M4.5 20h15" />
+  <polyline points="8 16 11.5 11.5 14 13.5 19.5 7" />
+</svg>`
+
 export const iconLogo = html`<svg viewBox="0 0 64 64" aria-hidden="true">
   <circle cx="22" cy="22" r="12" fill="#ffb43c" />
   <g stroke="#ffb43c" stroke-width="4" stroke-linecap="round">

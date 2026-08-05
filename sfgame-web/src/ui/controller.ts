@@ -93,6 +93,7 @@ export class GameController {
     // 底部状态卡：常驻 UI。挂 document.body（fixed 定位，与 DevTools 叠加层同款；
     // sf-game 无 slot，挂宿主 light DOM 不可见）
     const status = new SfStatusBar()
+    status.setLevel(level.id, level.name)
     document.body.appendChild(status)
     this.statusEl = status
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches

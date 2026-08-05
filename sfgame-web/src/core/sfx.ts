@@ -1,4 +1,6 @@
-const STORAGE_KEY = 'zaofeng.muted'
+/** localStorage 键（存储管理页据此识别/摘要，勿改） */
+export const MUTED_KEY = 'zaofeng.muted'
+const STORAGE_KEY = MUTED_KEY
 const MASTER_GAIN = 0.5
 
 /** Paul Kellet 粉红噪声近似：白噪声经一阶 IIR 组逼近 1/f 谱——正是自然风湍流的能量分布特征。 */

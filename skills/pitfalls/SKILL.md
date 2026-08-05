@@ -253,7 +253,8 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 
 ### I1 加速技术先跑真机基准再定默认（wasm 血泪教训，2026-08）
 **实测**：MoonBit 逐位一致的 wasm 求解器在**所有实测平台都比 JS 慢**——iPhone Safari +48%、macOS Safari +39%、Chrome +142%（JIT 引擎的 JS typed-array 数值循环已接近原生，wasm 的调用/转换开销是负资产）。"无 JIT 的 WKWebView 才需要 wasm"的假设从未被实测证实，wasm 全套已按老大指示移除。
-**教训**：上任何加速技术（wasm/代码生成/Worker）前，先跑 `scripts/bench.ts` + `bench.html`（真机可测、结果可复制回传）；**实测无瓶颈就不引入复杂度**。当前（2026-08）基准：fluid 0.5ms、倍速帧 16× <12ms，无真实瓶颈。
+**教训**：上任何加速技术（wasm/代码生成/Worker）前，先做真机基准再定默认；**实测无瓶颈就不引入复杂度**。当前（2026-08）基准：fluid 0.5ms、倍速帧 16× <12ms，无真实瓶颈。
+**注**：bench 工具链（bench.html、scripts/bench*.ts、src/dev/bench-core.ts）已按老大指示移除（2026-08）；无头/真机验证方法见 I4/I8。
 
 ### I2 vite dev 只绑 IPv6 回环
 **症状**：vite dev 起来了，`curl http://127.0.0.1:端口` 连接失败（000），`localhost` 正常。
@@ -266,7 +267,7 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 - `bunx` 会产生孙进程，kill 不掉会占端口——直接跑 `node_modules/xxx/bin/xxx.js`。
 
 ### I4 CDP 自动化零依赖可用
-headless Chrome 加 `--remote-debugging-port` 后，用 bun 原生 `WebSocket` 直连 `http://127.0.0.1:PORT/json/version` 的 webSocketDebuggerUrl 即可驱动（Target.createTarget → Runtime.evaluate 轮询），无需 puppeteer/playwright。CPU 节流：`Emulation.setCPUThrottlingRate { rate }`（真实浏览器弱设备近似）。成品：`scripts/bench-browser.ts`。
+headless Chrome 加 `--remote-debugging-port` 后，用 bun 原生 `WebSocket` 直连 `http://127.0.0.1:PORT/json/version` 的 webSocketDebuggerUrl 即可驱动（Target.createTarget → Runtime.evaluate 轮询），无需 puppeteer/playwright。CPU 节流：`Emulation.setCPUThrottlingRate { rate }`（真实浏览器弱设备近似）。成品：`scripts/browser-consistency.ts`（I8；bench-browser 已随 bench 移除）。
 
 ### I5 真机基准页的"帧预算"解读
 iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是量化底噪，不代表真实抖动；看 mean 与整帧构成（倍速帧项）判断瓶颈。iOS Safari 的 fluid JS 比桌面还快（0.49ms）——**"移动端更慢"要逐平台实测，别想当然**。
@@ -284,7 +285,7 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 
 ### I7 headless Chrome 默认无 WebGL
 **症状**：headless Chrome（`--headless=new`）里 `getContext('webgl')` 返回 null，游戏画面空白/只有 CSS 背景色；还容易误判为产品 bug。
-**修法**：加 `--enable-unsafe-swiftshader`（软件 WebGL）。bench-browser.ts 已内置。注意 SwiftShader 性能不代表真机，只用于管线正确性验证。
+**修法**：加 `--enable-unsafe-swiftshader`（软件 WebGL）。`scripts/browser-consistency.ts` 已内置。注意 SwiftShader 性能不代表真机，只用于管线正确性验证。
 
 ### I8 无头 ↔ 浏览器一致性验证（dev 钩子 + 固定步长）
 **原理**：GameLoop 固定步长 SIM_DT=1/60，模拟逐位确定；浏览器与 bun 跑同一份 `LevelSimulation`，通关时刻应一致（实测差 ≤1 模拟步）。

@@ -5,7 +5,9 @@ import { sfx } from '../core/sfx'
 import { LEVELS } from '../game/levels'
 import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
+import './dev-menu'
 import './solutions-view'
+import './storage-view'
 import { urlState } from '../game/state'
 import { formatPenalty, formatTime } from '../game/timer'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
@@ -13,11 +15,11 @@ import type { SourceKind } from '../sim/types'
 import {
   iconBack,
   iconFlame,
+  iconGear,
   iconHome,
   iconLock,
   iconLogo,
   iconReset,
-  iconRoute,
   iconSnow,
   iconSoundOff,
   iconSoundOn,
@@ -25,7 +27,7 @@ import {
 
 const FIRST_LEVEL = LEVELS[0]
 
-type Screen = 'title' | 'game' | 'solutions'
+type Screen = 'title' | 'game' | 'solutions' | 'dev' | 'storage'
 
 @customElement('sf-app')
 export class SfApp extends LitElement {
@@ -57,6 +59,9 @@ export class SfApp extends LitElement {
   }
 
   @query('sf-game') private gameEl!: SfGame
+  @query('.hud') private hudEl!: HTMLElement | null
+  /** HUD 是否横向溢出（窄屏）：溢出时启用横向滚动并接管该条带指针（见 syncHudOverflow） */
+  @state() private hudOverflow = false
 
   constructor() {
     super()
@@ -71,12 +76,42 @@ export class SfApp extends LitElement {
       // 撤销/重做（仅外部 URL 变化触发，玩家自身操作不触发）轻反馈
       sfx.uiClick()
     })
+    window.addEventListener('resize', this.onWinResize)
   }
 
-  /** 从 URL 统一推导屏幕（view=solutions 优先 → level 有效 → 标题）。写读分离：set/clear 不触发通知，UI 操作需自行设 screen。 */
+  override disconnectedCallback() {
+    window.removeEventListener('resize', this.onWinResize)
+    super.disconnectedCallback()
+  }
+
+  /** 窗口尺寸变化后复查 HUD 溢出状态（旋转/缩放会改变布局） */
+  private onWinResize = () => {
+    this.syncHudOverflow()
+  }
+
+  /**
+   * HUD 横向溢出检测：title 常显（不折行不省略），空间不够时整个条带
+   * 变成横向滚动区（scroll 类接管指针事件，否则 touch/wheel 会被 canvas 吃掉）。
+   */
+  private syncHudOverflow() {
+    const el = this.hudEl
+    const over = !!el && el.scrollWidth > el.clientWidth + 1
+    if (over !== this.hudOverflow) this.hudOverflow = over
+  }
+
+  /** 从 URL 统一推导屏幕（view=solutions/dev/storage 优先 → level 有效 → 标题）。写读分离：set/clear 不触发通知，UI 操作需自行设 screen。 */
   private syncScreen() {
-    if (urlState.get('v') === 'solutions') {
+    const v = urlState.get('v')
+    if (v === 'solutions') {
       this.screen = 'solutions'
+      return
+    }
+    if (v === 'dev') {
+      this.screen = 'dev'
+      return
+    }
+    if (v === 'storage') {
+      this.screen = 'storage'
       return
     }
     const id = urlState.get('lv')
@@ -108,6 +143,13 @@ export class SfApp extends LitElement {
     // 进关卡前重置 HUD（willUpdate 属当前周期不额外调度；避免上局结算覆盖层闪现）
     if (changed.has('screen') && this.screen === 'game') {
       this.resetHud(this.activeLevel)
+    }
+  }
+
+  protected override updated(_changed: PropertyValues) {
+    // 渲染完成后再测 HUD 溢出（首次进入关卡时布局才就绪）
+    if (this.screen === 'game') {
+      void this.updateComplete.then(() => this.syncHudOverflow())
     }
   }
 
@@ -156,6 +198,25 @@ export class SfApp extends LitElement {
     sfx.uiEnter()
     this.screen = 'solutions'
     urlState.set('v', 'solutions')
+  }
+
+  private openDev() {
+    sfx.uiEnter()
+    this.screen = 'dev'
+    urlState.set('v', 'dev')
+  }
+
+  private openStorage() {
+    sfx.uiEnter()
+    this.screen = 'storage'
+    urlState.set('v', 'storage')
+  }
+
+  /** 开发者选项内开关 dev 模式（?dev=1 控制 perf 叠加层/高速档/空格暂停/主菜单开发者入口） */
+  private toggleDev(e: CustomEvent<boolean>) {
+    this.dev = e.detail
+    urlState.set('dev', e.detail)
+    sfx.uiClick()
   }
 
   private restart() {
@@ -225,8 +286,20 @@ export class SfApp extends LitElement {
 
   protected override render() {
     if (this.screen === 'game') return this.renderGame()
+    if (this.screen === 'dev') {
+      return html`<sf-dev-menu
+        .dev=${this.dev}
+        @back=${this.goBack}
+        @open-solutions=${this.openSolutions}
+        @open-storage=${this.openStorage}
+        @toggle-dev=${this.toggleDev}
+      ></sf-dev-menu>`
+    }
+    if (this.screen === 'storage') {
+      return html`<sf-storage @back=${this.goBack}></sf-storage>`
+    }
     if (this.screen === 'solutions') {
-      return html`<sf-solutions @back=${this.backToTitle}></sf-solutions>`
+      return html`<sf-solutions @back=${this.goBack}></sf-solutions>`
     }
     return this.renderTitle()
   }
@@ -264,9 +337,12 @@ export class SfApp extends LitElement {
             根据菲尔兹奖得主邓煜的数学证明，从牛顿力学可以推导出热力学方程——本游戏所有物理均基于此。
           </p>
 
-          <button class="solutions-link" @click=${this.openSolutions}>
-            ${iconRoute}<span>解法参考</span>
-          </button>
+          <!-- 开发者入口仅 dev 模式可见（?dev=1）；dev 开关在开发者选项里 -->
+          ${this.dev
+            ? html`<button class="dev-link" @click=${this.openDev} aria-label="开发者选项">
+                ${iconGear}<span>开发者选项</span>
+              </button>`
+            : nothing}
         </section>
       </main>
     `
@@ -290,16 +366,13 @@ export class SfApp extends LitElement {
           ></sf-game>`,
         )}
 
-        <header class="hud">
+        <header class="hud ${this.hudOverflow ? 'scroll' : ''}">
           <button class="icon-btn" @click=${this.backToTitle} aria-label="回到主页" title="回到主页">
             ${iconHome}
           </button>
           <button class="icon-btn" @click=${this.goBack} aria-label="返回上一状态" title="返回上一状态">
             ${iconBack}
           </button>
-          <div class="hud-title">
-            <span class="no">第 ${this.activeLevel.id} 关</span> ${this.activeLevel.name}
-          </div>
           <div class="hud-right">
             <span class="chip hot ${this.hud.hotLeft === 0 ? 'empty' : ''}" title="剩余热源">
               ${iconFlame}<b>${this.hud.hotLeft}</b>
@@ -343,9 +416,11 @@ export class SfApp extends LitElement {
                       : nothing}
                   </p>
                   <div class="row">
-                    ${hasNext
-                      ? html`<button class="primary" @click=${this.playNext}>下一关</button>`
-                      : html`<button class="primary" @click=${this.restart}>再玩一次</button>`}
+                    <button class="primary next" @click=${hasNext ? this.playNext : this.restart}>
+                      ${hasNext ? '下一关' : '再玩一次'}
+                    </button>
+                  </div>
+                  <div class="row">
                     ${hasNext ? html`<button class="ghost" @click=${this.restart}>再玩一次</button>` : nothing}
                     <button class="ghost" @click=${this.backToTitle}>选关</button>
                   </div>
@@ -547,7 +622,8 @@ export class SfApp extends LitElement {
       color: var(--ink-soft);
     }
 
-    .solutions-link {
+    /* 开发者选项入口：同款胶囊，低调地居底 */
+    .dev-link {
       display: inline-flex;
       align-items: center;
       gap: 0.375rem;
@@ -562,12 +638,12 @@ export class SfApp extends LitElement {
       transition: color 120ms ease-out, box-shadow 120ms ease-out;
     }
 
-    .solutions-link:hover {
+    .dev-link:hover {
       color: var(--ink);
       box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
     }
 
-    .solutions-link svg {
+    .dev-link svg {
       width: 0.94rem;
       height: 0.94rem;
     }
@@ -592,38 +668,26 @@ export class SfApp extends LitElement {
       right: 0;
       display: flex;
       align-items: center;
-      gap: 0.625rem;
-      padding: calc(0.625rem + env(safe-area-inset-top, 0px)) 0.875rem 0.625rem;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: calc(0.5rem + env(safe-area-inset-top, 0px)) 0.625rem 0.5rem;
       pointer-events: none;
+      /* 子项不压缩；空间不够时整条横向滚动（scroll 类接管指针） */
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
     }
 
     .hud > * {
       pointer-events: auto;
+      flex: none;
     }
 
-    .hud-title {
-      flex: 1;
-      text-align: center;
-      font-size: 0.875rem;
-      font-weight: 600;
-      padding: 0.5rem 0.875rem;
-      border-radius: 0.81rem;
-      corner-shape: squircle;
-      background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(1rem) saturate(1.5);
-      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
-      border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .hud-title .no {
-      color: var(--ink-soft);
-      font-weight: 500;
-      font-size: 0.75rem;
-      margin-right: 0.125rem;
+    /* 溢出时：显示滚动条并接管指针（touch/wheel 滚动；否则事件会被下方 canvas 吃掉） */
+    .hud.scroll {
+      pointer-events: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(61, 52, 39, 0.25) transparent;
     }
 
     .hud-right {
@@ -696,21 +760,6 @@ export class SfApp extends LitElement {
 
     .chip.empty {
       opacity: 0.42;
-    }
-
-    /* 竖屏窄屏：关卡名让位给源计数与操作按钮（信息在选关页已有） */
-    @media (orientation: portrait) and (max-width: 520px) {
-      .hud-title {
-        display: none;
-      }
-
-      .hud {
-        justify-content: space-between;
-      }
-
-      .chip {
-        padding: 0 0.5rem;
-      }
     }
 
     /* ---------- 结算 ---------- */
@@ -799,6 +848,12 @@ export class SfApp extends LitElement {
       display: flex;
       gap: 0.625rem;
       justify-content: center;
+    }
+
+    /* 主按钮单独一行居中：横向拉伸到 15rem 封顶，观感上是卡片主 CTA */
+    .win-card .row .next {
+      flex: 1;
+      max-width: 15rem;
     }
 
     .win-card button {

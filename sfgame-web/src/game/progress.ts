@@ -7,7 +7,8 @@ import type { SourcePlacement } from './types'
  * 载荷带 schema 版本，解析容错（损坏/未知版本 → 空进度，绝不抛错）。
  */
 export const PROGRESS_TOP_N = 3
-const STORAGE_KEY = 'sfgame.progress.v1'
+/** localStorage 键（存储管理页据此识别/摘要，勿改） */
+export const STORAGE_KEY = 'sfgame.progress.v1'
 
 export interface ScoreEntry {
   /** 实际用时（秒） */

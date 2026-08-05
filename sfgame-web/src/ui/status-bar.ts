@@ -3,13 +3,23 @@ import { customElement } from 'lit/decorators.js'
 import { formatPenalty, formatTime } from '../game/timer'
 
 /**
- * 底部常驻状态卡：操作说明 + 实时"用时/罚时"。文本 1 位小数、0.1s 才变，
- * refresh 文本不变即短路（零渲染开销）；过关覆盖层（z-index 5）盖住本组件（z-index 3）。
+ * 底部常驻状态卡：关卡名（footer，样式与 header 标题一致）+ 实时"用时/罚时" + 操作说明。
+ * 文本 1 位小数、0.1s 才变，refresh 文本不变即短路（零渲染开销）；
+ * 过关覆盖层（z-index 5）盖住本组件（z-index 3）。
  */
 @customElement('sf-status')
 export class SfStatusBar extends LitElement {
   private t = ''
   private p = ''
+  private lvNo = ''
+  private lvName = ''
+
+  /** 关卡名（第 N 关 + 名称），进入关卡时设置一次 */
+  setLevel(id: number, name: string) {
+    this.lvNo = `第 ${id} 关`
+    this.lvName = name
+    this.requestUpdate()
+  }
 
   refresh(time: number, extra: number) {
     const t = formatTime(time)
@@ -22,7 +32,11 @@ export class SfStatusBar extends LitElement {
 
   protected override render() {
     return html`
-      <span class="row"><span class="t">用时 ${this.t}</span><span class="p">罚时 ${this.p}</span></span>
+      <span class="row">
+        <span class="lv"><span class="no">${this.lvNo}</span> ${this.lvName}</span>
+        <span class="t">用时 ${this.t}</span>
+        <span class="p">罚时 ${this.p}</span>
+      </span>
       <span class="ops">轻点放热源 · 长按放冷源 · 点按已放置的源可移除</span>
     `
   }
@@ -72,6 +86,24 @@ export class SfStatusBar extends LitElement {
       gap: 0.875rem;
       font-weight: 600;
       white-space: nowrap;
+    }
+
+    /* 关卡名：与 header 标题同款视觉（no 淡化 + 名称加粗） */
+    .lv {
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .lv .no {
+      color: var(--ink-soft);
+      font-weight: 500;
+      font-size: 0.75rem;
+      margin-right: 0.125rem;
+    }
+
+    .t {
+      font-size: 0.875rem;
     }
 
     .p {

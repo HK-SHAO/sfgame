@@ -7,10 +7,10 @@ import { LevelSimulation } from '../game/simulation'
 import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from './render'
-import { SfPerf } from './perf'
 import { SfRunTimer } from './run-timer'
 import { urlState } from '../game/state'
 import { penaltySeconds } from '../game/timer'
+import { DevTools } from '../dev/devtools'
 
 /** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。
  * 渲染已 GPU 化，粒子数主要消耗 CPU 采样预算，档位只按模拟成本取舍。 */
@@ -75,10 +75,8 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private ground: (x: number) => number
-  /** dev 模式（?dev=1）：空格键暂停/恢复物理时间 */
-  private dev: boolean
-  /** dev 模式（?dev=1）调试叠加层（独立 Lit 组件，见 perf.ts） */
-  private perfEl: SfPerf | null = null
+  /** dev 模式（?dev=1）工具：perf 叠加层/空格暂停/一致性钩子（见 dev/devtools.ts） */
+  private devTools: DevTools | null = null
   /** 底部常驻计时条（实时模拟耗时 + 罚时，见 run-timer.ts） */
   private timerEl: SfRunTimer | null = null
 
@@ -93,21 +91,10 @@ export class GameController {
     this.world = level.world
     this.ground = level.ground
     this.sim = new LevelSimulation(level)
-    // dev 模式：?dev=1 挂 perf 叠加层（perf/dev 功能统一由 URL 的 dev 键控制）
-    this.dev = urlState.get('dev')
-    if (this.dev) {
-      const el = new SfPerf()
-      document.body.appendChild(el)
-      this.perfEl = el
-      // 无头浏览器一致性验证钩子（dev only）：读取模拟实时状态
-      ;(window as unknown as Record<string, unknown>).__sfgame = {
-        hud: () => this.sim.hudState(),
-        visitedCount: () => this.sim.visitedCount,
-        paused: () => this.sim.paused,
-      }
-    }
+    // dev 模式（?dev=1）：dev 副作用全部封装在 DevTools 模块内
+    if (urlState.get('dev')) this.devTools = new DevTools()
     // 底部计时条：常驻 UI（非 dev）。挂 document.body（fixed 定位，
-    // 与 perfEl 同款；sf-game 无 slot，挂宿主 light DOM 不可见）
+    // 与 DevTools 叠加层同款；sf-game 无 slot，挂宿主 light DOM 不可见）
     const timer = new SfRunTimer()
     document.body.appendChild(timer)
     this.timerEl = timer
@@ -172,7 +159,7 @@ export class GameController {
     }
     this.fit()
     window.addEventListener('resize', this.fit)
-    if (this.dev) window.addEventListener('keydown', this.onKeyDown)
+    this.devTools?.attach(this.sim)
     this.loop.start()
     this.pushHud()
   }
@@ -188,9 +175,8 @@ export class GameController {
     this.ro?.disconnect()
     this.ro = null
     window.removeEventListener('resize', this.fit)
-    if (this.dev) window.removeEventListener('keydown', this.onKeyDown)
-    this.perfEl?.remove()
-    this.perfEl = null
+    this.devTools?.destroy()
+    this.devTools = null
     this.timerEl?.remove()
     this.timerEl = null
     // 淡出风声：否则返回标题页后风声残留
@@ -203,25 +189,8 @@ export class GameController {
     this.press = null
     this.lastPhase = 'playing'
     this.pushHud()
-    this.syncPauseUi()
-  }
-
-  /** dev 空格键：暂停/恢复整个物理时间。按键重复忽略，阻止页面滚动。 */
-  private onKeyDown = (e: KeyboardEvent) => {
-    if (e.code !== 'Space' || e.repeat) return
-    e.preventDefault()
-    this.setPaused(!this.sim.paused)
-  }
-
-  private setPaused(paused: boolean) {
-    this.sim.setPaused(paused)
-    // 暂停时淡出风声：被冻结的场景不该有持续的流动音
-    if (paused) sfx.fadeOutWind()
-    this.syncPauseUi()
-  }
-
-  private syncPauseUi() {
-    if (this.perfEl) this.perfEl.paused = this.sim.paused
+    // restart 会复位暂停状态，同步 dev 面板指示
+    this.devTools?.syncPause()
   }
 
   private pushHud() {
@@ -243,6 +212,9 @@ export class GameController {
     this.fitW = w
     this.fitH = h
     this.renderer.resize(w, h, this.pixelRatio())
+    // canvas 尺寸变更会重置 WebGL 绘制缓冲（黑屏）：同步补画一帧，
+    // 避免进入关卡/旋转/缩放的首帧出现黑色闪烁
+    this.render()
   }
 
   private tryPlace(x: number, y: number, kind: SourceKind) {
@@ -354,7 +326,7 @@ export class GameController {
     // 场上无道具（底部文案显示期）时隐藏计时条——两 UI 同一位置交替出现
     this.timerEl?.refresh(this.sim.time, penaltySeconds(this.sim.sources.length))
     this.timerEl!.hidden = this.sim.sources.length === 0
-    this.perfEl?.record({
+    this.devTools?.record({
       tickMs: this.tickMs,
       batchMs: performance.now() - t0,
       vertices: this.renderer.lastVertexCount,

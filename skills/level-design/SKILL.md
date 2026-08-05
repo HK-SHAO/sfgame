@@ -151,6 +151,8 @@ bun run scripts/browser-consistency.ts
 ## 8. 登记新关卡
 
 1. 新建 `sfgame-web/levels/level-N.yaml`（含 `solutions` 与实测 `winTime`）
-2. 在 `src/game/levels.ts` 的 LEVELS 数组登记文件名一行
+2. 在 `src/game/levels.ts` 顶部 `import levelN from '../../levels/level-N.yaml?raw'`
+   并加入 `LEVEL_TEXTS` 数组一行（YAML 以纯文本经 `?raw` 直读，随文件变更
+   触发 vite HMR，无需构建插件）
 3. 走完第 5 节验证工作流
 4. 选关页、解法参考页、URL 直达（`?lv=N&src=…`）自动生效，无需额外 UI 改动

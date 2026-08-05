@@ -3,6 +3,8 @@
  * 每个关卡每个参考答案，在 headless Chrome 里跑真实游戏（?dev=1&lv=N&src=…），
  * 读取 dev 钩子的模拟时钟（通关冻结值），与 bun 无头结果比对（容差 ±0.6s）。
  * 同时抽查无操作不通关（挂机 15s）。
+ * 协议层在 scripts/cdp-client.ts（CDP 最小客户端，可替换为 Playwright
+ * CDPSession / chrome-devtools-mcp，业务逻辑不变）。
  *
  * 用法：bun run scripts/browser-consistency.ts
  * 依赖：本机 Chrome（CHROME_PATH 可覆盖）。自动拉起 vite dev。
@@ -10,55 +12,15 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { parseLevelText } from '../src/game/level-format'
 import { sourceItem } from '../src/game/state'
+import { CdpClient } from './cdp-client'
 
 const CHROME = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const VITE_PORT = 5201
-const CDP_PORT = 9335
+// 端口可被环境变量覆盖：残留 vite/chrome 进程占端口时换端口即可（pitfalls I3）
+const VITE_PORT = Number(process.env.VITE_PORT ?? 5201)
+const CDP_PORT = Number(process.env.CDP_PORT ?? 9335)
 const USER_DATA = `/tmp/sfgame-consistency-chrome-${process.pid}`
 const BASE = `http://localhost:${VITE_PORT}`
 const TOLERANCE = 0.6
-
-class CdpClient {
-  private ws: WebSocket
-  private id = 0
-  private pending = new Map<number, (v: unknown) => void>()
-
-  private constructor(ws: WebSocket) {
-    this.ws = ws
-  }
-
-  static async connect(wsUrl: string): Promise<CdpClient> {
-    const ws = new WebSocket(wsUrl)
-    await new Promise<void>((res, rej) => {
-      ws.onopen = () => res()
-      ws.onerror = () => rej(new Error('CDP WebSocket 连接失败'))
-    })
-    const c = new CdpClient(ws)
-    ws.onmessage = (ev) => {
-      const msg = JSON.parse(String(ev.data))
-      if (msg.id && c.pending.has(msg.id)) {
-        c.pending.get(msg.id)!(msg.result ?? msg.error)
-        c.pending.delete(msg.id)
-      }
-    }
-    return c
-  }
-
-  send(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
-    const id = ++this.id
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, (v) => (v && (v as { message?: string }).message ? reject(v) : resolve(v)))
-      this.ws.send(JSON.stringify({ id, method, params }))
-    })
-  }
-
-  async evalv(expression: string): Promise<unknown> {
-    const r = (await this.send('Runtime.evaluate', { expression, returnByValue: true })) as {
-      result?: { value?: unknown }
-    }
-    return r.result?.value
-  }
-}
 
 function spawnSilent(cmd: string, args: string[], cwd?: string): { kill: () => void } {
   const proc = Bun.spawn([cmd, ...args], { cwd, stdout: 'ignore', stderr: 'ignore' })

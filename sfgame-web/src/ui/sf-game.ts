@@ -88,6 +88,8 @@ export class SfGame extends LitElement {
       height: 100%;
       display: block;
       touch-action: none;
+      /* WebGL 不可用/缓冲未初始化时的兜底底色：天空色而非黑屏 */
+      background: #fff8ea;
     }
   `
 }

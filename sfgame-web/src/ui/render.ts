@@ -174,7 +174,7 @@ export class Renderer {
     const b = this.batch
     b.reset()
     this.drawSun(b, now)
-    this.drawGoal(b, sim, now)
+    this.drawGoal(b, sim)
     this.drawSources(b, sim, press)
     this.drawTracers(b, sim, tracers)
     this.drawPlaneTrail(b, sim, planeTrail)
@@ -258,7 +258,7 @@ export class Renderer {
    * 已抵达 = 只留旗杆，周围的提醒效果（虚线圆等）全部消失。
    * 刻意去掉底部运动的圆环与旗杆后的半透明绿色矩形光柱——各站点完全同构。
    */
-  private drawGoal(b: MeshBatch, sim: LevelSimulation, now: number) {
+  private drawGoal(b: MeshBatch, sim: LevelSimulation) {
     const goals = sim.level.goals
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]
@@ -272,14 +272,17 @@ export class Renderer {
 
       // 未抵达：虚线圆（抵达范围）+ 旗帜
       b.dashRing(g.x, gy - 2, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
-      // 旗帜：波幅与顺风倾斜随目标处实测风速——风与画面同呼吸
+      // 旗帜：摆动真实跟随"旗帜自身位置"的气流矢量——顺风侧、随风速
+      // 拉伸、上升/下沉气流影响旗面；相位用模拟时钟，物理冻结时旗面静止
       const air = Renderer.tmpAir
-      sim.fluid.sampleVelocity(g.x, gy - 5, air)
-      const wind = Math.min(1.4, Math.sqrt(air.x * air.x + air.y * air.y))
+      sim.fluid.sampleVelocity(g.x + 1.6, top + 1.4, air)
+      const speed = Math.min(1.4, Math.hypot(air.x, air.y))
+      const dir = air.x >= 0 ? 1 : -1
       b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 1)
-      const wave = (0.35 + wind * 0.55) * Math.sin(now / 240)
-      const lean = 0.1 * wind
-      b.tri(g.x, top, g.x + 3.1 + lean, top + 0.9 + wave, g.x, top + 2.1, ...GOAL, 1)
+      const wave = (0.12 + speed * 0.5) * Math.sin(sim.time * 6 + i * 1.7)
+      const stretch = dir * (0.2 + speed * 0.5)
+      const lift = Math.max(-0.7, Math.min(0.7, air.y * 0.1))
+      b.tri(g.x, top, g.x + dir * 3.2 + stretch, top + 0.9 + wave + lift, g.x, top + 2.1, ...GOAL, 1)
     }
   }
 

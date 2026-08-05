@@ -17,7 +17,7 @@ export function validateLevelJson(raw: unknown): string[] {
 
   if (j.schema !== LEVEL_SCHEMA) errs.push(`${id} schema 必须为 ${LEVEL_SCHEMA}`)
   if (!isInt(j.id) || j.id < 1) errs.push(`${id} id 必须为正整数`)
-  for (const k of ['name', 'tagline', 'hint'] as const) {
+  for (const k of ['name', 'tagline'] as const) {
     if (typeof j[k] !== 'string' || j[k].length === 0) errs.push(`${id} ${k} 必须为非空字符串`)
   }
   if (!j.win || typeof j.win.title !== 'string' || !j.win.title || typeof j.win.text !== 'string' || !j.win.text) {

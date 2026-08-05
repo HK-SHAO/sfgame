@@ -10,8 +10,8 @@ interface SourcePoint {
 /** 每颗粒子记录的轨迹点数（实例可调：移动端缩短以控制描边负载） */
 export const TRAIL_LEN = 24
 const TRAIL_SAMPLE = 0.45
-/** 轨迹点自记录后随路程淡出的总长度 */
-export const TRAIL_FADE = 10
+/** 轨迹点自记录后随**时间**淡出的总时长（秒） */
+export const TRAIL_FADE_T = 5
 /** 生命首尾的淡入/淡出时长（秒），避免粒子凭空闪现 */
 const FADE_IN = 0.5
 const FADE_OUT = 0.7
@@ -26,7 +26,7 @@ const PLUME_LIFE_SPAN = 1.2
 /**
  * 示踪粒子（拉格朗日）：被动平流于风场，把看不见的气流可视化。
  * 颜色由局部温度决定（热红冷蓝中性灰），透明度随风速增大——"有风的地方才看得见风"；
- * 每条按**路程**淡出的短轨迹（streakline）营造风场线条感，粒子停驻时轨迹不消失。
+ * 每条按**时间**淡出的短轨迹（streakline）营造风场线条感，粒子停驻时轨迹同样老化消失。
  */
 export class Tracers {
   count: number
@@ -36,14 +36,16 @@ export class Tracers {
   y: Float32Array
   life: Float32Array
   maxLife: Float32Array
-  /** 各粒子累计路程（里程表） */
+  /** 各粒子累计路程（仅用于等距采样） */
   odo: Float32Array
-  /** 轨迹点坐标与写入时里程，按 count×trailLen 平铺 */
+  /** 轨迹点坐标与写入时刻，按 count×trailLen 平铺 */
   trailX: Float32Array
   trailY: Float32Array
-  trailO: Float32Array
+  trailT: Float32Array
   /** 各粒子当前轨迹点数（≤ trailLen） */
   trailN: Uint8Array
+  /** 模拟时钟（step 累计），轨迹淡出的时间基准 */
+  time = 0
 
   private lastOdo: Float32Array
   private world: WorldBounds
@@ -63,7 +65,7 @@ export class Tracers {
     this.odo = new Float32Array(count)
     this.trailX = new Float32Array(count * trailLen)
     this.trailY = new Float32Array(count * trailLen)
-    this.trailO = new Float32Array(count * trailLen)
+    this.trailT = new Float32Array(count * trailLen)
     this.trailN = new Uint8Array(count)
     this.lastOdo = new Float32Array(count)
     for (let i = 0; i < count; i++) this.respawn(i, true)
@@ -102,15 +104,15 @@ export class Tracers {
     if (n < len) {
       this.trailX[base + n] = this.x[i]
       this.trailY[base + n] = this.y[i]
-      this.trailO[base + n] = this.odo[i]
+      this.trailT[base + n] = this.time
       this.trailN[i] = n + 1
     } else {
       this.trailX.copyWithin(base, base + 1, base + len)
       this.trailY.copyWithin(base, base + 1, base + len)
-      this.trailO.copyWithin(base, base + 1, base + len)
+      this.trailT.copyWithin(base, base + 1, base + len)
       this.trailX[base + len - 1] = this.x[i]
       this.trailY[base + len - 1] = this.y[i]
-      this.trailO[base + len - 1] = this.odo[i]
+      this.trailT[base + len - 1] = this.time
     }
     this.lastOdo[i] = this.odo[i]
   }
@@ -123,6 +125,7 @@ export class Tracers {
   }
 
   step(dt: number, fluid: Fluid, sources: ReadonlyArray<SourcePoint>) {
+    this.time += dt
     const air = this.air
     for (let i = 0; i < this.count; i++) {
       this.life[i] -= dt

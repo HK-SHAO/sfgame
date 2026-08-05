@@ -34,7 +34,6 @@ test('YAML 解析 + 校验：非法关卡被拒', () => {
         'id: 1',
         'name: t',
         'tagline: t',
-        'hint: t',
         'win: { title: t, text: t }',
         'world: { w: 76, h: 56, cell: 0.75 }',
         'ground: { expr: "999" }',
@@ -52,7 +51,6 @@ test('YAML 解析 + 校验：非法关卡被拒', () => {
         'id: 1',
         'name: t',
         'tagline: t',
-        'hint: t',
         'win: { title: t, text: t }',
         'ground: { expr: "30" }',
         'spawn: { x: 0 }',
@@ -88,7 +86,7 @@ test('关卡地形高度与设计意图一致（表达式精确、无采样误�
 })
 
 test('第 3 关：两个站点；第 5 关：三个站点（全部抵达过即过关，顺序无关）', () => {
-  expect(LEVELS[2].goals.map((g) => g.x)).toEqual([15, 40])
+  expect(LEVELS[2].goals.map((g) => g.x)).toEqual([15, 52])
   expect(LEVELS[4].goals.map((g) => g.x)).toEqual([14, 38, 66])
   // 站点 x 沿航线递增（空间布局，非强制访问顺序）
   for (const l of LEVELS) {

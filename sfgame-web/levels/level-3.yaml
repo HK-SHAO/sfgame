@@ -3,7 +3,6 @@ schema: 1
 id: 3
 name: 信风
 tagline: 多站之旅
-hint: 前方平原和山脊后各有一站。先让它自然滑到第一站，再在迎风坡放热源把它托上山脊，两站都抵达过就过关。
 win:
   title: 一站又一站
   text: 风把信从一站送到下一站。抵达不是终点，而是下一段路程的起点——信息就是这样在介质里传播的。
@@ -15,10 +14,12 @@ budget: { hot: 3, cold: 2 }
 spawn: { x: -4, y: 16, vx: 40 }
 goals:
   - { x: 15, r: 10 }
-  - { x: 40, r: 9 }
+  # 高原站：贴右缘（距离右边 24、距离第一站 37），须在高原上接力托举才能抵达
+  - { x: 52, r: 9 }
 ambient: { x: 2.4, y: 0 }
 solutions:
-  - name: 单热源翻山脊
+  - name: 双热源接力翻山脊
     sources:
-      - { x: 26, y: 28, kind: hot }
-    winTime: 8.8
+      - { x: 20, y: 29.3, kind: hot }
+      - { x: 50, y: 21.3, kind: hot }
+    winTime: 16.8

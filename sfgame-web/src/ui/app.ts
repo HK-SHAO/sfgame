@@ -269,14 +269,6 @@ export class SfApp extends LitElement {
           </div>
         </header>
 
-        ${this.hud.sources === 0 && !won
-          ? html`
-              <p class="caption">
-                轻点放热源 · 长按放冷源 · 点按已放置的源可移除<br />
-                ${this.activeLevel.hint}
-              </p>
-            `
-          : nothing}
         ${won
           ? html`
               <div class="overlay" role="dialog" aria-label="过关">
@@ -618,33 +610,6 @@ export class SfApp extends LitElement {
       opacity: 0.42;
     }
 
-    /* 底部文案保持原位（新手提示，放置后消失）；常驻计时条在其上方（见 run-timer.ts） */
-    .caption {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: calc(0.875rem + env(safe-area-inset-bottom, 0px));
-      /* left:50% 的无宽绝对定位走 shrink-to-fit，可用空间只有容器一半；
-         width:max-content 让宽度贴内容，max-width 再封顶换行 */
-      width: max-content;
-      max-width: min(92%, 35rem);
-      margin: 0;
-      padding: 0.625rem 1.125rem;
-      text-align: center;
-      font-size: 0.75rem;
-      line-height: 1.65;
-      color: var(--ink);
-      background: rgba(255, 253, 248, 0.72);
-      backdrop-filter: blur(1rem) saturate(1.5);
-      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
-      border: 1px solid rgba(255, 255, 255, 0.55);
-      border-radius: 1rem;
-      corner-shape: squircle;
-      box-shadow: 0 0.25rem 1.125rem rgba(61, 52, 39, 0.08);
-      pointer-events: none;
-      animation: rise 420ms cubic-bezier(0.22, 1, 0.36, 1);
-    }
-
     /* 竖屏窄屏：关卡名让位给源计数与操作按钮（信息在选关页已有） */
     @media (orientation: portrait) and (max-width: 520px) {
       .hud-title {
@@ -657,12 +622,6 @@ export class SfApp extends LitElement {
 
       .chip {
         padding: 0 0.5rem;
-      }
-
-      .caption {
-        font-size: 0.75rem;
-        line-height: 1.6;
-        padding: 0.56rem 0.875rem;
       }
     }
 
@@ -785,17 +744,6 @@ export class SfApp extends LitElement {
       }
       to {
         opacity: 1;
-      }
-    }
-
-    @keyframes rise {
-      from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
       }
     }
   `

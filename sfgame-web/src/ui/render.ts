@@ -1,7 +1,7 @@
 import { MeshBatch, VERTEX_STRIDE } from '../core/batch'
 import { GlRenderer } from './gl'
 import type { Tracers } from '../sim/particles'
-import { TRAIL_FADE } from '../sim/particles'
+import { TRAIL_FADE_T } from '../sim/particles'
 import type { Trail } from '../sim/trail'
 import type { Vec2 } from '../sim/types'
 import type { LevelSimulation } from '../game/simulation'
@@ -90,7 +90,7 @@ const SHADOW_MAX_ALPHA = 0.3
  * - 逐顶点颜色替代"按透明度/温度分桶 Path2D"：透明度连续、无分桶近似误差
  * - 线段宽度几何化（GL lineWidth 多平台恒 1）：stroke 展开为四边形
  * - 径向渐变用扇形逐顶点插值，免每帧 createRadialGradient 与精灵位图缓存
- * - 静态背景不再离屏缓存：天空/地形/光晕每帧重建仅数百顶点，GPU 负载可忽略
+ * - 静态背景（天空/地形/光晕）烘焙进离屏纹理（仅 resize/上下文恢复后重做），动态层每帧重建
  */
 export class Renderer {
   readonly canvas: HTMLCanvasElement
@@ -163,7 +163,7 @@ export class Renderer {
     // 静态背景（天空/地形/光晕）烘焙进离屏纹理，仅 resize 后重做；
     // 动态层（太阳呼吸/站点旗帜/源/粒子/拖尾/飞机）每帧重建——
     // 站点抵达状态会变化，虚线圆必须放在动态层才能随抵达消失
-    if (this.bgDirty) {
+    if (this.bgDirty || gl.bgStale) {
       const bg = this.batch
       bg.reset()
       this.drawSky(bg, viewL, viewT, viewR, viewB, h)
@@ -171,6 +171,7 @@ export class Renderer {
       this.drawSunHalo(bg)
       gl.bakeBg(bg, viewL, viewT, viewR, viewB)
       this.bgDirty = false
+      gl.bgStale = false
     }
 
     const b = this.batch
@@ -340,11 +341,11 @@ export class Renderer {
 
   /**
    * 风的线条（streakline）+ 头部点。
-   * 逐段计算颜色（温度档）与透明度（路程存留 × 生命包络 × 阵风系数），
+   * 逐段计算颜色（温度档）与透明度（时间存留 × 生命包络 × 阵风系数），
    * 直接写入顶点——无需 Canvas 2D 时代的两级分桶近似。
    */
   private drawTracers(b: MeshBatch, sim: LevelSimulation, tracers: Tracers) {
-    const { trailX, trailY, trailO, trailN, odo, count } = tracers
+    const { trailX, trailY, trailT, trailN, count } = tracers
     const trailLen = tracers.trailLen
     const fluid = sim.fluid
     const air = Renderer.tmpAir
@@ -375,13 +376,13 @@ export class Renderer {
       const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
       const c = LINE_COLORS[tl]
       const base = i * trailLen
-      const odoI = odo[i]
+      const now = tracers.time
       let px = trailX[base]
       let py = trailY[base]
       for (let k = 0; k < n; k++) {
         const nx = k + 1 < n ? trailX[base + k + 1] : tracers.x[i]
         const ny = k + 1 < n ? trailY[base + k + 1] : tracers.y[i]
-        const a = (1 - (odoI - trailO[base + k]) / TRAIL_FADE) * env * gust
+        const a = (1 - (now - trailT[base + k]) / TRAIL_FADE_T) * env * gust
         if (a > VISIBLE_ALPHA) {
           b.stroke(px, py, nx, ny, TRACER_LINE_WIDTH, c[0], c[1], c[2], Math.min(1, a) * LINE_ALPHA_MAX)
         }
@@ -404,7 +405,7 @@ export class Renderer {
     }
   }
 
-  /** 纸飞机拖尾：按路程淡出的石墨蓝灰轨迹（停驻时可见），宽度与透明度随存留连续变化 */
+  /** 纸飞机拖尾：按时间淡出的石墨蓝灰轨迹，宽度与透明度随存留连续变化 */
   private drawPlaneTrail(b: MeshBatch, sim: LevelSimulation, trail: Trail) {
     const n = trail.count
     if (n === 0) return

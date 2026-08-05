@@ -17,7 +17,6 @@ schema: 1            # 协议版本，必填
 id: 3                # 正整数
 name: 信风
 tagline: 多站之旅
-hint: 第一站在前方平原，第二站要翻过山脊。让飞机先抵达第一站，再在迎风坡放热源把它托上山脊。
 win:
   title: 一站又一站
   text: 风把信从一站送到下一站。抵达不是终点，而是下一段路程的起点。
@@ -28,13 +27,14 @@ budget: { hot: 3, cold: 2 }
 spawn: { x: -4, y: 16, vx: 40 }
 goals:
   - { x: 15, r: 10 }
-  - { x: 40, r: 9 }
+  - { x: 52, r: 9 }   # 高原站贴右缘，须接力托举
 ambient: { x: 2.4, y: 0 }
 solutions:
-  - name: 单热源翻山脊
+  - name: 双热源接力翻山脊
     sources:
-      - { x: 26, y: 28, kind: hot }
-    winTime: 8.8   # 无头实测值，solutions.test.ts 守护 ±2s
+      - { x: 20, y: 29.3, kind: hot }
+      - { x: 50, y: 21.3, kind: hot }
+    winTime: 16.8   # 无头实测值，solutions.test.ts 守护 ±2s
 ```
 
 序列化选型：**YAML**（易读、可写注释、锚点 `&a`/`*a` 复用重复值）；地形只用**表达式字符串**（精准、高密度、可移植到任意数学工具），刻意不用采样折线（不精准）也不引 path（与表达式重叠、求值复杂——堆积功能）。
@@ -89,7 +89,7 @@ solutions:
 - **解法先行倒推**：先手工摆出可通关摆法，再倒推地形/预算；早期关卡保证只有一个明显思路（Portal Test Chamber 01 的教训）。本站点语义是"全部抵达过即过关"（顺序无关），顺序感靠地形引导而非判定强制。
 - **零操作挂机不能通关**（本项目回归不变量）：但允许自然抵达前几站做「免费教学」。
 - **克制**：不堆机制。一个关卡表达一个概念；新原子必须通过「第二关测试」——能想象出第二个不同用法才保留。
-- **浪漫感**：#10 的叙事基调：信息论（信风逐站传递）、熵与时间之箭（潮汐）、庞加莱回归与宇宙演化（回归）。叙事嵌在 `win`/`tagline`/`hint` 里，机制先成立，文案后补。
+- **浪漫感**：#10 的叙事基调：信息论（信风逐站传递）、熵与时间之箭（潮汐）、庞加莱回归与宇宙演化（回归）。叙事嵌在 `win`/`tagline` 里，机制先成立，文案后补。
 
 ## 5. 验证工作流（每个新关卡必须走完）
 
@@ -98,7 +98,7 @@ cd sfgame-web
 # 1. 无操作 30s：必须不通关
 bun run scripts/run-level.ts levels/level-N.yaml --sim 30
 # 2. 参考解：必须可通关且快（教学关建议 ≤25s）
-bun run scripts/run-level.ts levels/level-N.yaml --verify 26-28-h
+bun run scripts/run-level.ts levels/level-N.yaml --verify 20-29.3-h,50-21.3-h
 # 3. 全量测试：solutions.test.ts 守护每个解的 winTime ±2s
 bun run test
 # 4. 浏览器一致性：无头结果与真实浏览器一致（headless Chrome 实测差 ≤0.05s）

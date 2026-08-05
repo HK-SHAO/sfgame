@@ -84,6 +84,8 @@ export class GlRenderer {
   /** 已上传容量（字节），增长时重建缓冲（bufferSubData 不能扩容） */
   private uploadedBytes = 0
   private lost = false
+  /** 上下文恢复后 FBO/纹理已重建但内容为空，需要 Renderer 重新烘焙背景 */
+  bgStale = false
 
   private constructor(canvas: HTMLCanvasElement, gl: WebGLRenderingContext) {
     this.canvas = canvas
@@ -96,7 +98,13 @@ export class GlRenderer {
     canvas.addEventListener('webglcontextrestored', () => {
       this.lost = false
       // 恢复后旧对象已失效：init 失败已清指针，draw 检查 program 自动跳过
-      if (!this.init()) console.error('WebGL 资源重建失败，渲染已暂停')
+      if (!this.init()) {
+        console.error('WebGL 资源重建失败，渲染已暂停')
+        return
+      }
+      // 背景纹理/FBO 随上下文销毁，需重建并标记重烘焙（否则地面/天空缺失）
+      this.resizeBg()
+      this.bgStale = true
     })
     this.init()
   }
@@ -235,7 +243,7 @@ export class GlRenderer {
     this.bgFbo = fbo
   }
 
-  /** 把静态背景 batch 烘焙进离屏纹理（resize 后调用一次；需先 resizeBg）。
+  /** 把静态背景 batch 烘焙进离屏纹理（resize/上下文恢复后调用；需先 resizeBg）。
    * 烘焙保持 alpha 混合：背景含半透明渐变（太阳辉光/目标光柱/虚线圆），
    * 关混合会让它们变不透明实心。烘焙仅 resize 时一次，混合成本可忽略；
    * 主 draw 的纹理 blit 才关混合（纹理已是合成结果）。 */
@@ -244,6 +252,12 @@ export class GlRenderer {
     if (this.lost || !this.program || !this.buffer || !this.bgFbo || !this.bgTexture) return
     if (batch.count === 0) return
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.bgFbo)
+    // FBO 不完整（纹理分配失败等偶发）：重建后由 bgDirty 保留下次重试，别静默烘焙进空气
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      this.resizeBg()
+      return
+    }
     gl.viewport(0, 0, this.canvas.width, this.canvas.height)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)

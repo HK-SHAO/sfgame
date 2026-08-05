@@ -53,9 +53,10 @@ test('预算与放置规则生效', () => {
   expect(sim.placeSource(1.2, 20, 'hot')).toBeNull() // 世界之外
 })
 
-test('参考答案：单热源翻山脊，约 8.8s 通关（两站全部抵达）', () => {
+test('参考答案：双热源接力翻山脊，约 16.8s 通关（两站全部抵达）', () => {
   const sim = new LevelSimulation(LEVEL_3)
-  sim.placeSource(26, 28, 'hot')
+  sim.placeSource(20, 29.3, 'hot')
+  sim.placeSource(50, 21.3, 'hot')
   let wonAt = -1
   for (let t = 0; t < 30; t += DT) {
     sim.step(DT)
@@ -65,6 +66,6 @@ test('参考答案：单热源翻山脊，约 8.8s 通关（两站全部抵达�
     }
   }
   expect(wonAt).toBeGreaterThan(0)
-  expect(wonAt).toBeLessThan(15)
+  expect(wonAt).toBeLessThan(20)
   expect(sim.visitedCount).toBe(2)
 }, 30000)

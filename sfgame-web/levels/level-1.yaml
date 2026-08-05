@@ -3,7 +3,6 @@ schema: 1
 id: 1
 name: 起飞
 tagline: 上升气流
-hint: 在纸飞机下方轻点，放一团热源——热空气上升，会把飞机送上山崖。
 win:
   title: 飞起来了！
   text: 纸飞机乘着热气流抵达了目标。

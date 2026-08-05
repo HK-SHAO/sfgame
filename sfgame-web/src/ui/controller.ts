@@ -7,7 +7,7 @@ import { LevelSimulation } from '../game/simulation'
 import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from './render'
-import { SfRunTimer } from './run-timer'
+import { SfStatusBar } from './status-bar'
 import { urlState } from '../game/state'
 import { penaltySeconds } from '../game/timer'
 import { DevTools } from '../dev/devtools'
@@ -18,7 +18,8 @@ const TRACER_TIERS = [400, 320, 240, 180, 128, 96]
 const COARSE_TRACER_TIER = 2
 const PLANE_TRAIL_MAX_POINTS = 150
 const PLANE_TRAIL_SAMPLE = 0.3
-const PLANE_TRAIL_FADE = 42
+/** 飞机拖尾存留时长（秒）：随时间淡出，停驻时同样老化消失 */
+const PLANE_TRAIL_FADE = 6
 /** 风场采样探针（世界坐标的固定比例点）：底噪声源的均匀覆盖 */
 const WIND_PROBE_FX = [0.22, 0.5, 0.78]
 const WIND_PROBE_FY = [0.2, 0.35]
@@ -74,8 +75,8 @@ export class GameController {
   private ground: (x: number) => number
   /** dev 模式（?dev=1）工具：perf 叠加层/空格暂停/一致性钩子（见 dev/devtools.ts） */
   private devTools: DevTools | null = null
-  /** 底部常驻计时条（实时模拟耗时 + 罚时，见 run-timer.ts） */
-  private timerEl: SfRunTimer | null = null
+  /** 底部常驻状态卡（操作说明 + 实时用时/罚时，见 status-bar.ts） */
+  private statusEl: SfStatusBar | null = null
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -89,11 +90,11 @@ export class GameController {
     this.ground = level.ground
     this.sim = new LevelSimulation(level)
     if (urlState.get('dev')) this.devTools = new DevTools()
-    // 底部计时条：常驻 UI（非 dev）。挂 document.body（fixed 定位，
-    // 与 DevTools 叠加层同款；sf-game 无 slot，挂宿主 light DOM 不可见）
-    const timer = new SfRunTimer()
-    document.body.appendChild(timer)
-    this.timerEl = timer
+    // 底部状态卡：常驻 UI。挂 document.body（fixed 定位，与 DevTools 叠加层同款；
+    // sf-game 无 slot，挂宿主 light DOM 不可见）
+    const status = new SfStatusBar()
+    document.body.appendChild(status)
+    this.statusEl = status
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const coarse = window.matchMedia('(pointer: coarse)').matches
     this.dprTiers = coarse ? DPR_TIERS_COARSE : DPR_TIERS_FINE
@@ -173,8 +174,8 @@ export class GameController {
     window.removeEventListener('resize', this.fit)
     this.devTools?.destroy()
     this.devTools = null
-    this.timerEl?.remove()
-    this.timerEl = null
+    this.statusEl?.remove()
+    this.statusEl = null
     // 淡出风声：否则返回标题页后风声残留
     sfx.fadeOutWind()
   }
@@ -260,7 +261,7 @@ export class GameController {
 
       this.sim.step(dt)
       this.tracers.step(dt, this.sim.fluid, this.sim.sources)
-      this.planeTrail.push(p.x, p.y)
+      this.planeTrail.push(p.x, p.y, this.sim.time)
 
       sfx.updateWind(this.fieldWind(), this.planeRelWind(), dt)
       sfx.setPlanePan(p.x, this.world.w)
@@ -318,9 +319,8 @@ export class GameController {
       press: this.press,
       now: performance.now(),
     })
-    // 计时每帧直推（文本不变时组件内部短路）；无道具（底部文案显示期）时隐藏计时条——两 UI 同一位置交替
-    this.timerEl?.refresh(this.sim.time, penaltySeconds(this.sim.sources.length))
-    this.timerEl!.hidden = this.sim.sources.length === 0
+    // 状态卡每帧直推（文本不变时组件内部短路，零渲染开销）
+    this.statusEl?.refresh(this.sim.time, penaltySeconds(this.sim.sources.length))
     this.devTools?.record({
       tickMs: this.tickMs,
       batchMs: performance.now() - t0,

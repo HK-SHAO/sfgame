@@ -45,8 +45,6 @@ export interface LevelJson {
   id: number
   name: string
   tagline: string
-  /** 过关思路提示（显示在底部） */
-  hint: string
   /** 过关结算文案：每关自己的表达，不写死在 UI 层 */
   win: { title: string; text: string }
   world: { w: number; h: number; cell: number }
@@ -76,8 +74,6 @@ export interface LevelDef {
   id: number
   name: string
   tagline: string
-  /** 过关思路提示（显示在底部） */
-  hint: string
   /** 过关结算文案：每关自己的表达，不写死在 UI 层 */
   win: { title: string; text: string }
   world: { w: number; h: number; cell: number }

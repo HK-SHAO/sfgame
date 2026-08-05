@@ -2,9 +2,13 @@
 
 造风（sfgame-web）：Lit 3 + Canvas 2D 物理益智游戏。放置热/冷源造风，让纸飞机抵达目标。注释与 README 均为中文。
 
+## 注释约定（本仓库特有）
+
+注释从简：**只写代码看不出来的"为什么"**——物理原理、不变量、协议细节、校准过的常数取舍。禁止写复述代码的文档块（函数签名、循环流程、"+1 计数"之类）。4 行以上文档块若只有一行有用信息，缩成一行。删除注释比添加注释更受欢迎。
+
 ## 仓库布局
 
-- `skills/`（含 `pitfalls/SKILL.md` 避坑手册）与 `docs/` 同仓
+- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡搭建指南）与 `docs/` 同仓
 - web 版本 app 源代码在 `sfgame-web/`，路径常需加上这个前缀
 - 要重点参考 `docs/development.md`
 
@@ -13,10 +17,11 @@
 - 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`
 - `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = vitest
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
+- 关卡工具：`bun run scripts/run-level.ts levels/level-N.yaml --verify … --solve … --sim N`（详见 `skills/level-design/SKILL.md` §5-6）
 
 ## 类型配置
 
-Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.json`（src/）、`tsconfig.node.json`（tests/ + vite.config.ts）。**新增文件必须落在对应 config 的 include 内**，否则 IDE 与 `tsc -b` 都不检查它。
+Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.json`（src/）、`tsconfig.node.json`（tests/ + scripts/ + vite.config.ts + src/）。**新增文件必须落在对应 config 的 include 内**，否则 IDE 与 `tsc -b` 都不检查它。
 
 ## 架构边界
 
@@ -26,6 +31,10 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 - `src/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例：level/sources/view）、`solutions.ts`（解法注册表 + solutionUrl）
 - `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`render.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`
 - `src/core/` — 固定步长循环、音效、通用 URL 状态模块
+
+## 拖尾约定（2026-08 起）
+
+所有轨迹/拖尾——纸飞机拖尾（`sim/trail.ts`）与示踪粒子短轨迹（`sim/particles.ts`）——一律**随时间淡出**（存留 = 1 − 距写入时刻 / fadeTime），不随路程。飞机 `PLANE_TRAIL_FADE=6s`、粒子 `TRAIL_FADE_T=5s`；采样仍按路程等距。物体停住时旧轨迹同样老化消失。
 
 ## 样式约定（本仓库特有，别写 px）
 
@@ -39,7 +48,8 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 ## 玩法不变量（回归测试守护，别破坏）
 
-- `tests/level1.test.ts`：零操作挂机不能通关（崖壁禁止"吸坡瞬移"+ 目标区必须飞行抵达）；`tests/solutions.test.ts`：每个解初始一次性放置必通关且与记录时间一致（±2s）
+- 零操作挂机不能通关（崖壁禁止"吸坡瞬移"+ 目标区必须飞行抵达）；`tests/solutions.test.ts`：每个解初始一次性放置必通关且与记录时间一致（±2s）
+- 参考解须"基本全程飞行"（贴地累计 ≤1.5s），坐标 1 位小数（URL 可放置），鲁棒性 ≥75%（见 `skills/level-design/SKILL.md` §6）
 - 右键 = 放冷源：`input.ts` 的 `onDown` 只处理 `e.button === 0`，右键走 contextmenu
 
 ## 验证策略

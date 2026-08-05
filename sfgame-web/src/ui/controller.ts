@@ -96,6 +96,11 @@ export class GameController {
       const el = new SfPerf()
       document.body.appendChild(el)
       this.perfEl = el
+      // 无头浏览器一致性验证钩子（dev only）：读取模拟实时状态
+      ;(window as unknown as Record<string, unknown>).__sfgame = {
+        hud: () => this.sim.hudState(),
+        goalIndex: () => this.sim.goalIndex,
+      }
     }
     // 底部计时条：常驻 UI（非 dev）。挂 document.body（fixed 定位，
     // 与 perfEl 同款；sf-game 无 slot，挂宿主 light DOM 不可见）

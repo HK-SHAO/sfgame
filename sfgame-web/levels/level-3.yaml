@@ -1,0 +1,24 @@
+# 第 3 关 · 信风 —— 站点序列：把路程拆成站点，逐站送达
+schema: 1
+id: 3
+name: 信风
+tagline: 站点序列
+hint: 第一站在前方平原，第二站要翻过山脊。让飞机先抵达第一站，再在迎风坡放热源把它托上山脊。
+win:
+  title: 一站又一站
+  text: 风把信从一站送到下一站。抵达不是终点，而是下一段路程的起点——信息就是这样在介质里传播的。
+world: { w: 76, h: 56, cell: 0.75 }
+# 左平原 y=30，x∈[20,36] 平滑爬升到右高原 y=22（坡缓于 1:1，热源托升即可滑过）
+ground:
+  expr: 30 - 8*smoothstep((x-20)/16)
+budget: { hot: 3, cold: 2 }
+spawn: { x: -4, y: 16, vx: 40 }
+goals:
+  - { x: 15, r: 10 }
+  - { x: 40, r: 9 }
+ambient: { x: 2.4, y: 0 }
+solutions:
+  - name: 单热源翻山脊
+    sources:
+      - { x: 26, y: 28, kind: hot }
+    winTime: 8.8

@@ -43,6 +43,8 @@ export class LevelSimulation {
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
   time = 0
+  /** 当前目标站点下标（0-based）；到站后自增，全部到齐才过关。 */
+  goalIndex = 0
 
   private nextId = 1
   private usedHot = 0
@@ -62,7 +64,7 @@ export class LevelSimulation {
       ...FLUID_TUNING,
     })
     this.fluid.setGroundMask(level.ground)
-    this.fluid.setAmbient(level.ambient?.x ?? 0, level.ambient?.y ?? 0)
+    this.applyAmbient(0)
     this.spawnY = level.spawn.y ?? level.ground(level.spawn.x) - 1.4
     this.spawnVx = level.spawn.vx ?? 0
     this.spawnVy = level.spawn.vy ?? 0
@@ -101,6 +103,7 @@ export class LevelSimulation {
     this.placed = 0
     this.phase = 'playing'
     this.time = 0
+    this.goalIndex = 0
     this.plane.x = this.level.spawn.x
     this.plane.y = this.spawnY
     this.plane.vx = this.spawnVx
@@ -113,6 +116,7 @@ export class LevelSimulation {
     this.fluid.clear()
     this.phase = 'playing'
     this.time = 0
+    this.goalIndex = 0
     // 源在新的一局重放生长动画：born 归零（否则 time < born，渲染 pop 为负 → 源隐形）
     for (const s of this.sources) s.born = 0
     this.plane.x = this.level.spawn.x
@@ -195,6 +199,7 @@ export class LevelSimulation {
   step(dt: number) {
     // 计时随模拟推进；通关后冻结（hud 展示的即是通关时刻，物理演示继续跑）
     if (this.phase === 'playing') this.time += dt
+    this.applyAmbient(this.time)
     const rate = FLUID_TUNING.heatRate * dt
     for (const s of this.sources) {
       this.fluid.addHeat(s.x, s.y, s.kind === 'hot' ? rate : -rate)
@@ -206,11 +211,28 @@ export class LevelSimulation {
     }
   }
 
+  /** 常风 + 潮汐正弦分量的合成环境风（确定性，随模拟时钟推进）。 */
+  private applyAmbient(t: number) {
+    const a = this.level.ambient
+    let ax = a?.x ?? 0
+    let ay = a?.y ?? 0
+    const tide = a?.tide
+    if (tide) {
+      const ph = (Math.PI * 2 * t) / tide.period + (tide.phase ?? 0)
+      ax += (tide.ampX ?? 0) * Math.sin(ph)
+      ay += (tide.ampY ?? 0) * Math.sin(ph)
+    }
+    this.fluid.setAmbient(ax, ay)
+  }
+
   private inGoal(): boolean {
-    const g = this.level.goal
+    const g = this.level.goals[this.goalIndex]
+    if (!g) return false
     const gy = this.level.ground(g.x) - GOAL_LIFT
     if (Math.hypot(this.plane.x - g.x, this.plane.y - gy) >= g.r) return false
     // 必须飞行抵达：贴地滑进目标区不算过关（杜绝"放着不动被风吹进圈"的挂机通关）
-    return this.plane.y < this.level.ground(this.plane.x) - FLYING_ALT
+    if (this.plane.y >= this.level.ground(this.plane.x) - FLYING_ALT) return false
+    this.goalIndex++
+    return this.goalIndex >= this.level.goals.length
   }
 }

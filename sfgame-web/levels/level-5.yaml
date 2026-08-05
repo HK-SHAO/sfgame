@@ -1,0 +1,26 @@
+# 第 5 关 · 回归 —— 综合关：三站旅程，热源接力翻越两道山脊
+schema: 1
+id: 5
+name: 回归
+tagline: 三站之旅
+hint: 第一站在平原，第二站在山腰，第三站在高原。飞机一路顺风滑翔，在每道山脊的迎风坡放一团热源，把它托上下一程。
+win:
+  title: 万物终将回归
+  text: 风把飞机托过一道又一道山脊。冷与热循环不息，宇宙中的一切终将回归——你抵达的每一站，都是下一段风的起点。
+world: { w: 76, h: 56, cell: 0.75 }
+# 平原 y=30 → 第一道山脊 y=24（x∈[20,30]）→ 山腰 y=24 → 第二道山脊 y=18（x∈[44,54]）→ 高原 y=18
+ground:
+  expr: 30 - 6*smoothstep((x-20)/10) - 6*smoothstep((x-44)/10)
+budget: { hot: 3, cold: 2 }
+spawn: { x: -4, y: 16, vx: 38 }
+goals:
+  - { x: 14, r: 11 }
+  - { x: 38, r: 11 }
+  - { x: 66, r: 11 }
+ambient: { x: 2.4, y: 0 }
+solutions:
+  - name: 双热源接力
+    sources:
+      - { x: 28, y: 26, kind: hot }
+      - { x: 48, y: 19, kind: hot }
+    winTime: 23.6

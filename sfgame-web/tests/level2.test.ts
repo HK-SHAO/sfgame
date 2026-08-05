@@ -21,14 +21,14 @@ test('无操作：飞机掠过目标上空、撞上右侧谷壁，无法通关',
   for (let t = 0; t < 45; t += DT) {
     sim.step(DT)
     const p = sim.plane
-    if (yAtGoalX === null && prevX < LEVEL_2.goal.x && p.x >= LEVEL_2.goal.x) {
+    if (yAtGoalX === null && prevX < LEVEL_2.goals[0].x && p.x >= LEVEL_2.goals[0].x) {
       yAtGoalX = p.y
     }
     prevX = p.x
   }
   expect(sim.phase).toBe('playing')
   // 越过目标横坐标时远在感应圈顶之上（圈顶 = ground - 2 - r）
-  const circleTop = LEVEL_2.ground(LEVEL_2.goal.x) - 2 - LEVEL_2.goal.r
+  const circleTop = LEVEL_2.ground(LEVEL_2.goals[0].x) - 2 - LEVEL_2.goals[0].r
   expect(yAtGoalX).not.toBeNull()
   expect(yAtGoalX!).toBeLessThan(circleTop - 3)
   // 最终贴在右侧谷壁附近
@@ -66,8 +66,8 @@ test('重置后回到画布外的初始状态（含初速）', () => {
 
 test('贴地滑进目标圈不算过关（必须飞行抵达）', () => {
   const sim = new LevelSimulation(LEVEL_2)
-  sim.plane.x = LEVEL_2.goal.x
-  sim.plane.y = LEVEL_2.ground(LEVEL_2.goal.x) - 0.5
+  sim.plane.x = LEVEL_2.goals[0].x
+  sim.plane.y = LEVEL_2.ground(LEVEL_2.goals[0].x) - 0.5
   sim.plane.vx = 0
   sim.plane.vy = 0
   sim.step(DT)
@@ -77,6 +77,6 @@ test('贴地滑进目标圈不算过关（必须飞行抵达）', () => {
 test('地形：谷地左浅右深，目标位于更深处', () => {
   expect(LEVEL_2.ground(70)).toBeGreaterThan(LEVEL_2.ground(5) + 4)
   // 目标圈中心比入场高度低得多（这是一次"降落"）
-  const goalCenterY = LEVEL_2.ground(LEVEL_2.goal.x) - 2
+  const goalCenterY = LEVEL_2.ground(LEVEL_2.goals[0].x) - 2
   expect(goalCenterY).toBeGreaterThan(LEVEL_2.spawn.y! + 20)
 })

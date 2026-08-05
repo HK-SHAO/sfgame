@@ -250,12 +250,17 @@ export class Renderer {
     b.discGrad(SUN_POS.x, SUN_POS.y, SUN_RADIUS * 3, 28, ...SUN, 0.4, ...SUN, 0)
   }
 
-  /** 目标区静态部分：感应虚线圆 + 光柱 */
+  /** 目标区静态部分：全部站点的感应虚线圆 + 当前站点的光柱 */
   private drawGoalStatic(b: MeshBatch, sim: LevelSimulation) {
-    const goal = sim.level.goal
-    const gy = sim.level.ground(goal.x)
-    b.dashRing(goal.x, gy - 2, goal.r, 1.2, 1.4, 0.28, ...GOAL, 0.35)
-    b.rectVGrad(goal.x - 1.6, gy - 12, goal.x + 1.6, gy, ...GOAL, 0, ...GOAL, 0.14)
+    const goals = sim.level.goals
+    for (let i = 0; i < goals.length; i++) {
+      const g = goals[i]
+      const gy = sim.level.ground(g.x)
+      b.dashRing(g.x, gy - 2, g.r, 1.2, 1.4, 0.28, ...GOAL, i === sim.goalIndex ? 0.35 : 0.16)
+      if (i === sim.goalIndex) {
+        b.rectVGrad(g.x - 1.6, gy - 12, g.x + 1.6, gy, ...GOAL, 0, ...GOAL, 0.14)
+      }
+    }
   }
 
   private drawSun(b: MeshBatch, now: number) {
@@ -263,23 +268,37 @@ export class Renderer {
     b.disc(SUN_POS.x, SUN_POS.y, r, r, 0, 24, ...SUN, 1)
   }
 
+  /** 站点动效：已完成 = 压印实心；未轮到 = 淡环；当前 = 呼吸环 + 旗帜 */
   private drawGoal(b: MeshBatch, sim: LevelSimulation, now: number) {
-    const g = sim.level.goal
-    const gy = sim.level.ground(g.x)
-    const rx = g.r * 0.62 * (1 + 0.06 * Math.sin(now / 320))
+    const goals = sim.level.goals
+    for (let i = 0; i < goals.length; i++) {
+      const g = goals[i]
+      const gy = sim.level.ground(g.x)
+      const rx = g.r * 0.62 * (1 + 0.06 * Math.sin(now / 320))
 
-    b.disc(g.x, gy - 0.1, rx, 1.0, 0, 24, ...GOAL, 0.3)
-    b.ring(g.x, gy - 0.1, rx, 1.0, 0, 24, 0.3, ...GOAL, 0.75)
+      if (i < sim.goalIndex) {
+        b.disc(g.x, gy - 0.1, rx * 0.9, 1.0, 0, 24, ...GOAL, 0.42)
+        b.ring(g.x, gy - 0.1, rx * 0.9, 1.0, 0, 24, 0.3, ...GOAL, 0.85)
+        continue
+      }
+      if (i > sim.goalIndex) {
+        b.ring(g.x, gy - 0.1, rx, 1.0, 0, 24, 0.24, ...GOAL, 0.3)
+        continue
+      }
 
-    // 旗帜：波幅与顺风倾斜随目标处实测风速——风与画面同呼吸
-    const air = Renderer.tmpAir
-    sim.fluid.sampleVelocity(g.x, gy - 5, air)
-    const wind = Math.min(1.4, Math.sqrt(air.x * air.x + air.y * air.y))
-    const top = gy - 6
-    b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 1)
-    const wave = (0.35 + wind * 0.55) * Math.sin(now / 240)
-    const lean = 0.1 * wind
-    b.tri(g.x, top, g.x + 3.1 + lean, top + 0.9 + wave, g.x, top + 2.1, ...GOAL, 1)
+      b.disc(g.x, gy - 0.1, rx, 1.0, 0, 24, ...GOAL, 0.3)
+      b.ring(g.x, gy - 0.1, rx, 1.0, 0, 24, 0.3, ...GOAL, 0.75)
+
+      // 旗帜：波幅与顺风倾斜随目标处实测风速——风与画面同呼吸
+      const air = Renderer.tmpAir
+      sim.fluid.sampleVelocity(g.x, gy - 5, air)
+      const wind = Math.min(1.4, Math.sqrt(air.x * air.x + air.y * air.y))
+      const top = gy - 6
+      b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 1)
+      const wave = (0.35 + wind * 0.55) * Math.sin(now / 240)
+      const lean = 0.1 * wind
+      b.tri(g.x, top, g.x + 3.1 + lean, top + 0.9 + wave, g.x, top + 2.1, ...GOAL, 1)
+    }
   }
 
   private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null) {

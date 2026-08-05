@@ -1,0 +1,24 @@
+# 第 1 关 · 纸飞机起飞 —— 核心物理概念：上升气流（教学热身 1/2）
+schema: 1
+id: 1
+name: 纸飞机起飞
+tagline: 上升气流
+hint: 在纸飞机下方轻点，放一团热源——热空气上升，会把飞机送上山崖。
+win:
+  title: 飞起来了！
+  text: 纸飞机乘着热气流抵达了目标。
+world: { w: 76, h: 56, cell: 0.75 }
+# 左段谷底 y=48，x∈[36,48] 平滑爬升，右段高原 y=22
+ground:
+  expr: 48 - 26*smoothstep((x-36)/12)
+budget: { hot: 4, cold: 2 }
+spawn: { x: -6, y: 33, vx: 40 }
+goals:
+  - { x: 58, r: 7.5 }
+ambient: { x: 1.8, y: 0 }
+solutions:
+  - name: 双源速攀
+    sources:
+      - { x: 20, y: 44, kind: hot }
+      - { x: 32, y: 30, kind: hot }
+    winTime: 22.2

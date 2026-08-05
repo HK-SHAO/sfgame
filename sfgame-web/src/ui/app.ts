@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
-import { LEVELS, UPCOMING_LEVELS } from '../game/levels'
+import { LEVELS } from '../game/levels'
 import { SfGame } from './sf-game'
 import './solutions-view'
 import { urlState } from '../game/state'
@@ -12,7 +12,6 @@ import type { SourceKind } from '../sim/types'
 import {
   iconBack,
   iconFlame,
-  iconLock,
   iconLogo,
   iconReset,
   iconRoute,
@@ -212,18 +211,6 @@ export class SfApp extends LitElement {
                   </span>
                   <span class="go" aria-hidden="true">›</span>
                 </button>
-              `,
-            )}
-            ${UPCOMING_LEVELS.map(
-              (l) => html`
-                <div class="level locked" aria-disabled="true">
-                  <span class="no">第 ${l.id} 关</span>
-                  <span class="meta">
-                    <span class="name">${l.name}</span>
-                    <span class="concept">${l.tagline}</span>
-                  </span>
-                  <span class="lock">${iconLock}</span>
-                </div>
               `,
             )}
           </nav>
@@ -444,12 +431,6 @@ export class SfApp extends LitElement {
       box-shadow: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.12);
     }
 
-    .level.locked {
-      background: rgba(255, 255, 255, 0.34);
-      color: var(--ink-soft);
-      opacity: 0.72;
-    }
-
     .level .no {
       flex: none;
       font-size: 0.75rem;
@@ -481,12 +462,6 @@ export class SfApp extends LitElement {
       line-height: 1;
       color: var(--hot);
       font-weight: 600;
-    }
-
-    .level .lock svg {
-      width: 1.06rem;
-      height: 1.06rem;
-      color: var(--ink-soft);
     }
 
     .footnote {

@@ -1,0 +1,24 @@
+# 第 2 关 · 降落 —— 核心物理概念：下沉气流（教学热身 2/2）
+schema: 1
+id: 2
+name: 降落
+tagline: 下沉气流
+hint: 飞机飞得太高会掠过目标。在它前方放冷源——冷空气下沉，把它稳稳压进山谷。
+win:
+  title: 稳稳降落！
+  text: 下沉气流托着飞机缓缓落进山谷。热让风上升，冷让风下沉——落点由你定。
+world: { w: 76, h: 56, cell: 0.75 }
+# 左浅右深的谷地：y=42（左）缓降至 y=50（右，x≥30）
+ground:
+  expr: 42 + 8*smoothstep(x/30)
+budget: { hot: 2, cold: 3 }
+spawn: { x: -5, y: 8, vx: 16 }
+goals:
+  - { x: 62, r: 7.5 }
+ambient: { x: 2.6, y: 0 }
+solutions:
+  - name: 冷源双降
+    sources:
+      - { x: 36, y: 24, kind: cold }
+      - { x: 45, y: 30, kind: cold }
+    winTime: 14.1

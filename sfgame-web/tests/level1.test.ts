@@ -90,8 +90,8 @@ test('restart 保留玩家已放置的源与预算，仅清场与复位飞机（
 
 test('贴地滑进目标圈不算过关（必须飞行抵达）', () => {
   const sim = new LevelSimulation(LEVEL_1)
-  sim.plane.x = LEVEL_1.goal.x
-  sim.plane.y = LEVEL_1.ground(LEVEL_1.goal.x) - 0.5
+  sim.plane.x = LEVEL_1.goals[0].x
+  sim.plane.y = LEVEL_1.ground(LEVEL_1.goals[0].x) - 0.5
   sim.plane.vx = 0
   sim.plane.vy = 0
   sim.step(DT)
@@ -100,8 +100,8 @@ test('贴地滑进目标圈不算过关（必须飞行抵达）', () => {
 
 test('离地进入目标圈即过关', () => {
   const sim = new LevelSimulation(LEVEL_1)
-  sim.plane.x = LEVEL_1.goal.x
-  sim.plane.y = LEVEL_1.ground(LEVEL_1.goal.x) - 3
+  sim.plane.x = LEVEL_1.goals[0].x
+  sim.plane.y = LEVEL_1.ground(LEVEL_1.goals[0].x) - 3
   sim.plane.vx = 0
   sim.plane.vy = 0
   sim.step(DT)
@@ -110,8 +110,8 @@ test('离地进入目标圈即过关', () => {
 
 test('获胜后：普通放置被拒，force 恢复放置可用（URL 状态"重做"路径）', () => {
   const sim = new LevelSimulation(LEVEL_1)
-  sim.plane.x = LEVEL_1.goal.x
-  sim.plane.y = LEVEL_1.ground(LEVEL_1.goal.x) - 3
+  sim.plane.x = LEVEL_1.goals[0].x
+  sim.plane.y = LEVEL_1.ground(LEVEL_1.goals[0].x) - 3
   sim.step(DT)
   expect(sim.phase).toBe('won')
   // 玩家操作：获胜后不可再放置

@@ -12,7 +12,8 @@
     "check": "npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
-    "lit": "^3.3.3"
+    "lit": "^3.3.3",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

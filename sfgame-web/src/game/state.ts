@@ -29,7 +29,8 @@ export type AppView = 'title' | 'solutions' | 'dev' | 'storage'
  * （解法参考页刷新不丢失）、dev 开启开发者功能（perf 叠加层、8×/16× 高速档、空格暂停物理）。
  * 键名取短，压缩分享 URL。例：?lv=1&src=20-44-h_36-28-h、?v=solutions、?dev=1 */
 export const urlState = new UrlState({
-  lv: codecs.int(null, 1, 99),
+  // lv=0 为 dev 面板编辑槽（默认内容 = 第 1 关，见 session.ts）
+  lv: codecs.int(null, 0, 99),
   src: codecs.list<SourcePlacement>([], sourceItem, '_'),
   v: codecs.enum<AppView>('title', ['solutions', 'dev', 'storage']),
   dev: codecs.bool(false),

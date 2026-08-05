@@ -28,8 +28,8 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 分层不变量：**只有 `src/ui/` 接触 DOM**；`src/core/`、`src/game/`、`src/sim/` 无 DOM，可在 node 无头测试（tests 只 import game/sim/core；core 的浏览器面必须可注入，如 url-state 的 URL 源）。
 
 - `src/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子）
-- `src/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例：level/sources/view）、`solutions.ts`（解法注册表 + solutionUrl）
-- `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`render.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`、`gl.ts`、`devtools.ts`（?dev=1 的 perf 叠加层/空格暂停）、`perf.ts`、`dev-menu.ts`
+- `src/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例：level/sources/view）、`solutions.ts`（解法注册表 + solutionUrl）、`session.ts`（会话级关卡覆写：dev 面板 YAML 编辑，不落盘）
+- `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`render.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`、`gl.ts`、`devtools.ts`（?dev=1 组装开发面板）、`perf.ts`（性能叠加层 + 拖拽手柄，独立组件）、`level-editor.ts`（关卡 YAML 临时编辑器，独立组件，默认折叠，装配进 perf 的 slot）、`dev-menu.ts`
 - `src/core/` — 固定步长循环、音效、通用 URL 状态模块
 
 ## 拖尾约定（2026-08 起）

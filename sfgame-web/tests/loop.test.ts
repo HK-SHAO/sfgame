@@ -14,6 +14,11 @@ beforeEach(() => {
   })
   vi.stubGlobal('cancelAnimationFrame', () => {})
   vi.stubGlobal('performance', { now: () => nowMs })
+  // 默认 setTimeout 同步执行：高速率分批续跑在测试里立即可见（生产是真实让出主线程）
+  vi.stubGlobal('setTimeout', (cb: () => void) => {
+    cb()
+    return 0
+  })
 })
 
 afterEach(() => {
@@ -132,4 +137,23 @@ test('暂停回归的追赶尖峰封顶：单帧最多消化 24 步，剩余留�
   run(40, 17)
   // 总模拟时间 ≈ 16s，全部消化完毕（>800 证明未丢弃 pending、封顶已释放）
   expect(ticks).toBeGreaterThan(800)
+})
+
+test('高速率分批：单任务最多 6 步，余量经 setTimeout 续跑（UI 不被长任务堵死）', () => {
+  let ticks = 0
+  const pending: Array<() => void> = []
+  vi.stubGlobal('setTimeout', (cb: () => void) => {
+    pending.push(cb)
+    return 0
+  })
+  const loop = new GameLoop({ tick: () => ticks++, render: () => {} })
+  loop.setRate(16)
+  loop.start()
+  frame(17) // 16 步预算，但单任务只同步跑 6 步
+  expect(ticks).toBe(6)
+  pending.shift()!()
+  expect(ticks).toBe(12)
+  pending.shift()!()
+  expect(ticks).toBe(16) // 本帧预算消化完，无遗留续跑
+  expect(pending).toHaveLength(0)
 })

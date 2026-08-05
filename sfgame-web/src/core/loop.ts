@@ -13,6 +13,13 @@ const MAX_FRAME = 0.25
  * 余下欠账顺延到后续帧逐步消化（短暂慢放，不爆帧）；稳态 16× 不触顶。
  */
 const MAX_TICKS_PER_FRAME = 24
+/**
+ * 单任务连续 tick 上限：高速率（8×/16×）下一帧的 tick 分批执行，
+ * 每批 TICKS_PER_TASK 步后用 setTimeout(0) 让出主线程——否则整帧几十毫秒
+ * 的长任务会推迟一切 UI（点击 dev 面板展开等）到帧结束（实测 8× 下 63ms）。
+ * 分批不改变 tick 顺序与 dt，模拟确定性不受影响；渲染仍在整帧 tick 完成后。
+ */
+const TICKS_PER_TASK = 6
 
 /**
  * 固定步长游戏循环：模拟 60Hz 推进，渲染跟随刷新率；切后台 rAF 暂停，恢复由 MAX_FRAME 截断。
@@ -28,6 +35,8 @@ export class GameLoop {
   private running = false
   private rate = 1
   private lastRender = -Infinity
+  /** 当前 rAF 帧已消化 tick 数（跨 setTimeout 续跑共享，封顶/下一帧归零） */
+  private frameTicks = 0
   /**
    * 渲染最小间隔 = SIM_DT_MS - 1ms 容差：120Hz 屏（8.3ms）隔帧防双倍渲染负载；
    * 60Hz 屏 rAF 有 ±1ms 抖动，精确 >=16.67 会跳过半数渲染（16/33ms 交替似 30fps 卡顿），
@@ -77,20 +86,40 @@ export class GameLoop {
     if (frameDt > MAX_FRAME) frameDt = MAX_FRAME
     if (frameDt < 0) frameDt = 0
     this.acc += frameDt * this.rate
+    this.frameTicks = 0
+    this.runTicks(now, true)
+  }
+
+  /**
+   * 消化 acc 中的 tick：每批最多 TICKS_PER_TASK 步；本帧预算没跑完（高速率）
+   * 就 setTimeout(0) 让出主线程续跑（UI 事件得以插队），预算耗尽或欠账清空
+   * 则渲染并调度下一帧。stop 后残留续跑直接退出（不碰已销毁的模拟）。
+   */
+  private runTicks(now: number, scheduleNext: boolean) {
+    if (!this.running) return
     let stepped = false
     let ticks = 0
-    while (this.acc >= SIM_DT && ticks < MAX_TICKS_PER_FRAME) {
+    while (this.acc >= SIM_DT && ticks < TICKS_PER_TASK && this.frameTicks < MAX_TICKS_PER_FRAME) {
       this.handlers.tick(SIM_DT)
       this.acc -= SIM_DT
+      this.frameTicks++
       stepped = true
       ticks++
+    }
+    const done = this.acc < SIM_DT || this.frameTicks >= MAX_TICKS_PER_FRAME
+    if (!done) {
+      // 本帧预算没跑完：让出主线程续跑（scheduleNext 沿链传递，帧完成时由末批调度下一帧）
+      setTimeout(() => this.runTicks(now, scheduleNext), 0)
+      return
     }
     if (stepped && now - this.lastRender >= GameLoop.RENDER_MIN_INTERVAL) {
       this.handlers.render()
       this.renderCount++
       this.lastRender = now
     }
-    this.rafId = requestAnimationFrame(this.frame)
+    if (scheduleNext) {
+      this.rafId = requestAnimationFrame(this.frame)
+    }
   }
 
   /** ?perf 诊断：rAF 帧数与实际渲染数（验证节流/门控行为） */

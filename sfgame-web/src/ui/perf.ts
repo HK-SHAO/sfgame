@@ -1,8 +1,10 @@
 import { LitElement, css, html } from 'lit'
-import { customElement } from 'lit/decorators.js'
+import { customElement, state } from 'lit/decorators.js'
 
 /**
- * dev 模式（?dev=1）调试叠加层：仅做两件事——显示性能、可拖动吸附到四周。
+ * dev 性能叠加层（?dev=1）：等宽字体性能行 + 拖拽手柄（吸附到四周）。
+ * 独立组件、与关卡编辑完全解耦——编辑器等其他 dev 控件经 <slot> 装配在面板内
+ * （随面板一起拖动），由 DevTools 负责组装。
  * 轻量原则：每帧只做加法与 push；文本每 WINDOW 帧才更新一次；
  * 拖拽位置经 transform 表达（合成器线程），不触发布局。
  */
@@ -28,8 +30,8 @@ export class SfPerf extends LitElement {
   private batchSum = 0
   private last: PerfSample | null = null
   private text = 'perf 采集中…'
-  /** 物理暂停状态（dev 空格）：显示在面板行尾 */
-  paused = false
+  /** 物理暂停状态（dev 空格）：显示在面板行尾（外部直接赋值，@state 即时生效） */
+  @state() paused = false
 
   /** 拖拽状态：面板当前左上角（视口坐标）与按下时基准 */
   private dragging = false
@@ -57,18 +59,32 @@ export class SfPerf extends LitElement {
       left: calc(0.625rem + env(safe-area-inset-left, 0px));
       right: auto;
       z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
       padding: 6px 12px;
-      /* 弧度与 .hud 元素一致（0.75rem squircle） */
       border-radius: 0.75rem;
       corner-shape: squircle;
       background: rgba(20, 18, 14, 0.72);
       color: #ffe9c9;
-      font: 10.5px/1.6 ui-monospace, 'SF Mono', Menlo, monospace;
-      white-space: pre;
-      cursor: grab;
       touch-action: none;
       user-select: none;
       will-change: transform;
+    }
+
+    /* 拖拽手柄：仅性能行可拖动，slot 里的控件（按钮/编辑框）不参与 */
+    .head {
+      display: flex;
+      align-items: center;
+      font: 10.5px/1.6 ui-monospace, 'SF Mono', Menlo, monospace;
+      white-space: pre;
+      cursor: grab;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .head:active {
+      cursor: grabbing;
     }
   `
 
@@ -131,11 +147,19 @@ export class SfPerf extends LitElement {
   }
 
   protected override render() {
-    return html`<span>${this.text}</span>`
+    return html`
+      <div class="head">${this.text}</div>
+      <!-- 其他 dev 控件（如关卡编辑器）装配点：随面板拖动/吸附 -->
+      <slot></slot>
+    `
   }
 
   private onDown = (e: PointerEvent) => {
     if (e.button !== 0) return
+    // 只允许从性能行（拖拽手柄）拖动；注意 e.target 在 shadow DOM 外会被
+    // 重定向成宿主，必须用 composedPath()[0] 取真实目标（否则排除失效/拖不动）
+    const target = e.composedPath()[0] as Element | null
+    if (!target || !target.closest('.head')) return
     const r = this.getBoundingClientRect()
     this.dragging = true
     this.x = r.left

@@ -3,6 +3,7 @@ import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
 import { LEVEL_ERRORS, LEVELS } from '../game/levels'
+import { DEV_OVERRIDE_EVENT, DEV_SLOT, resolveLevel } from '../game/session'
 import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
 import './dev-menu'
@@ -65,6 +66,8 @@ export class SfApp extends LitElement {
     // 尽早武装音频解锁：任意首次交互（pointerdown/keydown）即获得权限
     sfx.unlock()
     this.syncScreen()
+    // dev 面板 YAML 编辑生效（临时覆写，见 game/session.ts）
+    window.addEventListener(DEV_OVERRIDE_EVENT, this.onDevOverride)
     // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态
     urlState.onChange('lv', () => this.syncScreen())
     urlState.onChange('v', () => this.syncScreen())
@@ -73,6 +76,21 @@ export class SfApp extends LitElement {
       // 撤销/重做（仅外部 URL 变化触发，玩家自身操作不触发）轻反馈
       sfx.uiClick()
     })
+  }
+
+  override disconnectedCallback() {
+    window.removeEventListener(DEV_OVERRIDE_EVENT, this.onDevOverride)
+    super.disconnectedCallback()
+  }
+
+  /** dev 面板确认生效：切到 lv=0 编辑槽并清掉来源放置（浏览器返回即复原）。 */
+  private onDevOverride = () => {
+    const level = resolveLevel(DEV_SLOT)
+    if (!level) return
+    this.activeLevel = level
+    this.initialSources = []
+    urlState.set('lv', DEV_SLOT)
+    urlState.clear('src')
   }
 
   /** 从 URL 统一推导屏幕（view=solutions/dev/storage 优先 → level 有效 → 标题）。写读分离：set/clear 不触发通知，UI 操作需自行设 screen。 */
@@ -91,7 +109,7 @@ export class SfApp extends LitElement {
       return
     }
     const id = urlState.get('lv')
-    const level = id === null ? undefined : LEVELS.find((l) => l.id === id)
+    const level = id === null ? undefined : resolveLevel(id)
     if (level) {
       this.activeLevel = level
       this.initialSources = urlState.get('src')
@@ -120,11 +138,15 @@ export class SfApp extends LitElement {
     if (changed.has('screen') && this.screen === 'game') {
       this.resetHud(this.activeLevel)
     }
+    // 关卡内容变化（dev 面板生效/浏览器返回复原，keyed 按对象身份重建）：同上防闪现
+    if (changed.has('activeLevel') && this.screen === 'game') {
+      this.resetHud(this.activeLevel)
+    }
   }
 
   private startGame(id: number) {
     sfx.uiEnter()
-    const level = LEVELS.find((l) => l.id === id) ?? FIRST_LEVEL
+    const level = resolveLevel(id) ?? FIRST_LEVEL
     if (!level) return // 关卡全挂时无路可进（标题页已显示告警）
     this.activeLevel = level
     // 点关卡 = 新开一局：不继承 URL 里任何旧放置（否则跨关/残留 sources 会串到新局）
@@ -136,7 +158,7 @@ export class SfApp extends LitElement {
 
   /** 过关弹窗「下一关」：顺序前进，仅当存在下一关时显示。 */
   private playNext() {
-    const next = LEVELS.find((l) => l.id === this.activeLevel.id + 1)
+    const next = resolveLevel(this.activeLevel.id + 1)
     if (!next) return
     sfx.uiEnter()
     this.activeLevel = next
@@ -335,7 +357,8 @@ export class SfApp extends LitElement {
     return html`
       <main class="game">
         ${keyed(
-          this.activeLevel.id,
+          // keyed 按关卡对象身份：dev 面板生效/返回复原时内容变了，必须重建 sf-game
+          this.activeLevel,
           html`<sf-game
             .level=${this.activeLevel}
             .initialSources=${this.initialSources}

@@ -17,9 +17,16 @@ const LEVEL_TEXTS = [level1, level2, level3, level4, level5]
  */
 export const LEVELS: LevelDef[] = []
 export const LEVEL_ERRORS: string[] = []
+/** 原始关卡文本（id → YAML）：dev 面板编辑器预填用；坏关卡无条目 */
+export const LEVEL_SOURCES = new Map<number, string>()
+export function levelSource(id: number): string | undefined {
+  return LEVEL_SOURCES.get(id)
+}
 for (const text of LEVEL_TEXTS) {
   try {
-    LEVELS.push(levelFromJson(parseLevelText(text)))
+    const level = levelFromJson(parseLevelText(text))
+    LEVELS.push(level)
+    LEVEL_SOURCES.set(level.id, text)
   } catch (e) {
     LEVEL_ERRORS.push(e instanceof Error ? e.message : String(e))
   }

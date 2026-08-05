@@ -1,6 +1,7 @@
 import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
 import { Tracers, TRAIL_LEN } from '../sim/particles'
+import { Clouds } from '../sim/clouds'
 import { Trail } from '../sim/trail'
 import type { SourceKind } from '../sim/types'
 import { LevelSimulation } from '../game/simulation'
@@ -10,7 +11,7 @@ import { Renderer } from './render'
 import { SfStatusBar } from './status-bar'
 import { urlState } from '../game/state'
 import { penaltySeconds } from '../game/timer'
-import { DevTools } from '../dev/devtools'
+import { DevTools } from './devtools'
 
 /** 示踪粒子分档（由高到低）：帧率压力下逐级降级，保住 60fps。
  * 渲染已 GPU 化，粒子数主要消耗 CPU 采样预算，档位只按模拟成本取舍。 */
@@ -48,6 +49,8 @@ export interface ControllerEvents {
 export class GameController {
   private sim: LevelSimulation
   private tracers: Tracers
+  /** 云（纯视觉，随天气系统在风场中漂移） */
+  private clouds: Clouds
   /** 纸飞机拖尾：按路程淡出，停驻时轨迹保留 */
   private planeTrail: Trail
   private renderer: Renderer
@@ -73,7 +76,7 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private ground: (x: number) => number
-  /** dev 模式（?dev=1）工具：perf 叠加层/空格暂停/一致性钩子（见 dev/devtools.ts） */
+  /** dev 模式（?dev=1）工具：perf 叠加层/空格暂停（见 devtools.ts） */
   private devTools: DevTools | null = null
   /** 底部常驻状态卡（操作说明 + 实时用时/罚时，见 status-bar.ts） */
   private statusEl: SfStatusBar | null = null
@@ -115,6 +118,8 @@ export class GameController {
       this.ground,
       TRAIL_LEN,
     )
+    // 云按 level id 伪随机生成：重开同一关，天上还是那几朵
+    this.clouds = new Clouds(level.id, this.world, this.ground)
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
     this.windProbes = WIND_PROBE_FX.flatMap((fx) =>
@@ -268,6 +273,7 @@ export class GameController {
 
       this.sim.step(dt)
       this.tracers.step(dt, this.sim.fluid, this.sim.sources)
+      this.clouds.step(dt, this.sim.fluid)
       this.planeTrail.push(p.x, p.y, this.sim.time)
 
       sfx.updateWind(this.fieldWind(), this.planeRelWind(), dt)
@@ -322,6 +328,7 @@ export class GameController {
     this.renderer.draw({
       sim: this.sim,
       tracers: this.tracers,
+      clouds: this.clouds,
       planeTrail: this.planeTrail,
       press: this.press,
       now: performance.now(),

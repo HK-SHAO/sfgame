@@ -87,7 +87,7 @@ export class LevelSimulation {
     return this.unlimited ? Infinity : this.level.budget.cold - this.usedCold
   }
 
-  /** dev 模式（?dev=1）：道具不限量（调试用），预算校验跳过；HUD 显示 ∞ */
+  /** 道具不限量（预算校验跳过；HUD 显示 ∞）。仅 dev 模式（?dev=1）由 controller 注入，产品路径恒 false */
   unlimited = false
 
   hudState(): HudState {

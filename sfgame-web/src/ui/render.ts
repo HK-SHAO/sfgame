@@ -2,6 +2,7 @@ import { MeshBatch, VERTEX_STRIDE } from '../core/batch'
 import { GlRenderer } from './gl'
 import type { Tracers } from '../sim/particles'
 import { TRAIL_FADE_T } from '../sim/particles'
+import type { Clouds } from '../sim/clouds'
 import type { Trail } from '../sim/trail'
 import type { Vec2 } from '../sim/types'
 import type { LevelSimulation } from '../game/simulation'
@@ -12,6 +13,7 @@ import { LONG_PRESS_MS } from './input'
 export interface SceneState {
   sim: LevelSimulation
   tracers: Tracers
+  clouds: Clouds
   planeTrail: Trail
   press: PressVisual | null
   now: number
@@ -35,6 +37,12 @@ const GROUND_EDGE = rgb(216, 193, 147)
 const SUN = rgb(255, 196, 83)
 const PAPER = rgb(255, 253, 248)
 const FLAG_POLE = rgb(107, 91, 69)
+/** 云色：近纯白的雾状白（比奶油底色亮，径向渐变边缘透明） */
+const CLOUD = rgb(255, 255, 254)
+/** 云实核占比：0.75 → 模糊半径 = 1/4 云径（比 0.5 档再减半） */
+const CLOUD_SOLID_FRAC = 0.75
+/** 云横向拉伸：左右翼外移倍数，拉出 ~1.7× 高的宽扁云 */
+const CLOUD_STRETCH = 1.7
 
 // ---------- 视觉参数（世界单位，关卡 76×56 尺度） ----------
 
@@ -94,7 +102,8 @@ const SHADOW_MAX_ALPHA = 0.3
  * - 逐顶点颜色替代"按透明度/温度分桶 Path2D"：透明度连续、无分桶近似误差
  * - 线段宽度几何化（GL lineWidth 多平台恒 1）：stroke 展开为四边形
  * - 径向渐变用扇形逐顶点插值，免每帧 createRadialGradient 与精灵位图缓存
- * - 静态背景（天空/地形/光晕）烘焙进离屏纹理（仅 resize/上下文恢复后重做），动态层每帧重建
+ * - 静态背景（天空/旗杆/光晕）烘焙进离屏纹理（仅 resize/上下文恢复后重做），
+ *   地形随云移入动态层（山脊要遮挡云），动态层每帧重建
  */
 export class Renderer {
   readonly canvas: HTMLCanvasElement
@@ -116,7 +125,7 @@ export class Renderer {
    * view 计算（cssW/cssH/scale/ox/oy），保证逐像素一致。
    */
   private bgDirty = true
-  /** 上一帧动态层顶点数与上传字节（?perf=1 诊断用） */
+  /** 上一帧动态层顶点数与上传字节（dev 模式叠加层诊断用） */
   lastVertexCount = 0
   lastUploadBytes = 0
 
@@ -165,16 +174,15 @@ export class Renderer {
     const viewR = viewL + this.cssW / this.scale
     const viewB = viewT + this.cssH / this.scale
 
-    // 静态背景（天空/旗杆/地形/光晕）烘焙进离屏纹理，仅 resize 后重做；
+    // 静态背景（天空/旗杆/光晕）烘焙进离屏纹理，仅 resize 后重做；
     // 旗杆先于地形绘制，杆根沉入地面被遮挡；旗面与虚线圆随站点状态/风变化，
-    // 必须留在动态层每帧重建
+    // 必须留在动态层每帧重建；地形也在动态层（云要被山脊遮挡，见 draw 注释）
     // 纹理缺失也强制进块：兜住纹理指针被清但脏标记未置的路径（自愈）
     if (this.bgDirty || gl.bgStale || !gl.bgReady) {
       const bg = this.batch
       bg.reset()
       this.drawSky(bg, viewL, viewT, viewR, viewB, h)
       this.drawGoalPoles(bg, sim)
-      this.drawTerrain(bg, sim, viewL, viewR, viewB)
       this.drawSunHalo(bg)
       // 烘焙失败（FBO 瞬态不完整/纹理分配失败）必须保留脏标记下帧重试，
       // 否则空纹理/兜底清屏会一直顶到下次 resize/上下文事件
@@ -186,6 +194,10 @@ export class Renderer {
 
     const b = this.batch
     b.reset()
+    // 动态层自底向上：云 → 地形 → 太阳 → 站点/源/示踪/飞机——
+    // 云被山脊、太阳、飞机遮挡（地形逐帧重建，代价 ~2k 顶点）
+    this.drawClouds(b, scene.clouds)
+    this.drawTerrain(b, sim, viewL, viewR, viewB)
     this.drawSun(b, now)
     this.drawGoal(b, sim)
     this.drawSources(b, sim, press)
@@ -264,6 +276,26 @@ export class Renderer {
   private drawSun(b: MeshBatch, now: number) {
     const r = SUN_RADIUS + SUN_BREATH_AMP * Math.sin(now / SUN_BREATH_PERIOD)
     b.disc(SUN_POS.x, SUN_POS.y, r, r, 0, 48, ...SUN, 1)
+  }
+
+/**
+ * 云：主体 + 左右翼 + 顶冠 + 平底，五团"实核+软边"径向渐变圆盘拼接
+ * （交叠处自然增密成絮状，无生硬接缝）；透明度由 sim 层淡出包络调制。
+ * 单盘 α ≈0.9~1.0：云核实白、边缘渐变留雾状感。
+ */
+  private drawClouds(b: MeshBatch, clouds: Clouds) {
+    for (let i = 0; i < clouds.count; i++) {
+      const a = clouds.alpha[i]
+      if (a <= VISIBLE_ALPHA) continue
+      const x = clouds.x[i]
+      const y = clouds.y[i]
+      const r = clouds.radius[i]
+      b.discGradCore(x, y, r, 24, CLOUD_SOLID_FRAC, ...CLOUD, 1.0 * a, ...CLOUD, 0)
+      b.discGradCore(x - 0.62 * r * CLOUD_STRETCH, y + 0.1 * r, 0.66 * r, 20, CLOUD_SOLID_FRAC, ...CLOUD, 0.9 * a, ...CLOUD, 0)
+      b.discGradCore(x + 0.62 * r * CLOUD_STRETCH, y + 0.08 * r, 0.66 * r, 20, CLOUD_SOLID_FRAC, ...CLOUD, 0.9 * a, ...CLOUD, 0)
+      b.discGradCore(x, y - 0.42 * r, 0.5 * r, 20, CLOUD_SOLID_FRAC, ...CLOUD, 0.78 * a, ...CLOUD, 0)
+      b.discGradCore(x, y + 0.3 * r, 0.46 * r, 20, CLOUD_SOLID_FRAC, ...CLOUD, 0.6 * a, ...CLOUD, 0)
+    }
   }
 
   /**

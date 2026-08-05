@@ -31,7 +31,6 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - 关卡调参/解法搜索：粗筛胜点在精验翻车 → G6
 - 参考解"看起来能通"但玩家摆偏 1 格就废 → G7
 - 贴地飞机"推不动"疑为 bug → G8
-- 无头通关时刻与浏览器对不上 → I8
 - 布局测量与预期不符 → A1、H1
 - 挂进宿主元素的覆盖层元素"消失"（getBoundingClientRect 全 0/视口外）→ A9
 - 想用 wasm/代码生成/Worker 加速、移动端"应该更慢"的想当然 → I1、I5
@@ -39,7 +38,6 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - headless Chrome 截图/验证画面空白或只有背景色 → I7
 - vite dev 自动化访问 127.0.0.1 失败（000）→ I2
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
-- 想无依赖驱动 headless Chrome 做真实浏览器验证 → I4
 
 ## A. Lit + Shadow DOM
 
@@ -254,7 +252,7 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 ### I1 加速技术先跑真机基准再定默认（wasm 血泪教训，2026-08）
 **实测**：MoonBit 逐位一致的 wasm 求解器在**所有实测平台都比 JS 慢**——iPhone Safari +48%、macOS Safari +39%、Chrome +142%（JIT 引擎的 JS typed-array 数值循环已接近原生，wasm 的调用/转换开销是负资产）。"无 JIT 的 WKWebView 才需要 wasm"的假设从未被实测证实，wasm 全套已按老大指示移除。
 **教训**：上任何加速技术（wasm/代码生成/Worker）前，先做真机基准再定默认；**实测无瓶颈就不引入复杂度**。当前（2026-08）基准：fluid 0.5ms、倍速帧 16× <12ms，无真实瓶颈。
-**注**：bench 工具链（bench.html、scripts/bench*.ts、src/dev/bench-core.ts）已按老大指示移除（2026-08）；无头/真机验证方法见 I4/I8。
+**注**：bench 工具链（bench.html、scripts/bench*.ts、src/dev/bench-core.ts）已按老大指示移除（2026-08）；浏览器验证用 chrome-devtools-mcp 直连（原 CDP 一致性脚本 `scripts/browser-consistency.ts` 已随之移除）。
 
 ### I2 vite dev 只绑 IPv6 回环
 **症状**：vite dev 起来了，`curl http://127.0.0.1:端口` 连接失败（000），`localhost` 正常。
@@ -266,8 +264,8 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 - **修法**：脚本统一用原生 `Bun.spawn([cmd, ...args], { cwd, stdout: 'ignore', stderr: 'ignore' })`，cwd 必须显式（vite 从 cwd 找配置/根，cwd 错会 404）。
 - `bunx` 会产生孙进程，kill 不掉会占端口——直接跑 `node_modules/xxx/bin/xxx.js`。
 
-### I4 CDP 自动化零依赖可用
-headless Chrome 加 `--remote-debugging-port` 后，用 bun 原生 `WebSocket` 直连 `http://127.0.0.1:PORT/json/version` 的 webSocketDebuggerUrl 即可驱动（Target.createTarget → Runtime.evaluate 轮询），无需 puppeteer/playwright。CPU 节流：`Emulation.setCPUThrottlingRate { rate }`（真实浏览器弱设备近似）。成品：`scripts/browser-consistency.ts`（I8；bench-browser 已随 bench 移除）。
+### I4 浏览器自动化：chrome-devtools-mcp 直连（原 CDP 脚本已移除）
+headless Chrome 自动化现直接用 chrome-devtools-mcp 工具连接（页面快照/JS 求值/网络/追踪），无需自维护 CDP 客户端。原零依赖 CDP 方案（`scripts/cdp-client.ts` + `scripts/browser-consistency.ts`）已随其接入移除（2026-08）。
 
 ### I5 真机基准页的"帧预算"解读
 iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是量化底噪，不代表真实抖动；看 mean 与整帧构成（倍速帧项）判断瓶颈。iOS Safari 的 fluid JS 比桌面还快（0.49ms）——**"移动端更慢"要逐平台实测，别想当然**。
@@ -280,18 +278,12 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 - **不透明/混合两趟绘制**：PowerVR 平铺 GPU 上全屏混合直接放大成本
 - **blend 状态每帧幂等重设**：canvas 尺寸变更会重置上下文状态，init 里设一次会失效
 - **渲染门控加容差**（`>= SIM_DT_MS - 1`）：60Hz 下 rAF 抖动会跳过半数渲染 → 16/33ms 交替伪 30fps
-- 调试：`?perf=1` 叠加层（独立模块 src/ui/perf.ts）实时帧间隔分布/顶点量/上传字节，点击复制
+- 调试：`?dev=1` 叠加层（src/ui/perf.ts）实时帧间隔分布/顶点量/上传字节，点击复制
 **信号**：只有 iOS Safari 卡、其他平台都好 → 先怀疑 Metal 后端渲染路径，别动物理。
 
 ### I7 headless Chrome 默认无 WebGL
 **症状**：headless Chrome（`--headless=new`）里 `getContext('webgl')` 返回 null，游戏画面空白/只有 CSS 背景色；还容易误判为产品 bug。
-**修法**：加 `--enable-unsafe-swiftshader`（软件 WebGL）。`scripts/browser-consistency.ts` 已内置。注意 SwiftShader 性能不代表真机，只用于管线正确性验证。
-
-### I8 无头 ↔ 浏览器一致性验证（dev 钩子 + 固定步长）
-**原理**：GameLoop 固定步长 SIM_DT=1/60，模拟逐位确定；浏览器与 bun 跑同一份 `LevelSimulation`，通关时刻应一致（实测差 ≤1 模拟步）。
-**做法**（#10 落地）：`?dev=1` 时 controller 暴露 `window.__sfgame = { hud(), goalIndex() }`；`scripts/browser-consistency.ts` 用 headless Chrome + CDP 逐个加载 `?lv=N&src=…`，轮询读到通关冻结的 sim.time，与 YAML 里 `winTime` 比对（容差 0.6s）。同时抽查无操作 15s 不通关。
-**坑**：CDP 必须 `Target.createTarget` 后连页面级 WebSocket（`/devtools/page/<id>`），连浏览器级端点调 Page.enable 会报 -32601。headless 无 WebGL 需 `--enable-unsafe-swiftshader`。
-**信号**：任何"bun 测试过、真机不通"的怀疑，先跑 browser-consistency 定位。
+**修法**：加 `--enable-unsafe-swiftshader`（软件 WebGL）。注意 SwiftShader 性能不代表真机，只用于管线正确性验证。
 
 ### H3 Lit 3 样式在 `shadowRoot.adoptedStyleSheets`
 无 `<style>` 标签，查生效规则读 `cssRules` 的 `cssText`。

@@ -29,7 +29,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 - `src/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子）
 - `src/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例：level/sources/view）、`solutions.ts`（解法注册表 + solutionUrl）
-- `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`render.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`
+- `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`render.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`、`gl.ts`、`devtools.ts`（?dev=1 的 perf 叠加层/空格暂停）、`perf.ts`、`dev-menu.ts`
 - `src/core/` — 固定步长循环、音效、通用 URL 状态模块
 
 ## 拖尾约定（2026-08 起）
@@ -56,4 +56,4 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 - 保留 `tests/` 自动测试，重点测试核心模块，而非宏观
 - 布局问题用 headless Chrome 数值化探针验证（方法见 pitfalls H1）
-- 游戏体验验证依赖用户/玩家反馈，非必要或无用户要求，研发不得进行 Computer Use 或 E2E 脚本验证实验。这个目标是为了减少 token 浪费
+- 游戏体验验证依赖用户/玩家反馈，非必要或无用户要求，研发不得进行 Computer Use 或 E2E 脚本验证实验。这个目标是为了减少 token 浪费。涉及到 UI 的不受此约束。

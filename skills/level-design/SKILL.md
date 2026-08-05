@@ -101,8 +101,7 @@ bun run scripts/run-level.ts levels/level-N.yaml --sim 30
 bun run scripts/run-level.ts levels/level-N.yaml --verify 20-29.3-h,50-21.3-h
 # 3. 全量测试：solutions.test.ts 守护每个解的 winTime ±2s
 bun run test
-# 4. 浏览器一致性：无头结果与真实浏览器一致（headless Chrome 实测差 ≤0.05s）
-bun run scripts/browser-consistency.ts
+# 4. 浏览器一致性：?dev=1 下用 chrome-devtools-mcp 直连浏览器/headless，复核参考解通关时刻与 YAML winTime 一致（原 scripts/browser-consistency.ts 已随 MCP 接入移除）
 ```
 
 ## 6. 参考解搜索（多目标遗传算法，`run-level.ts --solve`）

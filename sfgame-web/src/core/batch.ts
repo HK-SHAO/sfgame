@@ -264,6 +264,47 @@ export class MeshBatch {
     }
   }
 
+  /**
+   * 径向渐变圆盘：中心到 solidFrac·radius 保持实色，之外线性衰减到边缘色。
+   * 雾状图元（云朵）的"实核 + 可控软边"：模糊半径 = (1-solidFrac)·radius，
+   * 比 discGrad 的全径线性衰减边缘更利落。
+   */
+  discGradCore(
+    cx: number, cy: number, radius: number, seg: number, solidFrac: number,
+    cr: number, cg: number, cb: number, ca: number,
+    er: number, eg: number, eb: number, ea: number,
+  ) {
+    if (radius <= 0) return
+    this.ensure(seg * 9)
+    const inner = radius * solidFrac
+    let px = 0
+    let py = 0
+    let ix = 0
+    let iy = 0
+    for (let i = 0; i <= seg; i++) {
+      const th = (i / seg) * Math.PI * 2
+      const ex = cx + radius * Math.cos(th)
+      const ey = cy + radius * Math.sin(th)
+      const nx = cx + inner * Math.cos(th)
+      const ny = cy + inner * Math.sin(th)
+      if (i > 0) {
+        this.push(cx, cy, cr, cg, cb, ca)
+        this.push(ix, iy, cr, cg, cb, ca)
+        this.push(nx, ny, cr, cg, cb, ca)
+        this.push(ix, iy, cr, cg, cb, ca)
+        this.push(px, py, er, eg, eb, ea)
+        this.push(ex, ey, er, eg, eb, ea)
+        this.push(ix, iy, cr, cg, cb, ca)
+        this.push(ex, ey, er, eg, eb, ea)
+        this.push(nx, ny, cr, cg, cb, ca)
+      }
+      px = ex
+      py = ey
+      ix = nx
+      iy = ny
+    }
+  }
+
   ring(
     cx: number, cy: number, rx: number, ry: number, rot: number, seg: number, w: number,
     r: number, g: number, b: number, a: number,

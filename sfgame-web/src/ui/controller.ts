@@ -89,7 +89,11 @@ export class GameController {
     this.world = level.world
     this.ground = level.ground
     this.sim = new LevelSimulation(level)
-    if (urlState.get('dev')) this.devTools = new DevTools()
+    if (urlState.get('dev')) {
+      // dev 模式：道具不限量 + 调试工具
+      this.sim.unlimited = true
+      this.devTools = new DevTools()
+    }
     // 底部状态卡：常驻 UI。挂 document.body（fixed 定位，与 DevTools 叠加层同款；
     // sf-game 无 slot，挂宿主 light DOM 不可见）
     const status = new SfStatusBar()

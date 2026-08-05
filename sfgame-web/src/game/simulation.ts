@@ -80,12 +80,15 @@ export class LevelSimulation {
   }
 
   get hotLeft() {
-    return this.level.budget.hot - this.usedHot
+    return this.unlimited ? Infinity : this.level.budget.hot - this.usedHot
   }
 
   get coldLeft() {
-    return this.level.budget.cold - this.usedCold
+    return this.unlimited ? Infinity : this.level.budget.cold - this.usedCold
   }
+
+  /** dev 模式（?dev=1）：道具不限量（调试用），预算校验跳过；HUD 显示 ∞ */
+  unlimited = false
 
   hudState(): HudState {
     return {
@@ -167,7 +170,7 @@ export class LevelSimulation {
   /** force 仅绕过"must be playing"（URL 状态恢复用，含获胜后重做）；预算与位置校验仍生效。 */
   placeSource(x: number, y: number, kind: SourceKind, force = false): Source | null {
     if (!force && this.phase !== 'playing') return null
-    if (kind === 'hot' ? this.hotLeft <= 0 : this.coldLeft <= 0) return null
+    if (!this.unlimited && (kind === 'hot' ? this.hotLeft <= 0 : this.coldLeft <= 0)) return null
     // 点在地面/物体上时，吸附到贴地高度——"在脚下放源"是核心交互，不应拒绝
     const cy = Math.min(y, this.level.ground(x) - GROUND_SNAP_LIFT)
     if (!this.canPlaceAt(x, cy)) return null

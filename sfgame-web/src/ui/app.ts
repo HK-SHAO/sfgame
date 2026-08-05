@@ -347,10 +347,10 @@ export class SfApp extends LitElement {
           </div>
           <div class="hud-right">
             <span class="chip hot ${this.hud.hotLeft === 0 ? 'empty' : ''}" title="剩余热源">
-              ${iconFlame}<span class="lbl">热源</span><b>${this.hud.hotLeft}</b>
+              ${iconFlame}<span class="lbl">热源</span><b>${this.hud.hotLeft === Infinity ? '∞' : this.hud.hotLeft}</b>
             </span>
             <span class="chip cold ${this.hud.coldLeft === 0 ? 'empty' : ''}" title="剩余冷源">
-              ${iconSnow}<span class="lbl">冷源</span><b>${this.hud.coldLeft}</b>
+              ${iconSnow}<span class="lbl">冷源</span><b>${this.hud.coldLeft === Infinity ? '∞' : this.hud.coldLeft}</b>
             </span>
             <button class="icon-btn speed" @click=${this.cycleSpeed} aria-label="游戏速率 ${this.speedLabel()}">
               <span class="lbl">速率</span><b>${this.speedLabel()}</b>
@@ -772,13 +772,16 @@ export class SfApp extends LitElement {
       animation: fade 260ms ease-out;
     }
 
+    /* 透明效果在卡片本体：半透明白 + 自身毛玻璃，overlay 不参与 */
     .win-card {
       width: 100%;
       max-width: 22.5rem;
       margin: auto;
       padding: 1.875rem 1.875rem 1.625rem;
       text-align: center;
-      background: rgba(255, 252, 245, 0.94);
+      background: rgba(255, 252, 245, 0.82);
+      backdrop-filter: blur(0.5rem);
+      -webkit-backdrop-filter: blur(0.5rem);
       border: 1px solid rgba(255, 255, 255, 0.7);
       border-radius: 1.625rem;
       corner-shape: squircle;

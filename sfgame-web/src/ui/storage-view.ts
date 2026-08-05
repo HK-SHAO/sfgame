@@ -1,11 +1,12 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
+import { name } from '../../package.json'
 import { STORAGE_KEY as PROGRESS_KEY } from '../game/progress'
 import { MUTED_KEY } from '../core/sfx'
 import { iconBack, iconDatabase } from './icons'
 
-/** 本 app 持久化的数据键前缀（存储管理页的可见范围） */
-const KEY_PREFIXES = ['sfgame.', 'zaofeng.']
+/** 本 app 持久化的数据键前缀（存储管理页的可见范围，跟随 package.json 的 name） */
+const KEY_PREFIXES = [`${name}.`]
 
 interface StorageEntry {
   key: string

@@ -52,8 +52,8 @@ const GROUND_FRICTION = 0.3
 
 /**
  * 贴地区（地面边界层）：
- * GROUND_EFFECT_H 贴地区高度——离地低于此值气流耦合按贴地度衰减：边界层吸收风能、
- *   机翼下无气流（升力失效），物理上"贴地难起飞"。
+ * GROUND_EFFECT_H 贴地区高度——离地低于此值风耦合按贴地度衰减：边界层吸收风能、
+ *   机翼下无风（升力失效），物理上"贴地难起飞"。
  * GROUND_AERO_MIN 完全贴地时耦合比例（0.6 → 贴地悬停需风 1.67 ≈ 飞行中 1.0 的 1.7 倍）；
  *   贴地后靠源正下方的持续垂直风（≥2.2）撬起，远处源/环境风托不起——"特别难再起飞"。
  * GROUND_SLIDE_K 贴地滑动摩擦（1/s）：贴地越紧水平速度向 0 收敛越快，几乎不被水平风吹动。
@@ -72,7 +72,7 @@ export function stepBody(
   const px = body.x
   fluid.sampleVelocity(body.x, body.y, tmpAir)
   const r = body.radius
-  // 贴地度 eff：0 = 完全贴地，1 = 脱离贴地区。地面边界层内气流耦合衰减、
+  // 贴地度 eff：0 = 完全贴地，1 = 脱离贴地区。地面边界层内风耦合衰减、
   // 滑动摩擦增强——"掉到地上就特别难再起飞、也很难贴地滑动"的物理来源。
   const hAbove = Math.max(0, groundY(px) - body.y - r * 0.5)
   const eff = Math.min(1, hAbove / GROUND_EFFECT_H)

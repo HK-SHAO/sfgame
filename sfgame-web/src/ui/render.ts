@@ -291,7 +291,7 @@ export class Renderer {
       const flagTop = gy - POLE_HEIGHT // 旗面顶不高于旗杆顶
 
       b.dashRing(g.x, gy - GOAL_LIFT, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
-      // 旗面跟随所在位置气流，一阶低通平滑（风向改变时缓转不瞬翻）；
+      // 旗面跟随所在位置风，一阶低通平滑（风向改变时缓转不瞬翻）；
       // 拉伸/摆动随风速增强；相位用模拟时钟，物理冻结时旗面静止
       const air = Renderer.tmpAir
       sim.fluid.sampleVelocity(g.x + 1.6, flagTop + 1.4, air)
@@ -311,14 +311,14 @@ export class Renderer {
       const dy = u > 0.05 ? sy / u : 0
       const droop = 0.85 * Math.exp(-uN * 1.6) // 弱风时重力占优，旗面下垂
       const wave = (0.1 + uN * 0.45) * Math.sin(sim.time * (5 + uN * 4) + i * 1.7)
-      // 摆动沿旗面垂直方向：水平风里上下飘，垂直气流里左右抖
+      // 摆动沿旗面垂直方向：水平风里上下飘，垂直风里左右抖
       const tipX = g.x + dx * len - dy * wave
       const tipY = flagTop + dy * len * 0.55 + droop * len + dx * wave
       b.tri(g.x, flagTop, tipX, tipY, g.x, flagTop + POLE_FABRIC_LEN, ...GOAL, 1)
     }
   }
 
-  /** 每面旗的平滑气流矢量（惯性）与上次平滑时刻（按模拟时钟，冻结时 dt=0）。 */
+  /** 每面旗的平滑风矢量（惯性）与上次平滑时刻（按模拟时钟，冻结时 dt=0）。 */
   private flagX = new Float32Array(0)
   private flagY = new Float32Array(0)
   private flagT = new Float32Array(0)

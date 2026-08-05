@@ -16,7 +16,7 @@ const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
   vorticity: 0.5,
 }
 
-/** 悬停阈值 = gravity/dragK ≈ 1.0（上升气流需超过它才能抬升）。 */
+/** 悬停阈值 = gravity/dragK ≈ 1.0（上升风需超过它才能抬升）。 */
 const PLANE_PHYSICS = { radius: 1.0, dragK: 3.0, gravity: 3.0 }
 
 /** 源之间的最小间距，避免叠放。 */

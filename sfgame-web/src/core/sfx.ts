@@ -1,5 +1,7 @@
-/** localStorage 键（存储管理页据此识别/摘要，勿改） */
-export const MUTED_KEY = 'zaofeng.muted'
+import { name } from '../../package.json'
+
+/** localStorage 键：name 前缀统一（存储管理页据此识别/摘要，勿改） */
+export const MUTED_KEY = `${name}.muted`
 const STORAGE_KEY = MUTED_KEY
 const MASTER_GAIN = 0.5
 

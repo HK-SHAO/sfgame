@@ -1,6 +1,6 @@
 # AGENTS.md
 
-造风（sfgame-web）：Lit 3 + Canvas 2D 物理益智游戏。放置热/冷源造风，让纸飞机抵达目标。注释与 README 均为中文。
+烧风（sfgame-web）：Lit 3 + Canvas 2D 物理益智游戏。放置热/冷源造风，让纸飞机抵达目标。注释与 README 均为中文。
 
 ## 注释约定（本仓库特有）
 

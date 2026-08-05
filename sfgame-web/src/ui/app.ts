@@ -279,7 +279,7 @@ export class SfApp extends LitElement {
       <main class="title">
         <section class="title-card">
           <div class="logo">${iconLogo}</div>
-          <h1>造风</h1>
+          <h1>烧风</h1>
           <p class="tagline">太阳精灵 · 用温度创造风</p>
 
           <nav class="levels" aria-label="关卡列表">

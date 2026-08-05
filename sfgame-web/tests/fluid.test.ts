@@ -21,7 +21,7 @@ function makeFluid() {
 
 const DT = 1 / 60
 
-test('热源上方产生上升气流（y 向下，上升即 v < 0）', () => {
+test('热源上方产生上升风（y 向下，上升即 v < 0）', () => {
   const f = makeFluid()
   const wx = 36
   const wy = 38
@@ -35,7 +35,7 @@ test('热源上方产生上升气流（y 向下，上升即 v < 0）', () => {
   expect(-air.y).toBeGreaterThan(2)
 })
 
-test('热源侧下方产生横向补充气流（对流闭合）', () => {
+test('热源侧下方产生横向补充风（对流闭合）', () => {
   const f = makeFluid()
   const wx = 36
   const wy = 38
@@ -48,7 +48,7 @@ test('热源侧下方产生横向补充气流（对流闭合）', () => {
   expect(air.x).toBeGreaterThan(0)
 })
 
-test('冷源产生下沉气流', () => {
+test('冷源产生下沉风', () => {
   const f = makeFluid()
   const wx = 36
   const wy = 20

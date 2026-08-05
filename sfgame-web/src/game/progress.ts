@@ -1,14 +1,16 @@
 import type { SourcePlacement } from './types'
+import { name } from '../../package.json'
 
 /**
  * 玩家进度持久化（localStorage，可注入存储以便无头测试）：
  * 每关记录通关成绩榜（只留合计耗时最优秀的 PROGRESS_TOP_N 条，含当时解法摆放），
  * 关卡解锁 = 第 1 关恒解锁，其余需上一关至少通关一次。
  * 载荷带 schema 版本，解析容错（损坏/未知版本 → 空进度，绝不抛错）。
+ * 键前缀统一跟随 package.json 的 name（存储管理页据此识别/摘要，勿改）。
  */
 export const PROGRESS_TOP_N = 3
-/** localStorage 键（存储管理页据此识别/摘要，勿改） */
-export const STORAGE_KEY = 'sfgame.progress.v1'
+/** localStorage 键：name 前缀 + 载荷版本 */
+export const STORAGE_KEY = `${name}.progress.v1`
 
 export interface ScoreEntry {
   /** 实际用时（秒） */

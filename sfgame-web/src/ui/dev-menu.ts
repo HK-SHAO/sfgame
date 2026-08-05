@@ -1,6 +1,6 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { version } from '../../package.json'
+import { version, author, description } from '../../package.json'
 import { iconBack, iconDatabase, iconGear, iconRoute } from './icons'
 
 /** 开发者选项页：dev 模式开关/解法参考/存储管理入口 + 关于（作者与版本号随 package.json）。 */
@@ -51,8 +51,8 @@ export class SfDevMenu extends LitElement {
 
         <section class="card about">
           <h2>关于</h2>
-          <p class="line">造风 · 用温度创造风</p>
-          <p class="line">作者：烧风 (HK-SHAO)</p>
+          <p class="line">${description}</p>
+          <p class="line">作者：${author}</p>
           <p class="line">版本：v${version}</p>
         </section>
       </main>

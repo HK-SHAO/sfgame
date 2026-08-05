@@ -35,6 +35,11 @@ const URL_PRECISION_TOLERANCE = 0.06
 /**
  * 无头关卡模拟：流体 + 刚体 + 源管理 + 胜负判定。
  * 不依赖 DOM/Canvas，可在 bun 中直接测试（含无头通关验证）。
+ *
+ * 胜负语义：全部站点被飞机"飞行抵达过"即过关，顺序不限（简化逻辑、
+ * 不强迫先后关系）；每个站点仍须飞行抵达（贴地滑入不算）。
+ * 过关瞬间与显式暂停（dev 空格）都会冻结物理与时钟——结算弹窗弹出时
+ * 背景不再运行，纸飞机不会被风吹走。
  */
 export class LevelSimulation {
   readonly level: LevelDef
@@ -43,8 +48,12 @@ export class LevelSimulation {
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
   time = 0
-  /** 当前目标站点下标（0-based）；到站后自增，全部到齐才过关。 */
-  goalIndex = 0
+  /** 各站点是否已被飞机"飞行抵达过"（顺序无关，全部为 true 即过关）。 */
+  visited: boolean[]
+  /** 已抵达站点数（渲染/音效用；等于 visited 中 true 的个数）。 */
+  visitedCount = 0
+  /** 暂停：step 不再推进物理与时钟（dev 空格切换；过关自动等效暂停）。 */
+  paused = false
 
   private nextId = 1
   private usedHot = 0
@@ -65,6 +74,7 @@ export class LevelSimulation {
     })
     this.fluid.setGroundMask(level.ground)
     this.applyAmbient(0)
+    this.visited = level.goals.map(() => false)
     this.spawnY = level.spawn.y ?? level.ground(level.spawn.x) - 1.4
     this.spawnVx = level.spawn.vx ?? 0
     this.spawnVy = level.spawn.vy ?? 0
@@ -103,7 +113,9 @@ export class LevelSimulation {
     this.placed = 0
     this.phase = 'playing'
     this.time = 0
-    this.goalIndex = 0
+    this.visited.fill(false)
+    this.visitedCount = 0
+    this.paused = false
     this.plane.x = this.level.spawn.x
     this.plane.y = this.spawnY
     this.plane.vx = this.spawnVx
@@ -116,7 +128,9 @@ export class LevelSimulation {
     this.fluid.clear()
     this.phase = 'playing'
     this.time = 0
-    this.goalIndex = 0
+    this.visited.fill(false)
+    this.visitedCount = 0
+    this.paused = false
     // 源在新的一局重放生长动画：born 归零（否则 time < born，渲染 pop 为负 → 源隐形）
     for (const s of this.sources) s.born = 0
     this.plane.x = this.level.spawn.x
@@ -124,6 +138,11 @@ export class LevelSimulation {
     this.plane.vx = this.spawnVx
     this.plane.vy = this.spawnVy
     this.plane.angle = 0
+  }
+
+  /** 显式暂停/恢复整个物理时间（dev 空格）。过关冻结独立于此标志。 */
+  setPaused(paused: boolean) {
+    this.paused = paused
   }
 
   /** 位置是否允许放置：世界内、地面之上（可贴地）、离其他源足够远。 */
@@ -197,8 +216,10 @@ export class LevelSimulation {
   }
 
   step(dt: number) {
-    // 计时随模拟推进；通关后冻结（hud 展示的即是通关时刻，物理演示继续跑）
-    if (this.phase === 'playing') this.time += dt
+    // 暂停或已过关：物理与时钟一并冻结（过关即结算弹窗出现的同一时刻）
+    if (this.paused || this.phase === 'won') return
+    // 计时随模拟推进，hud 展示的即是通关时刻（过关瞬间冻结）
+    this.time += dt
     this.applyAmbient(this.time)
     const rate = FLUID_TUNING.heatRate * dt
     for (const s of this.sources) {
@@ -206,9 +227,7 @@ export class LevelSimulation {
     }
     this.fluid.step(dt)
     stepBody(this.plane, this.fluid, dt, this.level.ground, this.level.world)
-    if (this.phase === 'playing' && this.inGoal()) {
-      this.phase = 'won'
-    }
+    this.checkGoals()
   }
 
   /** 常风 + 潮汐正弦分量的合成环境风（确定性，随模拟时钟推进）。 */
@@ -225,14 +244,20 @@ export class LevelSimulation {
     this.fluid.setAmbient(ax, ay)
   }
 
-  private inGoal(): boolean {
-    const g = this.level.goals[this.goalIndex]
-    if (!g) return false
-    const gy = this.level.ground(g.x) - GOAL_LIFT
-    if (Math.hypot(this.plane.x - g.x, this.plane.y - gy) >= g.r) return false
-    // 必须飞行抵达：贴地滑进目标区不算过关（杜绝"放着不动被风吹进圈"的挂机通关）
-    if (this.plane.y >= this.level.ground(this.plane.x) - FLYING_ALT) return false
-    this.goalIndex++
-    return this.goalIndex >= this.level.goals.length
+  /** 扫描全部未抵达站点：飞机以飞行姿态进入圈内即标记抵达（顺序无关）。 */
+  private checkGoals() {
+    let changed = false
+    for (let i = 0; i < this.level.goals.length; i++) {
+      if (this.visited[i]) continue
+      const g = this.level.goals[i]
+      const gy = this.level.ground(g.x) - GOAL_LIFT
+      if (Math.hypot(this.plane.x - g.x, this.plane.y - gy) >= g.r) continue
+      // 必须飞行抵达：贴地滑进目标区不算（杜绝"放着不动被风吹进圈"的挂机通关）
+      if (this.plane.y >= this.level.ground(this.plane.x) - FLYING_ALT) continue
+      this.visited[i] = true
+      this.visitedCount++
+      changed = true
+    }
+    if (changed && this.visitedCount >= this.level.goals.length) this.phase = 'won'
   }
 }

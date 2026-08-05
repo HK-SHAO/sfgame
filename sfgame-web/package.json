@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "lit": "^3.3.3",

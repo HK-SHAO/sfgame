@@ -87,10 +87,10 @@ test('关卡地形高度与设计意图一致（表达式精确、无采样误�
   expect(LEVELS[4].ground(60)).toBeCloseTo(18, 5)
 })
 
-test('第 3 关：站点序列为两个站点；第 5 关：三个站点（顺序访问）', () => {
+test('第 3 关：两个站点；第 5 关：三个站点（全部抵达过即过关，顺序无关）', () => {
   expect(LEVELS[2].goals.map((g) => g.x)).toEqual([15, 40])
   expect(LEVELS[4].goals.map((g) => g.x)).toEqual([14, 38, 66])
-  // 站点 x 沿航线递增（空间顺序 = 访问顺序）
+  // 站点 x 沿航线递增（空间布局，非强制访问顺序）
   for (const l of LEVELS) {
     for (let i = 1; i < l.goals.length; i++) expect(l.goals[i].x).toBeGreaterThan(l.goals[i - 1].x)
   }

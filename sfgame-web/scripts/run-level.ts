@@ -2,18 +2,23 @@
  * 无头关卡工具（协议 v1）：
  *   bun run scripts/run-level.ts <关卡.yaml|json> [--sim 秒] [--verify 源列表] [--solve 源数]
  *
- * --sim N      无源跑 N 秒，打印轨迹要点与是否通关
- * --verify     源列表 "x-y-h,x-y-c,…"（h=热 c=冷），跑至通关（上限 120s）并打印通关时刻
- * --solve N    启发式随机搜索 N 个源的最优摆法（预算 30s，可加 --budget-ms），供算法/AI 接入参考
+ * --sim N          无源跑 N 秒，打印轨迹要点与是否通关
+ * --verify list    源列表 "x-y-h,x-y-c,…"（h=热 c=冷），跑至通关（上限 120s），
+ *                  打印通关时刻与质量指标（路程/贴地/耗时），可加 --robust 做扰动抽查
+ * --solve N        多目标遗传算法搜索 N 个源的最优摆法（默认预算 45s），
+ *                  优先级：路程短 → 少贴地 → 少耗时；worker 并行评估
+ * --kinds h,c      搜索只允许指定源类型（h=热 c=冷；默认两者皆可）——
+ *                  教学关可约束参考解贴合本关概念（如 L1 只放热源）
+ * --robust         对 --verify 的每个源做 ±1 单位 8 方向扰动，统计仍通关比例
  *
  * 例：
  *   bun run scripts/run-level.ts levels/level-3.yaml --sim 20
- *   bun run scripts/run-level.ts levels/level-3.yaml --verify 26-28-h
- *   bun run scripts/run-level.ts levels/level-5.yaml --solve 2 --budget-ms 20000
+ *   bun run scripts/run-level.ts levels/level-3.yaml --verify 26-28-h --robust
+ *   bun run scripts/run-level.ts levels/level-5.yaml --solve 2 --budget-ms 20000 --workers 8
  */
-import { readFileSync } from 'node:fs'
-import { levelFromJson, parseLevelText } from '../src/game/level-format'
-import { LevelSimulation } from '../src/game/simulation'
+import { availableParallelism } from 'node:os'
+import { resolve } from 'node:path'
+import { better, evalCandidate, FINE_DT, loadLevel, mulberry32, spotGrid, type CandidateMetric, type SourceTuple } from './solve-lib'
 
 const file = process.argv[2]
 if (!file) {
@@ -26,110 +31,299 @@ const opt = (name: string, def = ''): string => {
   return i >= 0 ? args[i + 1] ?? def : def
 }
 
-const text = readFileSync(file, 'utf8')
-const level = levelFromJson(parseLevelText(text))
-const SIM_DT = 1 / 60
+// 关卡文件转绝对路径：worker 子进程 cwd 与主进程不同，相对路径会找不到文件
+const levelFile = resolve(file)
+const level = loadLevel(levelFile)
+console.log(`关卡 ${level.id}「${level.name}」 ${level.world.w}×${level.world.h} 预算 热${level.budget.hot}/冷${level.budget.cold}`)
 
-function simulate(sources: Array<[number, number, string]>, cap: number, dt = SIM_DT) {
-  const s = new LevelSimulation(level)
-  for (const [x, y, k] of sources) s.placeSource(x, y, k as 'hot' | 'cold')
-  let lastX = -99
-  for (let t = 0; t < cap; t += dt) {
-    s.step(dt)
-    if (Math.abs(s.plane.x - lastX) > 12) {
-      console.log(
-        `  t=${t.toFixed(1)}s x=${s.plane.x.toFixed(1)} y=${s.plane.y.toFixed(1)} 高度=${(level.ground(s.plane.x) - s.plane.y).toFixed(1)} 站点=${s.goalIndex}/${level.goals.length}`,
-      )
-      lastX = s.plane.x
-    }
-    if (s.phase === 'won') return { won: true, time: t, goalIndex: s.goalIndex }
-  }
-  return { won: false, time: -1, goalIndex: s.goalIndex }
+function parseSources(raw: string): SourceTuple[] {
+  return raw.split(',').map((part) => {
+    const [xs, ys, ks] = part.split('-')
+    return [Number(xs), Number(ys), ks === 'c' ? 'cold' : 'hot'] as SourceTuple
+  })
 }
 
-console.log(`关卡 ${level.id}「${level.name}」 ${level.world.w}×${level.world.h} 预算 热${level.budget.hot}/冷${level.budget.cold}`)
+function fmt(m: CandidateMetric): string {
+  return m.won
+    ? `通关 ${m.time.toFixed(1)}s · 路程 ${m.pathLen.toFixed(1)} · 贴地 ${m.groundTime.toFixed(1)}s`
+    : `未通关（进展 ${m.progress}，贴地 ${m.groundTime.toFixed(1)}s）`
+}
 
 const simCap = Number(opt('--sim', '20'))
 if (args.includes('--sim')) {
-  const r = simulate([], simCap)
-  console.log(r.won ? `无操作：${r.time.toFixed(1)}s 通关` : `无操作：${simCap}s 未通关（站点 ${r.goalIndex}/${level.goals.length}）`)
+  const r = evalCandidate(level, [], { dt: FINE_DT, cap: simCap })
+  console.log(r.won ? `无操作：${r.time.toFixed(1)}s 通关` : `无操作：${simCap}s 未通关（站点 ${r.progress / 1000 | 0}/${level.goals.length}）`)
 }
 
 if (args.includes('--verify')) {
-  const raw = opt('--verify')
-  const sources = raw.split(',').map((part) => {
-    const [xs, ys, ks] = part.split('-')
-    return [Number(xs), Number(ys), ks === 'c' ? 'cold' : 'hot'] as [number, number, string]
-  })
-  const r = simulate(sources, 120)
-  console.log(r.won ? `解有效：${r.time.toFixed(1)}s 通关` : `解无效：120s 未通关（站点 ${r.goalIndex}/${level.goals.length}）`)
+  const sources = parseSources(opt('--verify'))
+  const m = evalCandidate(level, sources, { dt: FINE_DT, cap: 120 })
+  console.log(`解有效：${fmt(m)}`)
+  if (args.includes('--robust')) {
+    // 扰动抽查：每个源 ±1 单位 8 方向，统计仍通关比例（pitfalls G7）
+    const moves = [
+      [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1],
+    ]
+    let ok = 0
+    const failed: string[] = []
+    for (let i = 0; i < sources.length; i++) {
+      const [x, y, k] = sources[i]
+      for (const [dx, dy] of moves) {
+        const perturbed = sources.map((s, j) => (j === i ? [x + dx, y + dy, k] as SourceTuple : s))
+        const r = evalCandidate(level, perturbed, { dt: FINE_DT, cap: 120 })
+        if (r.won) ok++
+        else failed.push(`${x + dx}-${y + dy}-${k === 'hot' ? 'h' : 'c'}`)
+      }
+    }
+    const total = sources.length * moves.length
+    console.log(`扰动鲁棒性：${ok}/${total}（${((ok / total) * 100).toFixed(0)}%）${failed.length > 0 ? `，失败摆法：${failed.join(' ')}` : ''}`)
+  }
 }
 
 if (args.includes('--solve')) {
   const n = Number(opt('--solve', '1'))
-  const budgetMs = Number(opt('--budget-ms', '30000'))
-  const t0 = performance.now()
-  const spots: Array<[number, number, string]> = []
-  for (let x = 4; x <= level.world.w - 4; x += 2) {
-    for (const dy of [0.7, 8, 16]) {
-      const y = Math.max(3, level.ground(x) - dy)
-      spots.push([x, y, 'hot'], [x, y, 'cold'])
+  const budgetMs = Number(opt('--budget-ms', '45000'))
+  const workers = Math.min(
+    Number(opt('--workers', String(Math.max(1, availableParallelism() - 1)))),
+    availableParallelism(),
+  )
+  const rng = mulberry32(Number(opt('--seed', String(Date.now() >>> 0))))
+  const kinds = new Set(
+    opt('--kinds', 'h,c')
+      .split(',')
+      .filter((k) => k === 'h' || k === 'c')
+      .map((k) => (k === 'h' ? 'hot' : 'cold')),
+  ) as Set<'hot' | 'cold'>
+  const { best, hall } = await geneticSolve(n, budgetMs, workers, rng, kinds)
+  if (best && best.m.won) {
+    const fine = evalCandidate(level, best.src, { dt: FINE_DT, cap: 120 })
+    console.log(`[solve] 最优（${workers} worker 并行）：${best.src.map((s) => `${s[0]}-${s[1]}-${s[2][0]}`).join(',')}`)
+    console.log(`[solve] 粗筛 ${fmt(best.m)} → 精验 ${fmt(fine)}`)
+    if (hall.length > 1) {
+      console.log('[solve] 候选榜（按质量排序，可逐一 --verify --robust 复核）：')
+      hall.forEach((h, i) => {
+        console.log(`  #${i + 1} ${h.src.map((s) => `${s[0]}-${s[1]}-${s[2][0]}`).join(',')} → ${fmt(h.m)}`)
+      })
     }
-  }
-  const rng = mulberry32(Date.now() >>> 0)
-  const fitness = (src: Array<[number, number, string]>): number => {
-    const s = new LevelSimulation(level)
-    for (const [x, y, k] of src) s.placeSource(x, y, k as 'hot' | 'cold')
-    for (let t = 0; t < 60; t += 1 / 30) {
-      s.step(1 / 30)
-      if (s.phase === 'won') return 1000 - t
-    }
-    return s.goalIndex * 100
-  }
-  const best = { src: [] as Array<[number, number, string]>, fit: -1, lastPrint: 0 }
-  for (let restart = 0; restart < 50; restart++) {
-    let src: Array<[number, number, string]> = []
-    for (let i = 0; i < n; i++) src.push(spots[Math.floor(rng() * spots.length)])
-    let fit = fitness(src)
-    for (let it = 0; it < 200; it++) {
-      if (performance.now() - t0 > budgetMs) break
-      const next = src.map((s) => [...s] as [number, number, string])
-      const which = Math.floor(rng() * next.length)
-      const p = spots[Math.floor(rng() * spots.length)]
-      next[which] = p
-      const nf = fitness(next)
-      if (nf >= fit) {
-        src = next
-        fit = nf
-      }
-      if (fit > best.fit) {
-        best.fit = fit
-        best.src = src.map((s) => [...s])
-      }
-      if (performance.now() - best.lastPrint > 5000) {
-        best.lastPrint = performance.now()
-        console.log(
-          `[solve] ${((performance.now() - t0) / 1000).toFixed(0)}s 最优适配=${best.fit}（${best.fit > 900 ? `通关 ${(1000 - best.fit).toFixed(1)}s 粗估` : `站点 ${Math.floor(best.fit / 100)}/${level.goals.length}`}）`,
-        )
-      }
-    }
-  }
-  if (best.fit > 0) {
-    const fine = simulate(best.src, 120)
-    console.log(`[solve] 找到 ${n} 源摆法：${best.src.map((s) => `${s[0]}-${s[1]}-${s[2][0]}`).join(',')} → ${fine.won ? `${fine.time.toFixed(1)}s 通关` : '精验未通（粗筛误差）'}`)
   } else {
-    console.log(`[solve] ${((performance.now() - t0) / 1000).toFixed(0)}s 内未找到可通关摆法`)
+    console.log(`[solve] ${(budgetMs / 1000).toFixed(0)}s 内未找到可通关摆法（当前最佳：${best ? fmt(best.m) : '无'}）`)
   }
 }
 
-/** 确定性伪随机（搜索用，可复现） */
-function mulberry32(seed: number) {
-  let a = seed
-  return () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+/** 遗传算法：种群 + 精英保留 + 锦标赛选择 + 均匀交叉 + 邻域变异，worker 并行评估。 */
+async function geneticSolve(
+  n: number,
+  budgetMs: number,
+  workerCount: number,
+  rng: () => number,
+  kinds: Set<'hot' | 'cold'>,
+): Promise<{
+  best: { src: SourceTuple[]; m: CandidateMetric } | null
+  hall: Array<{ src: SourceTuple[]; m: CandidateMetric }>
+}> {
+  const spots = spotGrid(level).filter((s) => kinds.has(s[2]))
+  const POP = 32
+  const ELITE = 4
+  const pool = new WorkerPool(workerCount)
+  // 种子 = 关卡 YAML 里已登记的参考解（搜索至少保住当前解），其余随机个体
+  const seeds: SourceTuple[][] = []
+  for (const s of level.json.solutions ?? []) {
+    if (s.sources.length !== n || !s.sources.every((p) => kinds.has(p.kind))) continue
+    seeds.push(s.sources.map((p) => [p.x, p.y, p.kind]))
+  }
+  let pop: SourceTuple[][] = seeds.slice(0, POP)
+  while (pop.length < POP) pop.push(randomSources(n, spots, rng))
+
+  const hall: Array<{ src: SourceTuple[]; m: CandidateMetric }> = []
+
+  const t0 = performance.now()
+  const deadline = t0 + budgetMs
+  let best: { src: SourceTuple[]; m: CandidateMetric } | null = null
+  let lastPrint = t0
+  let gen = 0
+  let stale = 0
+
+  while (performance.now() < deadline) {
+    const metrics = await pool.evaluate(pop)
+    for (let i = 0; i < POP; i++) {
+      const entry = { src: pop[i], m: metrics[i] }
+      if (!best || better(metrics[i], best.m)) {
+        best = entry
+        stale = 0
+      }
+      if (metrics[i].won) addToHall(hall, entry)
+    }
+    const now = performance.now()
+    if (now - lastPrint > 5000) {
+      lastPrint = now
+      console.log(`[solve] 第 ${gen} 代 · ${((now - t0) / 1000).toFixed(0)}s · 最优 ${best ? fmt(best.m) : '—'}`)
+    }
+    // 精英 + 锦标赛生子
+    const order = pop.map((_, i) => i).sort((a, b) => (better(metrics[b], metrics[a]) ? 1 : better(metrics[a], metrics[b]) ? -1 : 0))
+    const next: SourceTuple[][] = []
+    for (let i = 0; i < ELITE; i++) next.push(pop[order[i]])
+    while (next.length < POP) {
+      next.push(child(pop[order[tournament(rng, order)]], pop[order[tournament(rng, order)]], spots, rng))
+    }
+    pop = next
+    gen++
+    // 停滞重启：连续多代无改进说明早熟收敛，保留精英与种子后重随机
+    if (++stale > 8) {
+      const keep = pop.slice(0, ELITE)
+      pop = [...keep, ...seeds.slice(0, POP - keep.length)]
+      while (pop.length < POP) pop.push(randomSources(n, spots, rng))
+      stale = 0
+      console.log(`[solve] 第 ${gen} 代 · 停滞重启（重随机）`)
+    }
+  }
+  await pool.close()
+  return { best, hall }
+}
+
+function randomSources(n: number, spots: SourceTuple[], rng: () => number): SourceTuple[] {
+  const c: SourceTuple[] = []
+  for (let j = 0; j < n; j++) c.push(spots[Math.floor(rng() * spots.length)])
+  return c
+}
+
+function srcKey(src: SourceTuple[]): string {
+  return src.map((s) => `${s[0]}-${s[1]}-${s[2][0]}`).join(',')
+}
+
+/** 候选榜：保留至多 5 个互不相同的通关解，按质量排序。 */
+function addToHall(
+  hall: Array<{ src: SourceTuple[]; m: CandidateMetric }>,
+  entry: { src: SourceTuple[]; m: CandidateMetric },
+) {
+  const key = srcKey(entry.src)
+  if (hall.some((h) => srcKey(h.src) === key)) return
+  hall.push(entry)
+  hall.sort((a, b) => (better(b.m, a.m) ? 1 : better(a.m, b.m) ? -1 : 0))
+  if (hall.length > 5) hall.length = 5
+}
+
+function tournament(rng: () => number, order: number[]): number {
+  const a = order[Math.floor(rng() * order.length)]
+  const b = order[Math.floor(rng() * order.length)]
+  // order 已按优劣排序：下标小者更优，取二者中更小下标（近似锦标赛，代价 O(1)）
+  return a <= b ? a : b
+}
+
+function child(
+  a: SourceTuple[],
+  b: SourceTuple[],
+  spots: SourceTuple[],
+  rng: () => number,
+): SourceTuple[] {
+  const c: SourceTuple[] = []
+  for (let j = 0; j < a.length; j++) {
+    let s = rng() < 0.5 ? a[j] : b[j]
+    if (rng() < 0.3) {
+      // 变异：半数做邻域微调（保持探索粒度），半数全局重抽
+      if (rng() < 0.5) {
+        let idx = spots.findIndex((p) => p[0] === s[0] && p[1] === s[1] && p[2] === s[2])
+        if (idx < 0) idx = Math.floor(rng() * spots.length)
+        idx = Math.min(spots.length - 1, Math.max(0, idx + Math.floor(rng() * 7) - 3))
+        s = spots[idx]
+      } else {
+        s = spots[Math.floor(rng() * spots.length)]
+      }
+    }
+    c.push(s)
+  }
+  return c
+}
+
+/** 并行评估池：多 worker 子进程，逐行 JSON 请求/响应。 */
+class WorkerPool {
+  private procs: Array<{ proc: import('bun').Subprocess; buf: string; idle: boolean }> = []
+  private queue: Array<{ src: SourceTuple[]; resolve: (m: CandidateMetric) => void }> = []
+  private open = 0
+
+  constructor(count: number) {
+    for (let i = 0; i < count; i++) this.spawn()
+  }
+
+  private spawn() {
+    const proc = Bun.spawn([process.execPath, `${import.meta.dir}/solve-worker.ts`, levelFile], {
+      cwd: import.meta.dir,
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const w = { proc, buf: '', idle: true }
+    this.procs.push(w)
+    const decoder = new TextDecoder()
+    void (async () => {
+      if (proc.stderr) {
+        for await (const chunk of proc.stderr) {
+          process.stderr.write(new TextDecoder().decode(chunk))
+        }
+      }
+    })()
+    void (async () => {
+      for await (const chunk of proc.stdout) {
+        w.buf += decoder.decode(chunk)
+        let nl: number
+        while ((nl = w.buf.indexOf('\n')) >= 0) {
+          const line = w.buf.slice(0, nl).trim()
+          w.buf = w.buf.slice(nl + 1)
+          if (!line) continue
+          try {
+            const msg = JSON.parse(line) as { id: number; m: CandidateMetric }
+            this.open--
+            if (this.pending.has(msg.id)) {
+              this.pending.get(msg.id)!(msg.m)
+              this.pending.delete(msg.id)
+            }
+          } catch {
+          }
+          w.idle = true
+          this.pump()
+        }
+      }
+    })()
+    this.pump()
+  }
+
+  private pending = new Map<number, (m: CandidateMetric) => void>()
+  private nextId = 0
+
+  private pump() {
+    for (const w of this.procs) {
+      if (!w.idle || this.queue.length === 0) continue
+      const job = this.queue.shift()!
+      const id = ++this.nextId
+      w.idle = false
+      this.open++
+      this.pending.set(id, job.resolve)
+      if (w.proc.stdin && typeof w.proc.stdin !== 'number') {
+        w.proc.stdin.write(`${JSON.stringify({ id, src: job.src })}\n`)
+        w.proc.stdin.flush()
+      }
+    }
+  }
+
+  /** 并行评估一批候选，返回与输入同序的结果。 */
+  evaluate(list: SourceTuple[][]): Promise<CandidateMetric[]> {
+    const out = new Array<CandidateMetric>(list.length)
+    return new Promise((resolveAll) => {
+      let done = 0
+      for (let i = 0; i < list.length; i++) {
+        this.queue.push({
+          src: list[i],
+          resolve: (m) => {
+            out[i] = m
+            if (++done === list.length) resolveAll(out)
+          },
+        })
+      }
+      this.pump()
+    })
+  }
+
+  async close() {
+    for (const w of this.procs) w.proc.kill()
+    this.procs = []
   }
 }

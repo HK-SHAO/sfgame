@@ -17,8 +17,9 @@ goals:
   - { x: 58, r: 7.5 }
 ambient: { x: 1.8, y: 0 }
 solutions:
-  - name: 双源速攀
+  - name: 冷压热托
     sources:
-      - { x: 20, y: 44, kind: hot }
-      - { x: 32, y: 30, kind: hot }
-    winTime: 22.2
+      # 热源托升翻崖 + 冷源在崖顶把飞机稳稳压向目标——组合原子能力的涌现用法
+      - { x: 38, y: 45.4, kind: hot }
+      - { x: 50, y: 21.3, kind: cold }
+    winTime: 16.9

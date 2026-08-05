@@ -32,6 +32,8 @@ export class SfPerf extends LitElement {
   private batchSum = 0
   private last: PerfSample | null = null
   private text = 'perf 采集中…'
+  /** 物理暂停状态（dev 空格）：显示在面板行尾 */
+  paused = false
 
   /** 拖拽状态：面板当前左上角（视口坐标）与按下时基准 */
   private dragging = false
@@ -216,7 +218,8 @@ export class SfPerf extends LitElement {
     const fps = mean > 0 ? (1000 / mean).toFixed(0) : '—'
     const last = this.last
     const mb = last ? (last.uploadBytes / 1024 / 1024).toFixed(2) : '—'
-    this.text = `${fps} fps · p95 ${p(0.95)}ms · tick ${(this.tickSum / n).toFixed(2)} · batch ${(this.batchSum / n).toFixed(2)} · ${last ? last.vertices : '—'}v ${mb}MB`
+    const pauseMark = this.paused ? ' · ⏸ 已暂停（空格恢复）' : ''
+    this.text = `${fps} fps · p95 ${p(0.95)}ms · tick ${(this.tickSum / n).toFixed(2)} · batch ${(this.batchSum / n).toFixed(2)} · ${last ? last.vertices : '—'}v ${mb}MB${pauseMark}`
     this.requestUpdate()
     this.intervals.length = 0
     this.frames = 0

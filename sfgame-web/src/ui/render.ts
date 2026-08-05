@@ -60,8 +60,6 @@ const TRACER_HEAD_RADIUS = 0.3
 const GUST_BASE = 0.7
 const GUST_BOOST = 0.6
 const GUST_FULL_SPEED = 4
-/** 风速平方低于此值视为静止空气：不画线也不画粒子（"有风才见线"） */
-const CALM_AIR_SPEED2 = 0.16
 const VISIBLE_ALPHA = 0.02
 const SOURCE_POP_RATE = 9
 const SOURCE_GLOW_RADIUS = 4.8
@@ -160,15 +158,15 @@ export class Renderer {
     const viewR = viewL + this.cssW / this.scale
     const viewB = viewT + this.cssH / this.scale
 
-    // 静态背景（天空/地形/光晕/目标静态）烘焙进离屏纹理，仅 resize 后重做；
-    // 动态层（太阳呼吸/旗帜/源/粒子/拖尾/飞机）每帧重建——动画与运动节奏不变
+    // 静态背景（天空/地形/光晕）烘焙进离屏纹理，仅 resize 后重做；
+    // 动态层（太阳呼吸/站点旗帜/源/粒子/拖尾/飞机）每帧重建——
+    // 站点抵达状态会变化，虚线圆必须放在动态层才能随抵达消失
     if (this.bgDirty) {
       const bg = this.batch
       bg.reset()
       this.drawSky(bg, viewL, viewT, viewR, viewB, h)
       this.drawTerrain(bg, sim, viewL, viewR, viewB)
       this.drawSunHalo(bg)
-      this.drawGoalStatic(bg, sim)
       gl.bakeBg(bg, viewL, viewT, viewR, viewB)
       this.bgDirty = false
     }
@@ -250,50 +248,34 @@ export class Renderer {
     b.discGrad(SUN_POS.x, SUN_POS.y, SUN_RADIUS * 3, 28, ...SUN, 0.4, ...SUN, 0)
   }
 
-  /** 目标区静态部分：全部站点的感应虚线圆 + 当前站点的光柱 */
-  private drawGoalStatic(b: MeshBatch, sim: LevelSimulation) {
-    const goals = sim.level.goals
-    for (let i = 0; i < goals.length; i++) {
-      const g = goals[i]
-      const gy = sim.level.ground(g.x)
-      b.dashRing(g.x, gy - 2, g.r, 1.2, 1.4, 0.28, ...GOAL, i === sim.goalIndex ? 0.35 : 0.16)
-      if (i === sim.goalIndex) {
-        b.rectVGrad(g.x - 1.6, gy - 12, g.x + 1.6, gy, ...GOAL, 0, ...GOAL, 0.14)
-      }
-    }
-  }
-
   private drawSun(b: MeshBatch, now: number) {
     const r = SUN_RADIUS + SUN_BREATH_AMP * Math.sin(now / SUN_BREATH_PERIOD)
     b.disc(SUN_POS.x, SUN_POS.y, r, r, 0, 24, ...SUN, 1)
   }
 
-  /** 站点动效：已完成 = 压印实心；未轮到 = 淡环；当前 = 呼吸环 + 旗帜 */
+  /**
+   * 站点视觉（一致性约定）：未抵达 = 虚线圆（抵达范围）+ 旗帜；
+   * 已抵达 = 只留旗杆，周围的提醒效果（虚线圆等）全部消失。
+   * 刻意去掉底部运动的圆环与旗杆后的半透明绿色矩形光柱——各站点完全同构。
+   */
   private drawGoal(b: MeshBatch, sim: LevelSimulation, now: number) {
     const goals = sim.level.goals
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]
       const gy = sim.level.ground(g.x)
-      const rx = g.r * 0.62 * (1 + 0.06 * Math.sin(now / 320))
-
-      if (i < sim.goalIndex) {
-        b.disc(g.x, gy - 0.1, rx * 0.9, 1.0, 0, 24, ...GOAL, 0.42)
-        b.ring(g.x, gy - 0.1, rx * 0.9, 1.0, 0, 24, 0.3, ...GOAL, 0.85)
-        continue
-      }
-      if (i > sim.goalIndex) {
-        b.ring(g.x, gy - 0.1, rx, 1.0, 0, 24, 0.24, ...GOAL, 0.3)
+      const top = gy - 6
+      // 已抵达：只留旗杆
+      if (sim.visited[i]) {
+        b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 0.8)
         continue
       }
 
-      b.disc(g.x, gy - 0.1, rx, 1.0, 0, 24, ...GOAL, 0.3)
-      b.ring(g.x, gy - 0.1, rx, 1.0, 0, 24, 0.3, ...GOAL, 0.75)
-
+      // 未抵达：虚线圆（抵达范围）+ 旗帜
+      b.dashRing(g.x, gy - 2, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
       // 旗帜：波幅与顺风倾斜随目标处实测风速——风与画面同呼吸
       const air = Renderer.tmpAir
       sim.fluid.sampleVelocity(g.x, gy - 5, air)
       const wind = Math.min(1.4, Math.sqrt(air.x * air.x + air.y * air.y))
-      const top = gy - 6
       b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 1)
       const wave = (0.35 + wind * 0.55) * Math.sin(now / 240)
       const lean = 0.1 * wind
@@ -350,10 +332,6 @@ export class Renderer {
       }
       fluid.sampleVelocity(tracers.x[i], tracers.y[i], air)
       const sp2 = air.x * air.x + air.y * air.y
-      if (sp2 < CALM_AIR_SPEED2) {
-        envs[i] = 0
-        continue
-      }
       envs[i] = env
       const f = Math.max(-1, Math.min(1, fluid.sampleTemp(tracers.x[i], tracers.y[i]) / T_REF))
       const tl = Math.min(TEMP_LEVELS - 1, ((f + 1) * 2.5) | 0)
@@ -361,6 +339,8 @@ export class Renderer {
 
       const n = trailN[i]
       if (n === 0) continue
+      // 线条透明度随风速连续变化（gust 0.7→1.3），不设硬截断：
+      // 风速归零的瞬间气流仍以弱残影可见，避免 L4 潮汐过零时"整片消失"
       const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
       const c = LINE_COLORS[tl]
       const base = i * trailLen

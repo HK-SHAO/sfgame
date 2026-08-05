@@ -29,14 +29,14 @@ export interface AmbientDef {
   tide?: TideDef
 }
 
-/** 站点：飞机须以"飞行姿态"依次经过（顺序 = 数组顺序）。 */
+/** 站点：飞机须以"飞行姿态"抵达过；全部站点抵达过即过关（顺序无关）。 */
 export interface GoalDef {
   x: number
   r: number
 }
 
 /**
- * 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.json）。
+ * 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.yaml）。
  * 设计为"积木式"：world/ground/budget/spawn/goals/ambient 六个原子字段组合成关卡，
  * 不引入一次性特例。solutions 可选（DIY 关卡可不带，解法参考页自动跳过）。
  */
@@ -81,7 +81,7 @@ export interface LevelDef {
   /** 过关结算文案：每关自己的表达，不写死在 UI 层 */
   win: { title: string; text: string }
   world: { w: number; h: number; cell: number }
-  /** 地形高度（世界坐标，y 向下）；由 JSON 折线编译而来 */
+  /** 地形高度（世界坐标，y 向下）；由 ground.expr 表达式编译而来 */
   ground: (x: number) => number
   budget: { hot: number; cold: number }
   /** 物体出生状态：可在世界外（如画布左外侧飞入）；vx/vy 为初速度 */

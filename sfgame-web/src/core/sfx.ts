@@ -335,6 +335,15 @@ class Sfx {
     const notes = [523.25, 659.25, 783.99, 1046.5]
     notes.forEach((f, i) => this.tone(f, f, 0.22, 'triangle', 0.32, i * 0.09))
   }
+
+  /**
+   * 站点抵达的"奖励"提示音：轻快的双音上行（与过关的四音琶音明显区分，
+   * 音量也更收敛——它是途中鼓励，不是结算）。
+   */
+  reward() {
+    this.tone(880, 880, 0.09, 'sine', 0.28)
+    this.tone(1174.66, 1174.66, 0.15, 'sine', 0.24, 0.07)
+  }
 }
 
 export const sfx = new Sfx()

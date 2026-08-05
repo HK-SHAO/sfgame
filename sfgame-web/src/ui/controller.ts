@@ -75,6 +75,8 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private ground: (x: number) => number
+  /** dev 模式（?dev=1）：空格键暂停/恢复物理时间 */
+  private dev: boolean
   /** dev 模式（?dev=1）调试叠加层（独立 Lit 组件，见 perf.ts） */
   private perfEl: SfPerf | null = null
   /** 底部常驻计时条（实时模拟耗时 + 罚时，见 run-timer.ts） */
@@ -92,14 +94,16 @@ export class GameController {
     this.ground = level.ground
     this.sim = new LevelSimulation(level)
     // dev 模式：?dev=1 挂 perf 叠加层（perf/dev 功能统一由 URL 的 dev 键控制）
-    if (urlState.get('dev')) {
+    this.dev = urlState.get('dev')
+    if (this.dev) {
       const el = new SfPerf()
       document.body.appendChild(el)
       this.perfEl = el
       // 无头浏览器一致性验证钩子（dev only）：读取模拟实时状态
       ;(window as unknown as Record<string, unknown>).__sfgame = {
         hud: () => this.sim.hudState(),
-        goalIndex: () => this.sim.goalIndex,
+        visitedCount: () => this.sim.visitedCount,
+        paused: () => this.sim.paused,
       }
     }
     // 底部计时条：常驻 UI（非 dev）。挂 document.body（fixed 定位，
@@ -168,6 +172,7 @@ export class GameController {
     }
     this.fit()
     window.addEventListener('resize', this.fit)
+    if (this.dev) window.addEventListener('keydown', this.onKeyDown)
     this.loop.start()
     this.pushHud()
   }
@@ -183,6 +188,7 @@ export class GameController {
     this.ro?.disconnect()
     this.ro = null
     window.removeEventListener('resize', this.fit)
+    if (this.dev) window.removeEventListener('keydown', this.onKeyDown)
     this.perfEl?.remove()
     this.perfEl = null
     this.timerEl?.remove()
@@ -197,6 +203,25 @@ export class GameController {
     this.press = null
     this.lastPhase = 'playing'
     this.pushHud()
+    this.syncPauseUi()
+  }
+
+  /** dev 空格键：暂停/恢复整个物理时间。按键重复忽略，阻止页面滚动。 */
+  private onKeyDown = (e: KeyboardEvent) => {
+    if (e.code !== 'Space' || e.repeat) return
+    e.preventDefault()
+    this.setPaused(!this.sim.paused)
+  }
+
+  private setPaused(paused: boolean) {
+    this.sim.setPaused(paused)
+    // 暂停时淡出风声：被冻结的场景不该有持续的流动音
+    if (paused) sfx.fadeOutWind()
+    this.syncPauseUi()
+  }
+
+  private syncPauseUi() {
+    if (this.perfEl) this.perfEl.paused = this.sim.paused
   }
 
   private pushHud() {
@@ -257,28 +282,40 @@ export class GameController {
 
   private tick = (dt: number) => {
     const t0 = performance.now()
-    const p = this.sim.plane
-    const altBefore = this.sim.level.ground(p.x) - p.y
-    const vyBefore = p.vy
+    const frozen = this.sim.paused || this.sim.phase === 'won'
+    const visitedBefore = this.sim.visitedCount
 
-    this.sim.step(dt)
-    this.tracers.step(dt, this.sim.fluid, this.sim.sources)
-    this.planeTrail.push(p.x, p.y)
+    if (!frozen) {
+      const p = this.sim.plane
+      const altBefore = this.sim.level.ground(p.x) - p.y
+      const vyBefore = p.vy
 
-    sfx.updateWind(this.fieldWind(), this.planeRelWind(), dt)
-    sfx.setPlanePan(p.x, this.world.w)
-    const altAfter = this.sim.level.ground(p.x) - p.y
-    if (altBefore > LAND_ALT_BEFORE && altAfter <= LAND_ALT_AFTER && Math.abs(vyBefore) > LAND_IMPACT_MIN) {
-      const now = performance.now()
-      if (now - this.lastLand > LAND_SOUND_MIN_INTERVAL) {
-        this.lastLand = now
-        sfx.land(Math.abs(vyBefore))
+      this.sim.step(dt)
+      this.tracers.step(dt, this.sim.fluid, this.sim.sources)
+      this.planeTrail.push(p.x, p.y)
+
+      sfx.updateWind(this.fieldWind(), this.planeRelWind(), dt)
+      sfx.setPlanePan(p.x, this.world.w)
+      const altAfter = this.sim.level.ground(p.x) - p.y
+      if (altBefore > LAND_ALT_BEFORE && altAfter <= LAND_ALT_AFTER && Math.abs(vyBefore) > LAND_IMPACT_MIN) {
+        const now = performance.now()
+        if (now - this.lastLand > LAND_SOUND_MIN_INTERVAL) {
+          this.lastLand = now
+          sfx.land(Math.abs(vyBefore))
+        }
       }
+    }
+
+    // 站点被抵达：奖励提示音；最后一站同时触发过关（用过关琶音收束）
+    if (this.sim.visitedCount > visitedBefore) {
+      if (this.sim.phase === 'won') sfx.win()
+      else sfx.reward()
     }
 
     if (this.sim.phase !== this.lastPhase) {
       this.lastPhase = this.sim.phase
-      if (this.sim.phase === 'won') sfx.win()
+      // 过关瞬间冻结物理：风也静下来（与"背景不再运行"的体感一致）
+      if (this.sim.phase === 'won') sfx.fadeOutWind()
       this.pushHud()
     }
 

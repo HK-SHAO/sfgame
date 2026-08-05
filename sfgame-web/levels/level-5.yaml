@@ -21,6 +21,7 @@ ambient: { x: 2.4, y: 0 }
 solutions:
   - name: 双热源接力
     sources:
-      - { x: 28, y: 26, kind: hot }
-      - { x: 48, y: 19, kind: hot }
-    winTime: 23.6
+      # 两源都置于空中热柱位：全程飞行翻越两道山脊（旧解贴地 12s，已替换）
+      - { x: 16, y: 29.3, kind: hot }
+      - { x: 60, y: 17.3, kind: hot }
+    winTime: 18.1

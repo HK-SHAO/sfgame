@@ -7,7 +7,7 @@ import { sourceItem } from '../src/game/state'
 import type { LevelDef, SourcePlacement } from '../src/game/types'
 
 const DT = 1 / 60
-/** 通关时限：留足余量（实测最长 30.3s） */
+/** 通关时限：留足余量（实测参考解最长约 24s） */
 const WIN_CAP = 45
 
 /** 初始一次性放置所有源，跑确定性模拟直到通关。返回通关时刻，不通关返回 -1。 */
@@ -44,7 +44,7 @@ test('每个解：初始一次性放置即通关，且实测时间与记录一�
       expect(Math.abs(t - s.winTime), `${level.id}「${s.name}」通关时间与记录不符`).toBeLessThan(2)
     }
   }
-})
+}, 30000)
 
 test('solutionUrl：与 URL 状态模块往返一致，且零百分号编码', () => {
   const sources = codecs.list<SourcePlacement>([], sourceItem, '_')

@@ -23,7 +23,7 @@ test('无操作：飞机在潮汐中往返，无法翻上孤山', () => {
   const sim = new LevelSimulation(LEVEL_4)
   for (let t = 0; t < 90; t += DT) sim.step(DT)
   expect(sim.phase).toBe('playing')
-  expect(sim.goalIndex).toBe(0)
+  expect(sim.visitedCount).toBe(0)
   // 飞机从未越过孤山（x 被挡在迎风面附近）
   expect(sim.plane.x).toBeLessThan(38)
 }, 30000)

@@ -74,9 +74,7 @@ export class GlRenderer {
   private aPos = 0
   private aColor = 0
   private uView: WebGLUniformLocation | null = null
-  /** 背景纹理程序（静态背景 quad） */
   private tex: TexProgram | null = null
-  /** 背景纹理 quad 的专用小缓冲（4 顶点 × 4 float） */
   private texBuffer: WebGLBuffer | null = null
   /** quad 顶点数据（预分配，热路径零分配）：6 顶点 × (x, y, u, v) */
   private quadData = new Float32Array(24)
@@ -107,8 +105,6 @@ export class GlRenderer {
   static create(canvas: HTMLCanvasElement): GlRenderer | null {
     const opts: WebGLContextAttributes = {
       alpha: false,
-      // iOS（ANGLE→Metal）上 MSAA 作用于整个帧缓冲，开销大且视觉收益低
-      // （几何化矢量边缘）；关闭以保帧率，观感由分辨率/线宽保证
       antialias: false,
       depth: false,
       stencil: false,

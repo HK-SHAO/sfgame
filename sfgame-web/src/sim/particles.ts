@@ -25,11 +25,8 @@ const PLUME_LIFE_SPAN = 1.2
 
 /**
  * 示踪粒子（拉格朗日）：被动平流于风场，把看不见的气流可视化。
- * 颜色由所在位置的局部温度决定（热偏红、冷偏蓝、中性灰），
- * 透明度随风速增大——"有风的地方才看得见风"。
- *
- * 每颗粒子另有一条按**路程**淡出的短轨迹（streakline），
- * 营造真实的风场线条感；粒子停驻时轨迹不消失。
+ * 颜色由局部温度决定（热红冷蓝中性灰），透明度随风速增大——"有风的地方才看得见风"；
+ * 每条按**路程**淡出的短轨迹（streakline）营造风场线条感，粒子停驻时轨迹不消失。
  */
 export class Tracers {
   count: number
@@ -108,7 +105,6 @@ export class Tracers {
       this.trailO[base + n] = this.odo[i]
       this.trailN[i] = n + 1
     } else {
-      // 满：整体前移丢弃最旧点
       this.trailX.copyWithin(base, base + 1, base + len)
       this.trailY.copyWithin(base, base + 1, base + len)
       this.trailO.copyWithin(base, base + 1, base + len)

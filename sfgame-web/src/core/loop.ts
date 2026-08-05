@@ -1,7 +1,6 @@
 export interface LoopHandlers {
   /** 固定步长模拟 tick，dt 恒为 SIM_DT（秒） */
   tick: (dt: number) => void
-  /** 每个动画帧调用一次 */
   render: () => void
 }
 
@@ -9,27 +8,17 @@ export const SIM_DT = 1 / 60
 const SIM_DT_MS = SIM_DT * 1000
 const MAX_FRAME = 0.25
 /**
- * 单帧最多执行的模拟步数。追帧尖峰的硬上限：
- * 慢帧（GC/热降频/合成）后 acc 会堆积最多 MAX_FRAME×rate 的欠账，
- * 若一次性追完（如 16× 掉一帧 = 240 tick），单帧会爆成几十毫秒——
- * 倍速下的"卡"很大程度来自这个追帧爆帧，而非稳态成本。
- * 24 步封顶后：最坏单帧 = 24×tickCost+渲染（iPhone 上 ≈12ms+，可接受），
- * 余下欠账顺延到后续帧逐步消化（短暂慢放，不爆帧）。
- * 稳态（16× = 16 tick/帧）与暂停回归（MAX_FRAME 截断后 1× = 15 tick）都不触顶。
+ * 单帧最多模拟步数的硬上限：慢帧后 acc 可堆积最多 MAX_FRAME×rate 欠账，
+ * 一次性追完会单帧爆成几十毫秒——倍速下的"卡"多源于此追帧爆帧。封顶后
+ * 余下欠账顺延到后续帧逐步消化（短暂慢放，不爆帧）；稳态 16× 不触顶。
  */
 const MAX_TICKS_PER_FRAME = 24
 
 /**
- * 固定步长游戏循环：模拟以 60Hz 稳定推进，渲染跟随显示器刷新率。
- * 页面切后台时 rAF 自动暂停，恢复后由 MAX_FRAME 截断避免时间突进。
- *
- * 倍速（setRate）只改变每真实秒的 tick 次数，每 tick 的 dt 恒为 SIM_DT：
- * 物理轨迹逐位不变，只是墙上时间快慢不同——这是"速率不影响轨迹"的根源。
- *
- * 渲染只在"模拟步进过的帧"执行：120Hz ProMotion 屏上 rAF 以 120Hz 触发，
- * 但模拟只步进 60Hz，若每帧都渲染，Canvas 2D 工作量为 60fps 的两倍
- * （持续高负载 → 发热降频 → 帧率渐进恶化）。倍速下每帧都步进，
- * 渲染因此再封顶 60Hz，高速率不放大渲染负载。
+ * 固定步长游戏循环：模拟 60Hz 推进，渲染跟随刷新率；切后台 rAF 暂停，恢复由 MAX_FRAME 截断。
+ * 倍速只改每真实秒的 tick 数，每 tick dt 恒为 SIM_DT——"速率不影响轨迹"的根源。
+ * 渲染只在模拟步进过的帧执行：120Hz 屏 rAF 两倍触发，若每帧渲染则 Canvas 工作量翻倍
+ * （持续高负载 → 发热降频 → 帧率恶化）；倍速下每帧都步进，渲染因此再封顶 60Hz。
  */
 export class GameLoop {
   private handlers: LoopHandlers
@@ -40,11 +29,9 @@ export class GameLoop {
   private rate = 1
   private lastRender = -Infinity
   /**
-   * 渲染最小间隔：SIM_DT_MS - 1ms 容差。
-   * 120Hz 屏 rAF 间隔 8.3ms < 15.7 → 隔帧（防双倍渲染负载）；
-   * 60Hz 屏 rAF 间隔 ~16.7ms 但有 ±1ms 抖动（iOS Safari 尤甚），
-   * 精确 >=16.67 会跳过半数渲染 → 16/33ms 交替呈现，视觉似 30fps 卡顿；
-   * 容差后 60Hz 每帧必渲。物理与动画不受影响（只决定"何时画"）。
+   * 渲染最小间隔 = SIM_DT_MS - 1ms 容差：120Hz 屏（8.3ms）隔帧防双倍渲染负载；
+   * 60Hz 屏 rAF 有 ±1ms 抖动，精确 >=16.67 会跳过半数渲染（16/33ms 交替似 30fps 卡顿），
+   * 容差后 60Hz 每帧必渲。只决定"何时画"，不影响物理。
    */
   private static readonly RENDER_MIN_INTERVAL = SIM_DT_MS - 1
 

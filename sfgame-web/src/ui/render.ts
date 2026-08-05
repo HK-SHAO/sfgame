@@ -128,7 +128,6 @@ export class Renderer {
     // dpr 体现在帧缓冲尺寸上：GL viewport 直接用 canvas 设备像素尺寸
     this.canvas.width = Math.max(1, Math.round(cssW * dpr))
     this.canvas.height = Math.max(1, Math.round(cssH * dpr))
-    // 画布尺寸变化 → 背景纹理须重建并重新烘焙
     this.gl?.resizeBg()
     this.bgDirty = true
   }
@@ -268,23 +267,19 @@ export class Renderer {
       const g = goals[i]
       const gy = sim.level.ground(g.x)
       const top = gy - 6
-      // 已抵达：只留旗杆
       if (sim.visited[i]) {
         b.stroke(g.x, gy, g.x, top, 0.34, ...FLAG_POLE, 0.8)
         continue
       }
 
-      // 未抵达：虚线圆（抵达范围）+ 旗帜
       b.dashRing(g.x, gy - 2, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
-      // 旗帜：旗面跟随"旗帜自身位置"的气流矢量，经一阶低通平滑——风向改变时
-      // 旗面缓转（先缩回再反向展开），不会瞬间翻转；拉伸长度、摆动幅度与频率
-      // 随风速增强，旗面张弛即可读气流速度；相位用模拟时钟，物理冻结时旗面静止
+      // 旗面跟随所在位置气流，一阶低通平滑（风向改变时缓转不瞬翻）；
+      // 拉伸/摆动随风速增强；相位用模拟时钟，物理冻结时旗面静止
       const air = Renderer.tmpAir
       sim.fluid.sampleVelocity(g.x + 1.6, top + 1.4, air)
       const dt = sim.time - this.flagT[i]
       this.flagT[i] = sim.time
       if (dt > 0) {
-        // 响应率：常驻基准 + 随风速增强——强风里旗面立刻跟上，弱风里缓缓摆回
         const k = 1 - Math.exp(-dt * (FLAG_RESPONSE_BASE + Math.hypot(air.x, air.y) * FLAG_RESPONSE_WIND))
         this.flagX[i] += (air.x - this.flagX[i]) * k
         this.flagY[i] += (air.y - this.flagY[i]) * k
@@ -293,7 +288,7 @@ export class Renderer {
       const sy = this.flagY[i]
       const u = Math.hypot(sx, sy)
       const uN = Math.min(1.4, u)
-      const len = 0.9 + uN * 2.2 // 旗面长度随风速拉伸
+      const len = 0.9 + uN * 2.2
       const dx = u > 0.05 ? sx / u : 0 // 顺风方向；无风退化为垂挂
       const dy = u > 0.05 ? sy / u : 0
       const droop = 0.85 * Math.exp(-uN * 1.6) // 弱风时重力占优，旗面下垂
@@ -439,7 +434,6 @@ export class Renderer {
 
   private drawPlane(b: MeshBatch, sim: LevelSimulation) {
     const p = sim.plane
-    // 顶光垂直投影：影子 = 飞机正下方的地面投影（同 x），坡度旋转贴合地形
     const g0 = sim.level.ground(p.x - SHADOW_RADIUS)
     const g1 = sim.level.ground(p.x + SHADOW_RADIUS)
     const slope = Math.atan2(g1 - g0, SHADOW_RADIUS * 2)

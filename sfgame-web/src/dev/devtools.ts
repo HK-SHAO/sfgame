@@ -3,10 +3,9 @@ import type { LevelSimulation } from '../game/simulation'
 import { SfPerf, type PerfSample } from '../ui/perf'
 
 /**
- * dev 工具（?dev=1）：perf 叠加层、空格键暂停/恢复物理时间、
- * 无头一致性钩子。所有 dev 副作用集中于此模块，生产路径（controller）
- * 只保留一个可选实例的挂接点；destroy() 对称清理全部副作用
- * （监听器、叠加层、window 全局钩子），不残留。
+ * dev 工具（?dev=1）：perf 叠加层、空格键暂停、无头一致性钩子。
+ * 所有 dev 副作用集中于此模块，生产路径只保留可选实例的挂接点；
+ * destroy() 对称清理全部副作用（监听器、叠加层、window 钩子），不残留。
  */
 export class DevTools {
   /** 无头一致性钩子的全局键名（browser-consistency.ts 读取）。 */
@@ -20,14 +19,14 @@ export class DevTools {
     document.body.appendChild(this.perfEl)
   }
 
-  /** 绑定当前局（一局一个实例；destroy 后可重新 attach）。 */
+  /** 绑定当前局（destroy 后可重新 attach）。 */
   attach(sim: LevelSimulation) {
     this.sim = sim
     window.addEventListener('keydown', this.onKeyDown)
     this.installHook()
   }
 
-  /** 每帧性能样本转发给叠加层（无 dev 时控制器不调用本方法）。 */
+  /** 转发性能样本到叠加层（无 dev 时控制器不调用本方法）。 */
   record(sample: PerfSample) {
     this.perfEl.record(sample)
   }
@@ -45,7 +44,7 @@ export class DevTools {
     delete (window as unknown as Record<string, unknown>)[DevTools.HOOK_KEY]
   }
 
-  /** dev 空格：暂停/恢复整个物理时间；冻结时风声淡出，面板显示状态。 */
+  /** dev 空格：暂停/恢复物理时间；冻结时风声淡出。 */
   private onKeyDown = (e: KeyboardEvent) => {
     if (!this.sim || e.code !== 'Space' || e.repeat) return
     e.preventDefault()

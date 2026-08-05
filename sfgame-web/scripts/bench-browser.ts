@@ -10,6 +10,7 @@
  * 依赖：本机 Chrome（CHROME_PATH 环境变量可覆盖）；自动拉起 vite dev。
  */
 import { existsSync } from 'node:fs'
+import { CdpClient } from './cdp-client'
 
 const THROTTLES = (process.argv[2] ?? '1,6').split(',').map(Number)
 const SECONDS = Math.max(2, Math.min(60, Number(process.argv[3] ?? 5)))
@@ -43,52 +44,6 @@ async function waitFor(url: string, timeoutMs: number): Promise<void> {
   throw new Error(`等待 ${url} 超时（${lastErr}）`)
 }
 
-class CdpClient {
-  private ws: WebSocket
-  private id = 0
-  private pending = new Map<number, (v: unknown) => void>()
-  private events: Array<{ method: string; params: unknown }> = []
-
-  private constructor(ws: WebSocket) {
-    this.ws = ws
-  }
-
-  static async connect(wsUrl: string): Promise<CdpClient> {
-    const ws = new WebSocket(wsUrl)
-    await new Promise<void>((res, rej) => {
-      ws.onopen = () => res()
-      ws.onerror = () => rej(new Error('CDP WebSocket 连接失败'))
-    })
-    const c = new CdpClient(ws)
-    ws.onmessage = (ev) => {
-      const msg = JSON.parse(String(ev.data))
-      if (msg.id && c.pending.has(msg.id)) {
-        c.pending.get(msg.id)!(msg.result ?? msg.error)
-        c.pending.delete(msg.id)
-      } else if (msg.method) {
-        c.events.push({ method: msg.method, params: msg.params })
-      }
-    }
-    return c
-  }
-
-  send(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
-    const id = ++this.id
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, (v) => (v && (v as { message?: string }).message ? reject(v) : resolve(v)))
-      this.ws.send(JSON.stringify({ id, method, params }))
-    })
-  }
-
-  async evaluate(expression: string): Promise<unknown> {
-    const r = (await this.send('Runtime.evaluate', {
-      expression,
-      returnByValue: true,
-    })) as { result?: { value?: unknown } }
-    return r.result?.value
-  }
-}
-
 function spawnSilent(cmd: string, args: string[], cwd?: string): { kill: () => void } {
   const proc = Bun.spawn([cmd, ...args], {
     cwd,
@@ -113,7 +68,7 @@ async function main() {
   const chrome = spawnSilent(CHROME, [
     '--headless=new',
     '--enable-unsafe-swiftshader',
-    '--remote-debugging-port=${CDP_PORT}',
+    `--remote-debugging-port=${CDP_PORT}`,
     `--user-data-dir=${USER_DATA}`,
     '--no-first-run',
     '--no-default-browser-check',
@@ -142,7 +97,7 @@ async function main() {
       const t0 = Date.now()
       let done = false
       while (Date.now() - t0 < 120000) {
-        const status = (await page.evaluate('document.getElementById("status")?.textContent ?? ""')) as string
+        const status = (await page.evalv('document.getElementById("status")?.textContent ?? ""')) as string
         if (status.includes('完成') || status.includes('Error')) {
           done = status.includes('完成')
           break
@@ -153,7 +108,7 @@ async function main() {
         console.log(`\n[${throttle}× 节流] 基准未在 120s 内完成（可能页面错误）`)
         continue
       }
-      const report = (await page.evaluate('window.__benchReport ?? ""')) as string
+      const report = (await page.evalv('window.__benchReport ?? ""')) as string
       console.log(`\n===== CPU 节流 ${throttle}×（弱设备近似）=====`)
       console.log(report)
       // 留一点间隔避免页面负载叠加

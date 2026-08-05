@@ -16,8 +16,7 @@ const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
   vorticity: 0.5,
 }
 
-/** 纸飞机：很轻、风阻大、重力弱，飘然而起。
- * 悬停阈值 = gravity/dragK ≈ 1.0（上升气流需超过它才能抬升）。 */
+/** 悬停阈值 = gravity/dragK ≈ 1.0（上升气流需超过它才能抬升）。 */
 const PLANE_PHYSICS = { radius: 1.0, dragK: 3.0, gravity: 3.0 }
 
 /** 源之间的最小间距，避免叠放。 */
@@ -33,13 +32,9 @@ const FLYING_ALT = 1
 const URL_PRECISION_TOLERANCE = 0.06
 
 /**
- * 无头关卡模拟：流体 + 刚体 + 源管理 + 胜负判定。
- * 不依赖 DOM/Canvas，可在 bun 中直接测试（含无头通关验证）。
- *
- * 胜负语义：全部站点被飞机"飞行抵达过"即过关，顺序不限（简化逻辑、
- * 不强迫先后关系）；每个站点仍须飞行抵达（贴地滑入不算）。
- * 过关瞬间与显式暂停（dev 空格）都会冻结物理与时钟——结算弹窗弹出时
- * 背景不再运行，纸飞机不会被风吹走。
+ * 无头关卡模拟（不依赖 DOM，可在 bun 中测试）。
+ * 胜负语义：全部站点被飞机"飞行抵达过"即过关，顺序不限（贴地滑入不算）。
+ * 过关瞬间与显式暂停都会冻结物理与时钟——结算弹窗弹出时背景不再运行。
  */
 export class LevelSimulation {
   readonly level: LevelDef
@@ -48,11 +43,11 @@ export class LevelSimulation {
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
   time = 0
-  /** 各站点是否已被飞机"飞行抵达过"（顺序无关，全部为 true 即过关）。 */
+  /** 各站点是否已飞行抵达过（全部 true 即过关）。 */
   visited: boolean[]
-  /** 已抵达站点数（渲染/音效用；等于 visited 中 true 的个数）。 */
+  /** 已抵达站点数（渲染/音效用）。 */
   visitedCount = 0
-  /** 暂停：step 不再推进物理与时钟（dev 空格切换；过关自动等效暂停）。 */
+  /** 显式暂停 step（dev 空格切换；过关自动等效暂停）。 */
   paused = false
 
   private nextId = 1
@@ -97,14 +92,14 @@ export class LevelSimulation {
       hotLeft: this.hotLeft,
       coldLeft: this.coldLeft,
       placed: this.placed,
-      // 模拟耗时（won 后冻结 = 通关时刻）+ 惩罚性耗时（按当前场上源数）
+      // time 为通关时刻（won 即冻结），extra 为按场上源数计的罚时
       time: this.time,
       extra: penaltySeconds(this.sources.length),
       sources: this.sources.length,
     }
   }
 
-  /** 完整重置：清场、清空源与预算占用、飞机回出生点、时间与胜负复位。 */
+  /** 完整重置：清场、清空源与预算占用。 */
   reset() {
     this.fluid.clear()
     this.sources = []
@@ -140,12 +135,11 @@ export class LevelSimulation {
     this.plane.angle = 0
   }
 
-  /** 显式暂停/恢复整个物理时间（dev 空格）。过关冻结独立于此标志。 */
+  /** 显式暂停/恢复（dev 空格）；过关冻结独立于此标志。 */
   setPaused(paused: boolean) {
     this.paused = paused
   }
 
-  /** 位置是否允许放置：世界内、地面之上（可贴地）、离其他源足够远。 */
   canPlaceAt(x: number, y: number): boolean {
     const { w } = this.level.world
     if (x < 2 || x > w - 2 || y < 3) return false
@@ -169,10 +163,7 @@ export class LevelSimulation {
     return best
   }
 
-  /**
-   * 放置源。force 仅绕过"must be playing"（URL 状态恢复用，含获胜后重做）；
-   * 预算与位置校验仍生效。
-   */
+  /** force 仅绕过"must be playing"（URL 状态恢复用，含获胜后重做）；预算与位置校验仍生效。 */
   placeSource(x: number, y: number, kind: SourceKind, force = false): Source | null {
     if (!force && this.phase !== 'playing') return null
     if (kind === 'hot' ? this.hotLeft <= 0 : this.coldLeft <= 0) return null
@@ -197,11 +188,8 @@ export class LevelSimulation {
     return true
   }
 
-  /**
-   * 把源集合收敛到目标列表（URL 状态应用）。最小差异：移除不在目标中的、
-   * 补放目标中缺失的（force），存活源保留原 id/born（不重播生长动画）。
-   * 注意移除必须与"目标列表"比对（比对场上会永不删除）。幂等，可安全重复调用。
-   */
+  /** 源集合收敛到目标列表（URL 状态应用，最小差异）：存活源保留原 id/born（不重播生长动画）；
+   * 移除必须与目标列表比对（比对场上会永不删除）；幂等，可安全重复调用。 */
   applySources(target: SourcePlacement[]): void {
     const match = (a: Source, b: SourcePlacement) =>
       a.kind === b.kind &&
@@ -216,9 +204,8 @@ export class LevelSimulation {
   }
 
   step(dt: number) {
-    // 暂停或已过关：物理与时钟一并冻结（过关即结算弹窗出现的同一时刻）
     if (this.paused || this.phase === 'won') return
-    // 计时随模拟推进，hud 展示的即是通关时刻（过关瞬间冻结）
+    // time 先于 checkGoals 递增：won 冻结时展示的即为通关时刻
     this.time += dt
     this.applyAmbient(this.time)
     const rate = FLUID_TUNING.heatRate * dt
@@ -230,7 +217,7 @@ export class LevelSimulation {
     this.checkGoals()
   }
 
-  /** 常风 + 潮汐正弦分量的合成环境风（确定性，随模拟时钟推进）。 */
+  /** 常风 + 潮汐正弦分量的合成（确定性，随模拟时钟推进）。 */
   private applyAmbient(t: number) {
     const a = this.level.ambient
     let ax = a?.x ?? 0
@@ -244,7 +231,6 @@ export class LevelSimulation {
     this.fluid.setAmbient(ax, ay)
   }
 
-  /** 扫描全部未抵达站点：飞机以飞行姿态进入圈内即标记抵达（顺序无关）。 */
   private checkGoals() {
     let changed = false
     for (let i = 0; i < this.level.goals.length; i++) {

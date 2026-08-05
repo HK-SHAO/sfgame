@@ -1,19 +1,13 @@
 import type { Vec2 } from './types'
 
 /**
- * 均匀网格上的稳定流体求解器（Jos Stam, "Real-Time Fluid Dynamics for Games"）——欧拉视角。
- *
- * 场：速度 (u, v) 与温度扰动 t（相对环境温度的偏差，热为正、冷为负）。
- * 每步：浮力 → 涡度约束 → MacCormack 二阶平流（含衰减）→ 压强投影（保持无散度）。
- *
- * MacCormack（Selle et al. 2006）用"前推-回溯误差补偿"把一阶半拉格朗日升为二阶：
- * 耗散大幅下降、细节保留更好，代价仅两趟平流 + 邻域钳制（保证无条件稳定）。
- *
- * 压强投影用红黑 Gauss-Seidel，并沿用上一帧压强场做 warm-start 初值
- * （流场逐帧缓变，初值极好，同迭代数收敛显著更好）。
- *
- * 游戏物理叙事在此成立：热源加热空气 → 浮力上升 → 投影使周围冷空气补充流入，
- * 压强差自然涌现出水平风；冷源相反。世界坐标 y 向下。
+ * 均匀网格稳定流体求解器（Jos Stam, "Real-Time Fluid Dynamics for Games"）——欧拉视角。
+ * 场：速度 (u,v) 与温度扰动 t（热正冷负）。每步：浮力 → 涡度约束 → MacCormack 二阶
+ * 平流（含衰减）→ 压强投影（保持无散度）。
+ * MacCormack（Selle et al. 2006）"前推-回溯误差补偿"把一阶半拉格朗日升为二阶：耗散大降、
+ * 细节保留更好，代价仅两趟平流 + 邻域钳制（保证无条件稳定）。
+ * 压强投影为红黑 Gauss-Seidel + 上一帧压强 warm-start 初值（流场逐帧缓变，收敛更好）。
+ * 游戏叙事：热源加热 → 浮力上升 → 投影使周围冷空气补充流入，压强差涌现水平风；冷源相反。
  */
 export interface FluidConfig {
   /** 网格列数 / 行数 */
@@ -60,7 +54,6 @@ export class Fluid {
   private q2: Float32Array
   private p: Float32Array
   private div: Float32Array
-  /** h²×div 预乘（f64 存储，与逐次计算 h2*div[idx] 逐位相同——div 在 GS 期间不变） */
   private divH2: Float64Array
   private curl: Float32Array
   /** 固体格索引表（setGroundMask 时构建）：enforceBoundary 只扫固体，免全阵扫描 */
@@ -273,11 +266,9 @@ export class Fluid {
   }
 
   /**
-   * MacCormack 二阶平流（Selle et al. 2006）。
-   * q1 = 前向半拉格朗日平流，q2 = 反向平流 q1，误差补偿
-   * q_new = q1 + (src - q2)/2，再钳制到 src 的 3×3 邻域极值内——
-   * 钳制保证不产生新极值、无条件稳定（代价仅两趟平流 + 一趟邻域扫描）。
-   * 所有场都用本步开始前的速度场 (u0, v0) 回溯，互不干扰。
+   * MacCormack 二阶平流（Selle et al. 2006）：q1 前向半拉格朗日、q2 反向回溯 q1，
+   * q_new = q1 + (src - q2)/2，再钳制到 src 的 3×3 邻域极值——钳制保证不产生新极值、
+   * 无条件稳定。所有场都用本步开始前的速度场 (u0, v0) 回溯，互不干扰。
    */
   private advectMacCormack(dst: Float32Array, src: Float32Array, dt: number, damping: number) {
     const { nx, ny, solid, q1, q2 } = this

@@ -1,25 +1,16 @@
 /**
- * 彩色三角网格的即时模式构建器（纯计算，无 DOM/WebGL 依赖，可无头测试）。
- *
- * 顶点格式：x, y, r, g, b, a（颜色 0..1，非预乘 alpha），平铺于 Float32Array。
- * 渲染层（ui/gl.ts）只负责把 data.subarray(0, count * VERTEX_STRIDE) 上传 GPU
- * 并以 TRIANGLES 绘制——所有图元（矩形/线段/椭圆/弧/径向渐变）都在此展开为三角形。
- *
- * 设计动机：Canvas 2D 的描边/填充是"状态机 + 路径对象"，批量提交只能靠分桶近似
- * （透明度/颜色离散化）；逐顶点着色后每个图元可携带精确颜色与透明度，
- * 整帧一次 draw call，且线段宽度不再受 GL lineWidth 恒为 1 的平台限制。
+ * 即时模式三角形网格构建器（纯计算，无 DOM/WebGL 依赖，可无头测试）。
+ * 顶点格式 x,y,r,g,b,a（颜色 0..1，非预乘 alpha）平铺于 Float32Array，渲染层只负责
+ * 把 data.subarray(0, count * VERTEX_STRIDE) 以 TRIANGLES 上传绘制。逐顶点着色使每帧
+ * 一次 draw call、图元可带精确透明度，线段宽度也不受 GL lineWidth 恒为 1 的限制。
  */
-
-/** 每顶点浮点数个数：x, y, r, g, b, a */
 export const VERTEX_STRIDE = 6
 
 /** 椭圆/圆弧展开的默认分段数（世界尺度下半径 0.3~12，20 段已足够圆滑） */
 export const DISC_SEGMENTS = 20
 
 export class MeshBatch {
-  /** 顶点数据平铺数组（容量 ≥ count * VERTEX_STRIDE） */
   data: Float32Array
-  /** 已写入的顶点数 */
   count = 0
 
   constructor(capacity = 32768) {
@@ -52,7 +43,6 @@ export class MeshBatch {
     this.count++
   }
 
-  /** 单色三角形 */
   tri(
     x0: number, y0: number,
     x1: number, y1: number,
@@ -65,7 +55,7 @@ export class MeshBatch {
     this.push(x2, y2, r, g, b, a)
   }
 
-  /** 轴对齐矩形（2 三角形），y0 < y1 */
+  /** 轴对齐矩形，y0 < y1 */
   rect(x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number, a: number) {
     this.ensure(6)
     this.push(x0, y0, r, g, b, a)
@@ -92,8 +82,8 @@ export class MeshBatch {
   }
 
   /**
-   * 线段 → 沿法线加宽的四边形（GL lineWidth 在多平台被钳制为 1，宽度必须几何化）。
-   * 端点为平头（butt cap）：拖尾/轨迹由连续短段组成，段间缝隙可忽略。
+   * 线段 → 沿法线加宽的四边形（GL lineWidth 恒为 1，宽度必须几何化）。
+   * 平头端：拖尾/轨迹由连续短段组成，段间缝隙可忽略。
    */
   stroke(x0: number, y0: number, x1: number, y1: number, w: number, r: number, g: number, b: number, a: number) {
     const dx = x1 - x0
@@ -116,9 +106,8 @@ export class MeshBatch {
   private static MITER_LIMIT = 4
 
   /**
-   * 折线描边：相邻线段在转角处按角平分线斜接（miter）相连，转角无缝无缺口。
-   * 首尾端点平头；零长段自动跳过。要求折线方向一致（各段法线同侧），
-   * 适用于地形等单调折线；随机折回的轨迹仍用逐段 stroke。
+   * 折线描边：相邻线段在转角处按角平分线斜接（miter）相连，转角无缝。
+   * 首尾平头、零长段跳过；要求各段法线同侧（地形等单调折线适用），折回轨迹仍用逐段 stroke。
    * pts 为 [x0,y0,x1,y1,...] 平铺，n 为浮点数个数（偶数）。
    */
   polyline(pts: Float32Array, n: number, w: number, r: number, g: number, b: number, a: number) {
@@ -145,7 +134,6 @@ export class MeshBatch {
       const nx = -dy / len
       const ny = dx / len
       if (!ready) {
-        // 首段：起点平头
         sx = ax
         sy = ay
         mx = nx * hw
@@ -172,7 +160,6 @@ export class MeshBatch {
       }
       const ex = tx * fl
       const ey = ty * fl
-      // 上段四边形：起点 ±(mx,my)，终点 ±(ex,ey)
       this.ensure(6)
       this.push(sx + mx, sy + my, r, g, b, a)
       this.push(ax + ex, ay + ey, r, g, b, a)
@@ -187,7 +174,6 @@ export class MeshBatch {
       pnx = nx
       pny = ny
     }
-    // 末段：终点平头
     if (ready) {
       const bx = pts[n - 2]
       const by = pts[n - 1]
@@ -227,9 +213,8 @@ export class MeshBatch {
   }
 
   /**
-   * 径向渐变圆盘：中心色 → 边缘色逐顶点线性插值。
-   * 与 Canvas 2D 两端色标（0 处 / 1 处）的 createRadialGradient 视觉等价，
-   * 免去每帧建渐变对象或烘焙精灵位图。
+   * 径向渐变圆盘：中心 → 边缘逐顶点线性插值，与 createRadialGradient 两端色标
+   * 视觉等价，免去每帧建渐变对象或烘焙位图。
    */
   discGrad(
     cx: number, cy: number, radius: number, seg: number,
@@ -255,7 +240,6 @@ export class MeshBatch {
     }
   }
 
-  /** 椭圆描边（分段 stroke 逼近），线宽 w */
   ring(
     cx: number, cy: number, rx: number, ry: number, rot: number, seg: number, w: number,
     r: number, g: number, b: number, a: number,

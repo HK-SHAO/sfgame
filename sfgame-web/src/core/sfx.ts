@@ -1,10 +1,7 @@
 const STORAGE_KEY = 'zaofeng.muted'
 const MASTER_GAIN = 0.5
 
-/**
- * Paul Kellet 粉红噪声近似滤波：白噪声经一阶 IIR 组逼近 1/f 功率谱。
- * 1/f 谱正是自然风湍流的能量分布特征，比白噪声听感真实得多。
- */
+/** Paul Kellet 粉红噪声近似：白噪声经一阶 IIR 组逼近 1/f 谱——正是自然风湍流的能量分布特征。 */
 function makePinkNoiseBuffer(ctx: AudioContext): AudioBuffer {
   const len = ctx.sampleRate * 2
   const buffer = ctx.createBuffer(1, len, ctx.sampleRate)
@@ -239,9 +236,8 @@ class Sfx {
   }
 
   /**
-   * 一次性音源播完后显式断开整条节点链：不这么做的话 WebKit 的音频图
-   * 会持有已完成节点（长会话累积 → GC 压力与掉帧）。ended 事件确保
-   * 播放结束（或 stop 到达）后才断开，中途不静音。
+   * 播完显式断开整条节点链：否则 WebKit 音频图持有已完成节点（长会话累积 → GC 压力与掉帧）；
+   * 等 ended 后再断开，中途不静音。
    */
   private releaseWhenDone(
     src: AudioScheduledSourceNode,

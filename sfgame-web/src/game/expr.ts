@@ -1,9 +1,6 @@
 /**
- * 迷你数学表达式求值器（零依赖，关卡地形 expr 的运行时）。
- * 语法：数字 / x / PI / E；+ - * / % ^（右结合）；一元正负；括号；
- * 函数：abs min max clamp step smoothstep sin cos exp sqrt pow。
- * 刻意不做变量赋值/条件/字符串——地形只是 y = f(x)，克制即足够。
- * 表达式是"可移植的公式"：同一串文本可被任意数学工具直接解释。
+ * 迷你表达式求值器（零依赖）：刻意不做变量赋值/条件/字符串——地形只是 y=f(x)，
+ * 且表达式可移植：同一串文本可被任意数学工具直接解释。
  */
 
 type Node =
@@ -187,7 +184,7 @@ function evalNode(n: Node, x: number): number {
   }
 }
 
-/** 编译表达式为 height(x) 函数；语法错误在此抛出（关卡加载期，而非模拟中）。 */
+/** 编译为 height(x)；语法错误在关卡加载期抛出，而非模拟中。 */
 export function compileExpr(src: string): (x: number) => number {
   const tree = new Parser(src).parse()
   return (x) => evalNode(tree, x)

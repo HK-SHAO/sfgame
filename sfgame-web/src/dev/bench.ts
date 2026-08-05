@@ -1,10 +1,7 @@
 /**
  * 浏览器端性能诊断页（bench.html）入口：真机/真浏览器实测帧预算占用。
- *
- * 用途：
- * - 研发用 Chrome DevTools / Safari WRDP 配合 CPU 节流复现低端机
- * - 玩家设备（尤其 iPhone）直接打开即可得到本机数据，回报给研发
- * 结果可一键复制为纯文本。
+ * 研发用 Chrome DevTools / Safari WRDP 配合 CPU 节流复现低端机；
+ * 玩家设备（尤其 iPhone）直接打开即可得到本机数据回报给研发。结果可一键复制。
  */
 import { runBench, type BenchStat } from './bench-core'
 

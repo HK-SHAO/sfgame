@@ -50,7 +50,11 @@ export function evalCandidate(
   // 坐标统一舍入到 1 位小数：解法参考页的 URL 只保留 1 位小数，
   // 候选解必须"URL 可放置"才有效（3 位小数的刀刃解玩家无法复现）
   for (const [x, y, k] of src) {
-    sim.placeSource(Math.round(x * 10) / 10, Math.round(y * 10) / 10, k)
+    const placed = sim.placeSource(Math.round(x * 10) / 10, Math.round(y * 10) / 10, k)
+    if (!placed) {
+      // 玩家放置会被拒绝（预算/间距/合法性），候选不可复现，直接判无效
+      return { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0 }
+    }
   }
   let pathLen = 0
   let groundTime = 0

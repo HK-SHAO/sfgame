@@ -11,11 +11,7 @@ export const DENY = 'deny'
 /** 源集合变化事件：detail 为当前全部源的放置快照（URL 双向同步）。 */
 export const SRC_CHANGE = 'sourceschange'
 
-/**
- * 游戏画布宿主：持有命令式游戏循环（GameController）的唯一入口。
- * 生命周期映射到元素挂载/卸载——挂载即开局、卸载即销毁，
- * 所有 HUD 状态经事件在更新周期之外派发给宿主，避免 change-in-update 告警。
- */
+/** 游戏画布宿主：唯一持有 GameController。HUD 状态经事件在更新周期外派发，避免 change-in-update 告警。 */
 @customElement('sf-game')
 export class SfGame extends LitElement {
   @property({ attribute: false }) level: LevelDef | null = null

@@ -35,10 +35,9 @@ interface PointerTrack {
 }
 
 /**
- * 统一指针手势（Pointer Events，兼容鼠标/触摸/触控笔）：
- * - 轻点空白 = 热源；长按空白 = 冷源（达阈值即确认）
- * - 按住已有源并抬起 = 移除；拖离原位可撤销
- * 反馈必须从 pointerdown 即刻开始（由渲染层依据 pressStarted 时间绘制进度环）。
+ * 统一指针手势（Pointer Events）：轻点空白 = 热源；长按空白 = 冷源；
+ * 按住已有源并抬起 = 移除（拖离原位可撤销）。
+ * 反馈必须从 pointerdown 即刻开始（渲染层按 pressStarted 时间绘制进度环）。
  */
 export class GestureInput {
   private el: HTMLElement

@@ -5,10 +5,7 @@ import { solutionsFor, solutionUrl, type LevelSolution } from '../game/solutions
 import type { LevelDef } from '../game/types'
 import { iconBack } from './icons'
 
-/**
- * 解法参考页：逐关列出解的相对 URL（点击即进入对应摆放）。
- * 纯声明式：无状态、无副作用。
- */
+/** 解法参考页：逐关列出解的相对 URL（点击即进入对应摆放）。纯声明式、无副作用。 */
 @customElement('sf-solutions')
 export class SfSolutions extends LitElement {
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))

@@ -7,13 +7,9 @@ import { customElement } from 'lit/decorators.js'
  * 拖拽位置经 transform 表达（合成器线程），不触发布局。
  */
 export interface PerfSample {
-  /** 本帧模拟 tick 总耗时（ms） */
   tickMs: number
-  /** 本帧批构建（渲染 CPU 侧）耗时（ms） */
   batchMs: number
-  /** 动态层顶点数 */
   vertices: number
-  /** 上传字节数 */
   uploadBytes: number
   /** 游戏循环 rAF 帧数 / 实际渲染数 */
   loopFrames: number
@@ -100,7 +96,6 @@ export class SfPerf extends LitElement {
     this.addEventListener('pointercancel', this.onUp)
   }
 
-  /** 解除指针事件绑定（对称释放，防止监听泄漏） */
   private unbindEvents() {
     this.removeEventListener('pointerdown', this.onDown)
     this.removeEventListener('pointermove', this.onMove)
@@ -156,7 +151,6 @@ export class SfPerf extends LitElement {
 
   private onMove = (e: PointerEvent) => {
     if (!this.dragging) return
-    // 增量跟手（每步位移叠加到当前坐标，无累计误差）
     this.x = Math.min(Math.max(this.x + (e.clientX - this.prevX), this.gap), innerWidth - this.w - this.gap)
     this.y = Math.min(Math.max(this.y + (e.clientY - this.prevY), this.gap), innerHeight - this.h - this.gap)
     this.prevX = e.clientX
@@ -177,7 +171,6 @@ export class SfPerf extends LitElement {
     this.snapToEdge()
   }
 
-  /** 吸附间距换算：0.875rem 转 px（随根字号缩放，与 .hud 间距一致） */
   private updateGap() {
     this.gap = 0.875 * parseFloat(getComputedStyle(document.documentElement).fontSize)
   }

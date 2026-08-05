@@ -51,14 +51,12 @@ export class SfApp extends LitElement {
     return this.dev ? [1, 2, 4, 8, 16, 0.5] : [1, 2, 4, 0.5]
   }
 
-  // 游戏画布宿主：仅声明式挂载，控制器生命周期由 sf-game 自身管理
   @query('sf-game') private gameEl!: SfGame
 
   constructor() {
     super()
     // 尽早武装音频解锁：任意首次交互（pointerdown/keydown）即获得权限
     sfx.unlock()
-    // 初始化即从 URL 推导屏幕（?lv=N 直达 / ?v=solutions 解法参考页）
     this.syncScreen()
     // 双向绑定：浏览器前进/后退时 URL 变化 → 应用状态
     urlState.onChange('lv', () => this.syncScreen())
@@ -70,8 +68,7 @@ export class SfApp extends LitElement {
     })
   }
 
-  /** 从 URL 状态统一推导屏幕：view=solutions 优先；其次 level 有效 → 游戏；否则标题。
-   * 写读分离：set/clear 不触发通知，故 UI 操作需自行设 screen。 */
+  /** 从 URL 统一推导屏幕（view=solutions 优先 → level 有效 → 标题）。写读分离：set/clear 不触发通知，UI 操作需自行设 screen。 */
   private syncScreen() {
     if (urlState.get('v') === 'solutions') {
       this.screen = 'solutions'
@@ -89,8 +86,7 @@ export class SfApp extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues) {
-    // 进入关卡前重置 HUD 为初始值：willUpdate 属于当前更新周期，不会额外调度更新；
-    // 同时避免上一局结算覆盖层在挂载帧闪现。真正的 HUD 由 sf-game 的 hudchange 事件驱动。
+    // 进关卡前重置 HUD（willUpdate 属当前周期不额外调度；避免上局结算覆盖层闪现）。HUD 由 sf-game 的 hudchange 事件驱动
     if (changed.has('screen') && this.screen === 'game') {
       const b = this.activeLevel.budget
       this.hud = {
@@ -117,7 +113,7 @@ export class SfApp extends LitElement {
   }
 
   private backToTitle() {
-    // 切回标题页即卸载 sf-game，其 disconnectedCallback 负责销毁游戏
+    // 切回标题页即卸载 sf-game，销毁由 disconnectedCallback 负责
     sfx.uiBack()
     this.screen = 'title'
     urlState.clear('lv')
@@ -143,7 +139,6 @@ export class SfApp extends LitElement {
   }
 
   private cycleSpeed() {
-    // 向减速方向循环：1× → 0.5× → 最大档 → … → 2× → 1×
     const steps = this.speedSteps
     this.rate = steps[(steps.indexOf(this.rate) - 1 + steps.length) % steps.length]
     sfx.uiClick()
@@ -714,8 +709,7 @@ export class SfApp extends LitElement {
       color: var(--ink-soft);
     }
 
-    /* 耗时块：暖色底卡突出，竖排三行（合计/用时/额外）利用竖向空间，
-       行距宽松；与文案/按钮保持一致的间距节奏（1.375rem 统一） */
+    /* 耗时块：暖色底卡 + 竖排三行（合计/用时/额外）利用竖向空间；间距与文案/按钮统一（1.375rem） */
     .win-card .stats {
       margin: 0 0 1.375rem;
       padding: 0.875rem 1rem;

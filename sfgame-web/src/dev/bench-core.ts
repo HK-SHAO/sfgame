@@ -1,9 +1,7 @@
 /**
- * 性能基准核心（无 DOM，node/浏览器共用）。
- *
- * 组件与真实游戏一致：第 1 关网格（76×56 / cell 0.75）、4 源、
- * 移动端初始粒子档（240 × 24 轨迹点）。输出 ms/frame 统计，
- * 对照 16.7ms（60fps）帧预算判断瓶颈构成。
+ * 性能基准核心（无 DOM，node/浏览器共用）：负载与真实游戏一致——
+ * 第 1 关网格（76×56 / cell 0.75）、4 源、移动端粒子档（240×24 轨迹点）。
+ * 输出 ms/frame 统计，对照 16.7ms（60fps）帧预算判断瓶颈构成。
  */
 import { LevelSimulation } from '../game/simulation'
 import { LEVEL_1 } from '../game/levels'
@@ -80,7 +78,7 @@ export function runBench(opts: BenchOptions = {}): BenchStat[] {
   const results: BenchStat[] = []
   const progress = opts.onProgress ?? (() => {})
 
-  // 1. 流体求解器（含源注入）——整帧的主导 CPU 成本
+  // 1. 流体求解器（含源注入）——整帧主导的 CPU 成本
   results.push(fluidBench(makeLoadedSim(), steps, 'fluid.step'))
   progress(0.3)
 
@@ -142,7 +140,7 @@ export function runBench(opts: BenchOptions = {}): BenchStat[] {
     results.push({ name: 'batch 构建', mean, p95, detail: `${n} stroke + 400 disc` })
   }
 
-  // 5. 倍速帧：rate×（关卡步进+粒子）+ 批构建 = 游戏在倍速下每 60Hz 帧的真实 CPU 成本
+  // 5. 倍速帧：rate×（关卡步进+粒子）+ 批构建 = 倍速下每 60Hz 帧的真实 CPU 成本
   //   （不含 GL 绘制/合成——那部分由 GPU 承担，CPU 侧这是全貌）
   {
     const rate = opts.rate ?? 16

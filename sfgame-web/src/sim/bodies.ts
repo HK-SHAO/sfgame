@@ -2,9 +2,8 @@ import type { Fluid } from './fluid'
 import type { WorldBounds } from './types'
 
 /**
- * 拉格朗日视角的质点刚体：受重力与"向空气速度收敛"的气动阻力驱动。
- * 纸飞机、气球等都可以用该模型表达（参数不同而已）。
- * 与流体为单向耦合：风推动物体，物体不反作用于风（Game Jam 范围取舍）。
+ * 拉格朗日视角的质点刚体：受重力与"向空气速度收敛"的气动阻力驱动（纸飞机/气球同模型）。
+ * 与流体单向耦合：风推动物体，物体不反作用于风（Game Jam 范围取舍）。
  */
 export interface Body {
   x: number
@@ -52,14 +51,12 @@ const WALL_RESTITUTION = 0.35
 const GROUND_FRICTION = 0.3
 
 /**
- * 贴地区（地面边界层）参数：
- * - GROUND_EFFECT_H：贴地区高度。离地低于该值，气流对飞机的耦合按贴地度衰减——
- *   地面边界层吸收风能、机翼下方无气流（升力失效），物理上"贴地难起飞"。
- * - GROUND_AERO_MIN：完全贴地时气流耦合的比例（0.6 → 贴地悬停所需风 1.67，
- *   约为飞行中 1.0 的 1.7 倍）。贴地后靠"持续垂直风"托起：源放正下方（贴地风
- *   ≥2.2）可撬起，源放远处/仅环境风（1.8 为水平风）托不起——"特别难再起飞"。
- * - GROUND_SLIDE_K：贴地滑动摩擦（1/s）——贴地越紧水平速度向 0 收敛越快，
- *   与落地阻尼叠加后贴地飞机几乎不被水平风吹动（很难贴地滑动）。
+ * 贴地区（地面边界层）：
+ * GROUND_EFFECT_H 贴地区高度——离地低于此值气流耦合按贴地度衰减：边界层吸收风能、
+ *   机翼下无气流（升力失效），物理上"贴地难起飞"。
+ * GROUND_AERO_MIN 完全贴地时耦合比例（0.6 → 贴地悬停需风 1.67 ≈ 飞行中 1.0 的 1.7 倍）；
+ *   贴地后靠源正下方的持续垂直风（≥2.2）撬起，远处源/环境风托不起——"特别难再起飞"。
+ * GROUND_SLIDE_K 贴地滑动摩擦（1/s）：贴地越紧水平速度向 0 收敛越快，几乎不被水平风吹动。
  */
 const GROUND_EFFECT_H = 2.0
 const GROUND_AERO_MIN = 0.6
@@ -112,10 +109,10 @@ export function stepBody(
   if (body.y > ground) {
     // 地形在一帧内抬升过陡（崖壁）：不沿坡"瞬移"抬升，视作墙壁横向弹回
     const dx = body.x - px
-    if (dx > 1e-6 && pground - ground > MAX_SLIDE_SLOPE * dx) {
+    if (Math.abs(dx) > 1e-6 && pground - ground > MAX_SLIDE_SLOPE * Math.abs(dx)) {
       body.x = px
       if (body.y > pground) body.y = pground
-      body.vx = -Math.abs(body.vx) * WALL_RESTITUTION
+      body.vx = Math.sign(-dx) * Math.abs(body.vx) * WALL_RESTITUTION
       if (body.vy > 0) body.vy = -body.vy * 0.1
     } else {
       body.y = ground

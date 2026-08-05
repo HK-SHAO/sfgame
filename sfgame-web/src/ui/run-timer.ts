@@ -3,17 +3,14 @@ import { customElement } from 'lit/decorators.js'
 import { formatPenalty, formatTime } from '../game/timer'
 
 /**
- * 底部常驻计时条：实时显示"模拟耗时 + 罚时"。
- * 性能设计：controller 每帧调用 refresh()（读 sim 计时，纯函数零事件）；
- * 显示文本 1 位小数、每 0.1s 才变一次——文本不变时直接短路，零渲染开销。
- * 过关覆盖层（z-index 5）盖住本组件（z-index 3），结算由 win-card 展示。
+ * 底部常驻计时条：实时显示"模拟耗时 + 罚时"。文本 1 位小数、0.1s 才变，
+ * refresh 文本不变即短路（零渲染开销）；过关覆盖层（z-index 5）盖住本组件（z-index 3）。
  */
 @customElement('sf-run-timer')
 export class SfRunTimer extends LitElement {
   private t = ''
   private p = ''
 
-  /** 每帧调用（模拟推进时）。文本未变化时零开销。 */
   refresh(time: number, extra: number) {
     const t = formatTime(time)
     const p = formatPenalty(extra)

@@ -43,10 +43,7 @@ export interface ControllerEvents {
   onSources?(sources: SourcePlacement[]): void
 }
 
-/**
- * 游戏控制器：把无头模拟（Simulation）、渲染、手势输入与音效组装起来。
- * Lit 层只负责画布之外的 UI，并通过事件接收 HUD 状态。
- */
+/** 游戏控制器：组装无头模拟、渲染、手势输入与音效。 */
 export class GameController {
   private sim: LevelSimulation
   private tracers: Tracers
@@ -91,7 +88,6 @@ export class GameController {
     this.world = level.world
     this.ground = level.ground
     this.sim = new LevelSimulation(level)
-    // dev 模式（?dev=1）：dev 副作用全部封装在 DevTools 模块内
     if (urlState.get('dev')) this.devTools = new DevTools()
     // 底部计时条：常驻 UI（非 dev）。挂 document.body（fixed 定位，
     // 与 DevTools 叠加层同款；sf-game 无 slot，挂宿主 light DOM 不可见）
@@ -197,7 +193,7 @@ export class GameController {
     this.events.onHud(this.sim.hudState())
   }
 
-  /** 像素比：随档位下调（持续重载时的最后手段），帧缓冲尺寸决定 GPU 光栅化负载。 */
+  /** dpr 随档位下调（持续过载的最后手段）：帧缓冲尺寸决定 GPU 光栅化负载。 */
   private pixelRatio(): number {
     return Math.min(window.devicePixelRatio || 1, this.dprTiers[this.dprTier])
   }
@@ -231,8 +227,8 @@ export class GameController {
     }
   }
 
-  /** 按目标列表应用源放置（URL 状态变化）。差异算法在 LevelSimulation（无头可测）。
-   * silent：挂载时的初始应用，不回写 URL（避免把非规范 URL 规范化成一条多余历史）。 */
+  /** 按目标列表应用源放置（URL 状态变化；差异算法在 LevelSimulation，无头可测）。
+   * silent = 挂载时的初始应用，不回写 URL（避免把非规范 URL 规范化成多余历史）。 */
   applySources(list: SourcePlacement[], silent = false) {
     // 胜利结算让位：让玩家看到新状态（若仍满足胜利条件，下一帧会自然重新判定）
     if (this.sim.phase === 'won') this.sim.phase = 'playing'
@@ -322,8 +318,7 @@ export class GameController {
       press: this.press,
       now: performance.now(),
     })
-    // 实时计时：每帧直推（文本不变时组件内部短路，零渲染开销）；
-    // 场上无道具（底部文案显示期）时隐藏计时条——两 UI 同一位置交替出现
+    // 计时每帧直推（文本不变时组件内部短路）；无道具（底部文案显示期）时隐藏计时条——两 UI 同一位置交替
     this.timerEl?.refresh(this.sim.time, penaltySeconds(this.sim.sources.length))
     this.timerEl!.hidden = this.sim.sources.length === 0
     this.devTools?.record({
@@ -337,9 +332,10 @@ export class GameController {
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0
     this.frameEma = this.frameEma === 0 ? cost : this.frameEma * FRAME_EMA_SMOOTH + cost * (1 - FRAME_EMA_SMOOTH)
-    // 帧预算按速率放大：倍速下每帧本就要消化 rate×tick，慢帧是预期而非故障；
-    // 且主导成本（流体）不可降级，阶梯在高速率下只会白降画质、救不回帧率
-    if (this.frameEma > FRAME_BUDGET_MS * this.rate) {
+    // 帧预算随速率放大（但以 1× 为下限）：倍速下每帧本就要消化 rate×tick，
+    // 慢帧是预期而非故障，且流体成本不可降级，高速率下阶梯只会白降画质；
+    // 而 batch/GPU 成本不随速率收缩，降速时预算不得按比例缩到固定成本以下
+    if (this.frameEma > FRAME_BUDGET_MS * Math.max(1, this.rate)) {
       // 先降示踪粒子（观感影响小），粒子到底仍不够再降 dpr
       if (++this.slowFrames > SLOW_FRAMES_TO_DEGRADE) {
         this.slowFrames = 0

@@ -76,7 +76,7 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private ground: (x: number) => number
-  /** dev 模式（?dev=1）工具：perf 叠加层/空格暂停（见 devtools.ts） */
+  /** dev 模式（?dev=1）工具：开发面板装配（见 devtools.ts） */
   private devTools: DevTools | null = null
   /** 底部常驻状态卡（操作说明 + 实时用时/罚时，见 status-bar.ts） */
   private statusEl: SfStatusBar | null = null
@@ -166,7 +166,6 @@ export class GameController {
     }
     this.fit()
     window.addEventListener('resize', this.fit)
-    this.devTools?.attach(this.sim)
     this.loop.start()
     this.pushHud()
   }
@@ -197,7 +196,15 @@ export class GameController {
     this.lastPhase = 'playing'
     this.pushHud()
     // restart 会复位暂停状态，同步 dev 面板指示
-    this.devTools?.syncPause()
+    this.devTools?.syncPause(this.sim.paused)
+  }
+
+  /** 暂停/恢复物理时间（HUD 按钮，原空格键逻辑迁此）。 */
+  togglePause() {
+    this.sim.setPaused(!this.sim.paused)
+    if (this.sim.paused) sfx.fadeOutWind()
+    this.devTools?.syncPause(this.sim.paused)
+    this.pushHud()
   }
 
   private pushHud() {

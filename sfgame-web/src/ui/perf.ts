@@ -2,11 +2,9 @@ import { LitElement, css, html } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 
 /**
- * dev 性能叠加层（?dev=1）：等宽字体性能行 + 拖拽手柄（吸附到四周）。
- * 独立组件、与关卡编辑完全解耦——编辑器等其他 dev 控件经 <slot> 装配在面板内
- * （随面板一起拖动），由 DevTools 负责组装。
- * 轻量原则：每帧只做加法与 push；文本每 WINDOW 帧才更新一次；
- * 拖拽位置经 transform 表达（合成器线程），不触发布局。
+ * dev 性能块（?dev=1）：两行性能显示（非等宽省宽），独立组件、无定位/拖动——
+ * 由 DevTools 装配进开发面板（sf-dev-panel）的 slot。主题色复用面板 --dev-* 变量。
+ * 轻量原则：每帧只做加法与 push；文本每 WINDOW 帧才更新一次。
  */
 export interface PerfSample {
   tickMs: number
@@ -29,111 +27,34 @@ export class SfPerf extends LitElement {
   private tickSum = 0
   private batchSum = 0
   private last: PerfSample | null = null
-  private text = 'perf 采集中…'
-  /** 物理暂停状态（dev 空格）：显示在面板行尾（外部直接赋值，@state 即时生效） */
+  private line1 = 'perf 采集中…'
+  private line2 = ''
+  /** 物理暂停状态（dev 空格）：显示在第二行（外部直接赋值，@state 即时生效） */
   @state() paused = false
-
-  /** 拖拽状态：面板当前左上角（视口坐标）与按下时基准 */
-  private dragging = false
-  private x = 0
-  private y = 0
-  private w = 0
-  private h = 0
-  /** 上一次指针位置（增量跟手，无累计误差；不依赖 movementX 兼容性） */
-  private prevX = 0
-  private prevY = 0
-  /** 吸附间距（px）：与 .hud 的 padding 同系统（横向 0.625rem、纵向 0.5rem），
-   * 根字号变化时重读 */
-  private gapX = 10
-  private gapY = 8
-  /** CSS 定位基准（firstUpdated 固定，transform 偏移相对它计算） */
-  private originX = 0
-  private originY = 0
 
   static styles = css`
     :host {
-      position: fixed;
-      /* 初始左上角：与 .hud 同间距系统——横向 0.625rem 贴边；
-         纵向 hud 总高 3.5rem（padding 0.5 + 按钮 2.5 + padding 0.5）+ 0.5rem 间距 */
-      top: calc(4rem + env(safe-area-inset-top, 0px));
-      left: calc(0.625rem + env(safe-area-inset-left, 0px));
-      right: auto;
-      z-index: 9999;
+      display: block;
+    }
+
+    .lines {
       display: flex;
       flex-direction: column;
-      gap: 0.375rem;
-      padding: 6px 12px;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      background: rgba(20, 18, 14, 0.72);
-      color: #ffe9c9;
-      touch-action: none;
-      user-select: none;
-      will-change: transform;
-    }
-
-    /* 拖拽手柄：仅性能行可拖动，slot 里的控件（按钮/编辑框）不参与 */
-    .head {
-      display: flex;
-      align-items: center;
-      font: 10.5px/1.6 ui-monospace, 'SF Mono', Menlo, monospace;
-      white-space: pre;
-      cursor: grab;
-      -webkit-user-select: none;
+      gap: 0.0625rem;
+      /* 与 .head / 编辑器控件一致的内边距 */
+      padding: 0.125rem 0.375rem;
+      font-size: 0.6875rem;
+      line-height: 1.5;
       user-select: none;
     }
 
-    .head:active {
-      cursor: grabbing;
+    /* 与下方装配块的 分割线 */
+    .divider {
+      height: 1px;
+      margin: 0.25rem 0 0.0625rem;
+      background: var(--dev-hairline);
     }
   `
-
-  constructor() {
-    super()
-    // 首次绑定放 constructor：箭头函数字段（onDown 等）在此刻已初始化，
-    // 时机确定。随后由 connected/disconnected 对称接管（重连自动恢复）。
-    this.bindEvents()
-  }
-
-  override connectedCallback() {
-    super.connectedCallback()
-    this.bindEvents()
-    window.addEventListener('resize', this.onWinResize)
-  }
-
-  override disconnectedCallback() {
-    this.unbindEvents()
-    window.removeEventListener('resize', this.onWinResize)
-    super.disconnectedCallback()
-  }
-
-  /** 绑定指针事件（addEventListener 同引用重复注册是幂等的，无需去重） */
-  private bindEvents() {
-    this.addEventListener('pointerdown', this.onDown)
-    this.addEventListener('pointermove', this.onMove)
-    this.addEventListener('pointerup', this.onUp)
-    this.addEventListener('pointercancel', this.onUp)
-  }
-
-  private unbindEvents() {
-    this.removeEventListener('pointerdown', this.onDown)
-    this.removeEventListener('pointermove', this.onMove)
-    this.removeEventListener('pointerup', this.onUp)
-    this.removeEventListener('pointercancel', this.onUp)
-  }
-
-  protected override firstUpdated() {
-    // 左上角初始定位固化到 left/top，transform 从 0 偏移开始
-    void this.updateComplete.then(() => {
-      this.updateGap()
-      const r = this.getBoundingClientRect()
-      this.originX = r.left
-      this.originY = r.top
-      this.style.left = `${r.left}px`
-      this.style.top = `${r.top}px`
-      this.style.right = 'auto'
-    })
-  }
 
   /** 每帧调用：只做加法，满窗口后刷新显示 */
   record(sample: PerfSample) {
@@ -148,86 +69,12 @@ export class SfPerf extends LitElement {
 
   protected override render() {
     return html`
-      <div class="head">${this.text}</div>
-      <!-- 其他 dev 控件（如关卡编辑器）装配点：随面板拖动/吸附 -->
-      <slot></slot>
+      <div class="lines">
+        <div>${this.line1}</div>
+        <div>${this.line2}</div>
+      </div>
+      <div class="divider"></div>
     `
-  }
-
-  private onDown = (e: PointerEvent) => {
-    if (e.button !== 0) return
-    // 只允许从性能行（拖拽手柄）拖动；注意 e.target 在 shadow DOM 外会被
-    // 重定向成宿主，必须用 composedPath()[0] 取真实目标（否则排除失效/拖不动）
-    const target = e.composedPath()[0] as Element | null
-    if (!target || !target.closest('.head')) return
-    const r = this.getBoundingClientRect()
-    this.dragging = true
-    this.x = r.left
-    this.y = r.top
-    this.w = r.width
-    this.h = r.height
-    this.prevX = e.clientX
-    this.prevY = e.clientY
-    this.style.transition = 'none'
-    try {
-      this.setPointerCapture(e.pointerId)
-    } catch {
-      /* 个别环境不支持时退化为普通移动 */
-    }
-  }
-
-  private onMove = (e: PointerEvent) => {
-    if (!this.dragging) return
-    this.x = Math.min(Math.max(this.x + (e.clientX - this.prevX), this.gapX), innerWidth - this.w - this.gapX)
-    this.y = Math.min(Math.max(this.y + (e.clientY - this.prevY), this.gapY), innerHeight - this.h - this.gapY)
-    this.prevX = e.clientX
-    this.prevY = e.clientY
-    this.applyTransform(this.x, this.y)
-  }
-
-  private onUp = () => {
-    if (!this.dragging) return
-    this.dragging = false
-    // 松手立即吸附到最近边缘（缓动动画即运动感）
-    this.snapToEdge()
-  }
-
-  private onWinResize = () => {
-    if (this.dragging) return
-    this.updateGap()
-    this.snapToEdge()
-  }
-
-  private updateGap() {
-    const fz = parseFloat(getComputedStyle(document.documentElement).fontSize)
-    this.gapX = 0.625 * fz
-    this.gapY = 0.5 * fz
-  }
-
-  /** 松手/视口变化后吸附到最近的一条边（另一维保持），带缓动动画 */
-  private snapToEdge() {
-    const r = this.getBoundingClientRect()
-    const gx = this.gapX
-    const gy = this.gapY
-    const vw = innerWidth
-    const vh = innerHeight
-    const dRight = vw - r.right - gx
-    const dBottom = vh - r.bottom - gy
-    const min = Math.min(r.left - gx, dRight, r.top - gy, dBottom)
-    let tx = r.left
-    let ty = r.top
-    if (min === r.left - gx) tx = gx
-    else if (min === dRight) tx = vw - r.width - gx
-    else if (min === r.top - gy) ty = gy
-    else ty = vh - r.height - gy
-    if (tx === r.left && ty === r.top) return
-    this.style.transition = 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)'
-    this.applyTransform(tx, ty)
-  }
-
-  /** 位置经 transform 表达（相对 CSS 定位的偏移，合成器线程移动） */
-  private applyTransform(x: number, y: number) {
-    this.style.transform = `translate(${x - this.originX}px, ${y - this.originY}px)`
   }
 
   private refresh() {
@@ -242,7 +89,9 @@ export class SfPerf extends LitElement {
     const last = this.last
     const mb = last ? (last.uploadBytes / 1024 / 1024).toFixed(2) : '—'
     const pauseMark = this.paused ? ' · ⏸ 已暂停（空格恢复）' : ''
-    this.text = `${fps} fps · p95 ${p(0.95)}ms · tick ${(this.tickSum / n).toFixed(2)} · batch ${(this.batchSum / n).toFixed(2)} · ${last ? last.vertices : '—'}v ${mb}MB${pauseMark}`
+    // 两行排布（非等宽字体，行宽最小化）：帧率/延迟一行，顶点/内存/暂停一行
+    this.line1 = `${fps} fps · p95 ${p(0.95)}ms · tick ${(this.tickSum / n).toFixed(2)}ms · batch ${(this.batchSum / n).toFixed(2)}ms`
+    this.line2 = `顶点 ${last ? last.vertices : '—'} · 上传 ${mb}MB${pauseMark}`
     this.requestUpdate()
     this.intervals.length = 0
     this.frames = 0

@@ -14,12 +14,13 @@ import { formatPenalty, formatTime } from '../game/timer'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
 import {
-  iconBack,
   iconFlame,
   iconGear,
   iconHome,
   iconLock,
   iconLogo,
+  iconPause,
+  iconPlay,
   iconReset,
   iconSnow,
   iconSoundOff,
@@ -45,6 +46,7 @@ export class SfApp extends LitElement {
     time: 0,
     extra: 0,
     sources: 0,
+    paused: false,
   }
   @state() private muted = sfx.muted
   /** 最近一次通关在该关成绩榜的排名（-1 = 未进榜），win 卡"新纪录"依据 */
@@ -129,6 +131,7 @@ export class SfApp extends LitElement {
       time: 0,
       extra: 0,
       sources: 0,
+      paused: false,
     }
     this.winRank = -1
   }
@@ -374,8 +377,14 @@ export class SfApp extends LitElement {
             <button class="icon-btn" @click=${this.backToTitle} aria-label="回到主页" title="回到主页">
               ${iconHome}<span class="lbl">主页</span>
             </button>
-            <button class="icon-btn" @click=${this.goBack} aria-label="返回上一状态" title="返回上一状态">
-              ${iconBack}<span class="lbl">返回</span>
+            <button
+              class="icon-btn pause"
+              @click=${() => this.gameEl?.togglePause()}
+              aria-label=${this.hud.paused ? '恢复' : '暂停'}
+              aria-pressed=${this.hud.paused}
+              title=${this.hud.paused ? '恢复' : '暂停'}
+            >
+              ${this.hud.paused ? iconPlay : iconPause}<span class="lbl">${this.hud.paused ? '恢复' : '暂停'}</span>
             </button>
           </div>
           <div class="hud-right">

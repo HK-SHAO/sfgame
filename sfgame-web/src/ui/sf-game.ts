@@ -54,6 +54,11 @@ export class SfGame extends LitElement {
     this.controller?.restart()
   }
 
+  /** 暂停/恢复物理时间（HUD 按钮）。 */
+  togglePause() {
+    this.controller?.togglePause()
+  }
+
   applySources(list: SourcePlacement[]) {
     this.controller?.applySources(list)
   }

@@ -178,3 +178,22 @@ export const iconLogo = html`<svg viewBox="0 0 64 64" aria-hidden="true">
     <path d="M20 57 H42" />
   </g>
 </svg>`
+
+/** 暂停：两条竖杠 */
+export const iconPause = html`<svg
+  viewBox="0 0 24 24"
+  fill="currentColor"
+  aria-hidden="true"
+>
+  <rect x="5.5" y="4.5" width="4.5" height="15" rx="1.5" />
+  <rect x="14" y="4.5" width="4.5" height="15" rx="1.5" />
+</svg>`
+
+/** 播放（恢复）：向右三角 */
+export const iconPlay = html`<svg
+  viewBox="0 0 24 24"
+  fill="currentColor"
+  aria-hidden="true"
+>
+  <path d="M8 5.5v13a1 1 0 0 0 1.54.84l10-6.5a1 1 0 0 0 0-1.68l-10-6.5A1 1 0 0 0 8 5.5Z" />
+</svg>`

@@ -5,9 +5,10 @@ import { levelSource } from '../game/levels'
 
 /**
  * dev 关卡编辑器（?dev=1）：编辑第 1 关 YAML（lv=0 槽，见 game/session.ts）。
- * 独立组件、不关心定位/拖动/性能——由 DevTools 装配进 sf-perf 的 slot 随面板移动。
- * 默认折叠；「确认生效」写入会话覆写并派发 DEV_OVERRIDE_EVENT（app 跳 ?lv=0，
- * 浏览器返回即复原）；非法 YAML 内联报错，不打断当前局。
+ * 独立组件、不关心定位/拖动/性能——由 DevTools 装配进开发面板（sf-dev-panel）
+ * 的 slot 随面板移动；主题色复用面板的 --dev-* CSS 变量（继承穿透 shadow 边界）。
+ * 默认折叠（无边框披露行 + 小三角）；「确认生效」写入会话覆写并派发
+ * DEV_OVERRIDE_EVENT（app 跳 ?lv=0，浏览器返回即复原）；非法 YAML 内联报错。
  */
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {
@@ -18,42 +19,60 @@ export class SfLevelEditor extends LitElement {
   static styles = css`
     :host {
       display: block;
-      touch-action: auto;
     }
 
-    /* 展开控件：独立一行、撑满面板宽（Apple 风格胶囊按钮） */
+    /* 折叠控件：无边框披露行（小三角 + 标签），3D 调试面板风格 */
     .toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
       width: 100%;
-      padding: 0.375rem 0.75rem;
-      border: 1px solid rgba(255, 233, 201, 0.3);
-      border-radius: 0.625rem;
+      padding: 0.25rem 0.375rem;
+      border: none;
+      border-radius: 0.375rem;
       corner-shape: squircle;
+      background: transparent;
       color: inherit;
-      font-size: 0.75rem;
-      background: rgba(255, 233, 201, 0.08);
+      font-size: 0.6875rem;
+      text-align: left;
       cursor: pointer;
-      touch-action: auto;
       -webkit-user-select: none;
       user-select: none;
     }
 
-    .toggle:active {
-      background: rgba(255, 233, 201, 0.2);
+    .toggle:hover {
+      background: var(--dev-hover);
+    }
+
+    .caret {
+      flex: none;
+      width: 0;
+      height: 0;
+      border-left: 0.32em solid currentColor;
+      border-top: 0.22em solid transparent;
+      border-bottom: 0.22em solid transparent;
+      opacity: 0.8;
+      transition: transform 150ms ease;
+    }
+
+    .toggle[aria-expanded='true'] .caret {
+      transform: rotate(90deg);
     }
 
     textarea {
-      width: min(22rem, 82vw);
+      width: 100%;
       box-sizing: border-box;
-      padding: 0.375rem 0.5rem;
-      border: 1px solid rgba(255, 233, 201, 0.35);
-      border-radius: 0.5rem;
+      padding: 0.25rem 0.375rem;
+      border: 1px solid var(--dev-hairline);
+      border-radius: 0.375rem;
       corner-shape: squircle;
-      background: rgba(0, 0, 0, 0.35);
-      color: #ffe9c9;
-      font-size: 0.75rem;
+      background: var(--dev-input);
+      color: inherit;
+      font-size: 0.6875rem;
       line-height: 1.5;
       resize: vertical;
-      min-height: 7rem;
+      min-height: 6rem;
+      max-height: 40vh;
       touch-action: auto;
       user-select: text;
       white-space: pre;
@@ -67,31 +86,30 @@ export class SfLevelEditor extends LitElement {
 
     .row button {
       flex: 1;
-      padding: 0.375rem 0.75rem;
+      padding: 0.25rem 0.5rem;
       border: none;
-      border-radius: 0.625rem;
+      border-radius: 0.375rem;
       corner-shape: squircle;
-      font-size: 0.75rem;
+      font-size: 0.6875rem;
       cursor: pointer;
-      touch-action: auto;
       -webkit-user-select: none;
       user-select: none;
     }
 
     .apply {
-      color: #1d160e;
-      background: #ffe9c9;
+      color: var(--dev-accent-fg);
+      background: var(--dev-accent-bg);
     }
 
     .cancel {
-      color: #ffe9c9;
-      background: rgba(255, 233, 201, 0.14);
+      color: inherit;
+      background: var(--dev-hover);
     }
 
     .error {
       margin: 0;
-      color: #ffb4a0;
-      font-size: 0.75rem;
+      color: var(--dev-error);
+      font-size: 0.6875rem;
       line-height: 1.5;
       white-space: pre-wrap;
       word-break: break-all;
@@ -102,7 +120,8 @@ export class SfLevelEditor extends LitElement {
   protected override render() {
     return html`
       <button class="toggle" @click=${this.toggle} aria-expanded=${this.expanded}>
-        ${this.expanded ? '收起 · 关卡 YAML' : '展开 · 编辑关卡 YAML'}
+        <span class="caret" aria-hidden="true"></span>
+        <span>关卡 YAML</span>
       </button>
       ${this.expanded
         ? html`
@@ -141,12 +160,13 @@ export class SfLevelEditor extends LitElement {
     this.editorText = (e.target as HTMLTextAreaElement).value
   }
 
-  /** 校验 + 写入会话覆写，成功后派发事件（app 跳到 ?lv=0）。 */
+  /** 校验 + 写入会话覆写，成功后派发事件（app 跳到 ?lv=0）；保持展开不收起，
+   * 便于连续迭代。 */
   private confirm() {
     try {
       setDevOverride(this.editorText)
       window.dispatchEvent(new CustomEvent(DEV_OVERRIDE_EVENT))
-      this.expanded = false
+      this.error = ''
     } catch (e) {
       // 非法 YAML/校验失败：留在编辑器内显示错误原文，不打断当前局
       this.error = e instanceof Error ? e.message : String(e)

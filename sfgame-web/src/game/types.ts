@@ -101,6 +101,8 @@ export interface HudState {
   extra: number
   /** 当前场上源数（惩罚计费依据） */
   sources: number
+  /** 显式暂停（HUD 暂停/恢复按钮） */
+  paused: boolean
 }
 
 export interface PressVisual {

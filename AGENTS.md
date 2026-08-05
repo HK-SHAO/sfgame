@@ -29,7 +29,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 - `src/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子）
 - `src/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例：level/sources/view）、`solutions.ts`（解法注册表 + solutionUrl）、`session.ts`（会话级关卡覆写：dev 面板 YAML 编辑，不落盘）
-- `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`render.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`、`gl.ts`、`devtools.ts`（?dev=1 组装开发面板）、`perf.ts`（性能叠加层 + 拖拽手柄，独立组件）、`level-editor.ts`（关卡 YAML 临时编辑器，独立组件，默认折叠，装配进 perf 的 slot）、`dev-menu.ts`
+- `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`render.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`、`gl.ts`、`devtools.ts`（?dev=1 组装开发面板）、`dev-panel.ts`（开发面板外壳：拖拽手柄 + 分割线 + slot 装配，默认宽约视图一半、不超视图、主题经 --dev-* 变量共享）、`perf.ts`（性能块，独立组件）、`level-editor.ts`（关卡 YAML 临时编辑器，独立组件，默认折叠）、`dev-menu.ts`
 - `src/core/` — 固定步长循环、音效、通用 URL 状态模块
 
 ## 拖尾约定（2026-08 起）

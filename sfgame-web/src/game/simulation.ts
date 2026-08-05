@@ -100,6 +100,7 @@ export class LevelSimulation {
       time: this.time,
       extra: penaltySeconds(this.sources.length),
       sources: this.sources.length,
+      paused: this.paused,
     }
   }
 

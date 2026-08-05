@@ -128,6 +128,34 @@ describe('MeshBatch', () => {
     expect(edge).toBe(16)
   })
 
+  test('discGradCore：实核 + smoothstep 软边，四环透明度正确', () => {
+    const b = new MeshBatch()
+    const seg = 12
+    // r=4、实核 0.5 → 核环 2、带内环 8/3、10/3、边缘 4
+    b.discGradCore(0, 0, 4, seg, 0.5, 1, 0, 0, 1, 0, 0, 0, 0)
+    expect(b.count).toBe(seg * 21)
+    let center = 0
+    for (let k = 0; k < b.count; k++) {
+      const [x, y, , , , a] = vertex(b, k)
+      const d = Math.sqrt(x * x + y * y)
+      if (d < 1e-5) {
+        center++
+        expect(a).toBeCloseTo(1, 5)
+      } else if (Math.abs(d - 2) < 1e-4) {
+        expect(a).toBeCloseTo(1, 5) // 核环：全实色
+      } else if (Math.abs(d - 8 / 3) < 1e-4) {
+        expect(a).toBeCloseTo(20 / 27, 5) // smoothstep(1/3)
+      } else if (Math.abs(d - 10 / 3) < 1e-4) {
+        expect(a).toBeCloseTo(7 / 27, 5) // smoothstep(2/3)
+      } else if (Math.abs(d - 4) < 1e-4) {
+        expect(a).toBeCloseTo(0, 5) // 边缘透明
+      } else {
+        expect(false).toBe(true)
+      }
+    }
+    expect(center).toBe(seg)
+  })
+
   test('ring：seg 段 stroke 逼近椭圆', () => {
     const b = new MeshBatch()
     b.ring(0, 0, 4, 2, 0, 12, 0.3, 1, 1, 1, 1)
@@ -149,12 +177,21 @@ describe('MeshBatch', () => {
     }
   })
 
-  test('dashRing：按周长铺排虚线段（每段两端圆头）', () => {
+  test('dashRing：小周长自动收缩间距，保证至少 6 段虚线', () => {
     const b = new MeshBatch()
     const r = 10 / (Math.PI * 2) // 周长恰为 10
     b.dashRing(0, 0, r, 1.2, 1.4, 0.2, 1, 1, 1, 1)
-    // 周期 2.6 → 虚线段起点 s = 0, 2.6, 5.2, 7.8 共 4 段；每段 = 3 条斜接段（18 顶点）+ 两端圆头（48 顶点）
-    expect(b.count).toBe(4 * (3 * 6 + 2 * 24))
+    // 周期 2.6 × 6 = 15.6 > 10 → 等比收缩 k=10/15.6；on 0.769（2 斜接段/段）
+    // 起点 s = 0, 1.667, …, 8.333 共 6 段；每段 = 2 条斜接段（12 顶点）+ 两端圆头（48 顶点）
+    expect(b.count).toBe(6 * (2 * 6 + 2 * 24))
+  })
+
+  test('dashRing：周长充足时保持原间距不变', () => {
+    const b = new MeshBatch()
+    // r=10：周长 62.8 装得下 25 个周期起点（s=0…62.4），不收缩；
+    // on=1.2 → 3 斜接段/段，末段只剩 0.43 弧长 → 2 斜接段/段
+    b.dashRing(0, 0, 10, 1.2, 1.4, 0.2, 1, 1, 1, 1)
+    expect(b.count).toBe(24 * (3 * 6 + 2 * 24) + 1 * (2 * 6 + 2 * 24))
   })
 
   test('容量不足时自动扩容且不丢数据', () => {

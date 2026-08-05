@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
-import { LEVELS } from '../game/levels'
+import { LEVEL_ERRORS, LEVELS } from '../game/levels'
 import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
 import './dev-menu'
@@ -26,7 +26,6 @@ import {
 } from './icons'
 
 const FIRST_LEVEL = LEVELS[0]
-
 type Screen = 'title' | 'game' | 'solutions' | 'dev' | 'storage'
 
 @customElement('sf-app')
@@ -38,8 +37,9 @@ export class SfApp extends LitElement {
   @state() private initialSources: SourcePlacement[] = []
   @state() private hud: HudState = {
     phase: 'playing',
-    hotLeft: FIRST_LEVEL.budget.hot,
-    coldLeft: FIRST_LEVEL.budget.cold,
+    // 容错：关卡全挂（LEVELS 空）时字段初始化不得再抛（模块级已兜底）
+    hotLeft: FIRST_LEVEL?.budget.hot ?? 0,
+    coldLeft: FIRST_LEVEL?.budget.cold ?? 0,
     placed: 0,
     time: 0,
     extra: 0,
@@ -125,6 +125,7 @@ export class SfApp extends LitElement {
   private startGame(id: number) {
     sfx.uiEnter()
     const level = LEVELS.find((l) => l.id === id) ?? FIRST_LEVEL
+    if (!level) return // 关卡全挂时无路可进（标题页已显示告警）
     this.activeLevel = level
     // 点关卡 = 新开一局：不继承 URL 里任何旧放置（否则跨关/残留 sources 会串到新局）
     this.initialSources = []
@@ -181,7 +182,7 @@ export class SfApp extends LitElement {
     urlState.set('v', 'storage')
   }
 
-  /** 开发者选项内开关 dev 模式（?dev=1 控制 perf 叠加层/高速档/空格暂停/主菜单开发者入口）。
+  /** 开发者页面内开关 dev 模式（?dev=1 控制 perf 叠加层/高速档/空格暂停/主菜单开发者入口）。
    * 开关是轻量操作：replace 改写当前历史条目，来回切换不产生"撤销切换"的后退噪声 */
   private toggleDev(e: CustomEvent<boolean>) {
     this.dev = e.detail
@@ -301,16 +302,25 @@ export class SfApp extends LitElement {
                 </button>
               `
             })}
+            ${LEVELS.length === 0 ? html`<p class="no-levels">暂无可用关卡</p>` : nothing}
           </nav>
+
+          <!-- 关卡文件加载失败告警（容错加载，见 game/levels.ts）：白屏改可见错误 -->
+          ${LEVEL_ERRORS.length > 0
+            ? html`<div class="level-errors" role="alert">
+                <b>关卡加载失败 ${LEVEL_ERRORS.length} 个</b>
+                ${LEVEL_ERRORS.map((m) => html`<p>${m}</p>`)}
+              </div>`
+            : nothing}
 
           <p class="footnote">
             根据菲尔兹奖得主邓煜的数学证明，从牛顿力学可以推导出热力学方程——本游戏所有物理均基于此。
           </p>
 
-          <!-- 开发者入口仅 dev 模式可见（?dev=1）；dev 开关在开发者选项里 -->
+          <!-- 开发者入口仅 dev 模式可见（?dev=1）；dev 开关在开发者页面里 -->
           ${this.dev
-            ? html`<button class="dev-link" @click=${this.openDev} aria-label="开发者选项">
-                ${iconGear}<span>开发者选项</span>
+            ? html`<button class="dev-link" @click=${this.openDev} aria-label="开发者页面">
+                ${iconGear}<span>开发者页面</span>
               </button>`
             : nothing}
         </section>
@@ -508,6 +518,32 @@ export class SfApp extends LitElement {
       text-align: left;
     }
 
+    .no-levels {
+      margin: 0.75rem 0 0;
+      color: var(--ink-soft);
+      text-align: center;
+    }
+
+    /* 关卡文件加载失败告警：柔红底小卡，置于关卡列表下（见 renderTitle） */
+    .level-errors {
+      margin-top: 0.875rem;
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      font-size: 0.75rem;
+      line-height: 1.45;
+      color: #7a2415;
+      background: rgba(255, 90, 60, 0.1);
+      border: 1px solid rgba(255, 90, 60, 0.28);
+      border-radius: 0.75rem;
+      corner-shape: squircle;
+      overflow: hidden;
+    }
+
+    .level-errors p {
+      margin: 0.25rem 0 0;
+      word-break: break-all;
+    }
+
     .level {
       display: flex;
       align-items: center;
@@ -597,7 +633,7 @@ export class SfApp extends LitElement {
       color: var(--ink-soft);
     }
 
-    /* 开发者选项入口：同款胶囊，低调地居底 */
+    /* 开发者页面入口：同款胶囊，低调地居底 */
     .dev-link {
       display: inline-flex;
       align-items: center;

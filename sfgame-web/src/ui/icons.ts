@@ -120,7 +120,7 @@ export const iconRoute = html`<svg
   <path d="M6.6 16.6c3.4-1.4 5-6.4 10.8-9.2" stroke-dasharray="1 1.6" />
 </svg>`
 
-/** 开发者选项：滑块设置图标（横线 + 圆形旋钮） */
+/** 开发者页面：滑块设置图标（横线 + 圆形旋钮） */
 export const iconGear = html`<svg
   viewBox="0 0 24 24"
   fill="none"

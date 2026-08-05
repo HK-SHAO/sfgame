@@ -40,8 +40,10 @@ export class SfPerf extends LitElement {
   /** 上一次指针位置（增量跟手，无累计误差；不依赖 movementX 兼容性） */
   private prevX = 0
   private prevY = 0
-  /** 吸附间距（px）：0.875rem 换算（与 .hud 间距系统一致），根字号变化时重读 */
-  private gap = 14
+  /** 吸附间距（px）：与 .hud 的 padding 同系统（横向 0.625rem、纵向 0.5rem），
+   * 根字号变化时重读 */
+  private gapX = 10
+  private gapY = 8
   /** CSS 定位基准（firstUpdated 固定，transform 偏移相对它计算） */
   private originX = 0
   private originY = 0
@@ -49,9 +51,10 @@ export class SfPerf extends LitElement {
   static styles = css`
     :host {
       position: fixed;
-      /* 初始左上角：避开 hud header（约 3.75rem 高），间距与 .hud 一致 */
-      top: calc(4.25rem + env(safe-area-inset-top, 0px));
-      left: calc(0.875rem + env(safe-area-inset-left, 0px));
+      /* 初始左上角：与 .hud 同间距系统——横向 0.625rem 贴边；
+         纵向 hud 总高 3.5rem（padding 0.5 + 按钮 2.5 + padding 0.5）+ 0.5rem 间距 */
+      top: calc(4rem + env(safe-area-inset-top, 0px));
+      left: calc(0.625rem + env(safe-area-inset-left, 0px));
       right: auto;
       z-index: 9999;
       padding: 6px 12px;
@@ -151,8 +154,8 @@ export class SfPerf extends LitElement {
 
   private onMove = (e: PointerEvent) => {
     if (!this.dragging) return
-    this.x = Math.min(Math.max(this.x + (e.clientX - this.prevX), this.gap), innerWidth - this.w - this.gap)
-    this.y = Math.min(Math.max(this.y + (e.clientY - this.prevY), this.gap), innerHeight - this.h - this.gap)
+    this.x = Math.min(Math.max(this.x + (e.clientX - this.prevX), this.gapX), innerWidth - this.w - this.gapX)
+    this.y = Math.min(Math.max(this.y + (e.clientY - this.prevY), this.gapY), innerHeight - this.h - this.gapY)
     this.prevX = e.clientX
     this.prevY = e.clientY
     this.applyTransform(this.x, this.y)
@@ -172,24 +175,27 @@ export class SfPerf extends LitElement {
   }
 
   private updateGap() {
-    this.gap = 0.875 * parseFloat(getComputedStyle(document.documentElement).fontSize)
+    const fz = parseFloat(getComputedStyle(document.documentElement).fontSize)
+    this.gapX = 0.625 * fz
+    this.gapY = 0.5 * fz
   }
 
   /** 松手/视口变化后吸附到最近的一条边（另一维保持），带缓动动画 */
   private snapToEdge() {
     const r = this.getBoundingClientRect()
-    const g = this.gap
+    const gx = this.gapX
+    const gy = this.gapY
     const vw = innerWidth
     const vh = innerHeight
-    const dRight = vw - r.right - g
-    const dBottom = vh - r.bottom - g
-    const min = Math.min(r.left - g, dRight, r.top - g, dBottom)
+    const dRight = vw - r.right - gx
+    const dBottom = vh - r.bottom - gy
+    const min = Math.min(r.left - gx, dRight, r.top - gy, dBottom)
     let tx = r.left
     let ty = r.top
-    if (min === r.left - g) tx = g
-    else if (min === dRight) tx = vw - r.width - g
-    else if (min === r.top - g) ty = g
-    else ty = vh - r.height - g
+    if (min === r.left - gx) tx = gx
+    else if (min === dRight) tx = vw - r.width - gx
+    else if (min === r.top - gy) ty = gy
+    else ty = vh - r.height - gy
     if (tx === r.left && ty === r.top) return
     this.style.transition = 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)'
     this.applyTransform(tx, ty)

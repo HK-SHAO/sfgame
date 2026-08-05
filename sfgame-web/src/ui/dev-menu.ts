@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js'
 import { version, author, description } from '../../package.json'
 import { iconBack, iconDatabase, iconGear, iconRoute } from './icons'
 
-/** 开发者选项页：dev 模式开关/解法参考/存储管理入口 + 关于（作者与版本号随 package.json）。 */
+/** 开发者页面：dev 模式开关/解法参考/存储管理入口 + 关于（作者与版本号随 package.json）。 */
 @customElement('sf-dev-menu')
 export class SfDevMenu extends LitElement {
   /** 当前 dev 模式（?dev=1），来自 app 状态 */
@@ -20,7 +20,7 @@ export class SfDevMenu extends LitElement {
         <header class="head">
           <button class="icon-btn" @click=${this.onBack} aria-label="返回">${iconBack}</button>
           <div class="head-text">
-            <h1>开发者选项</h1>
+            <h1>开发者页面</h1>
           </div>
         </header>
 

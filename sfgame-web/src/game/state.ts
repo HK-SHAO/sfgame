@@ -22,7 +22,7 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
   },
 }
 
-/** 页面视图：默认 title（无 view 参数）；solutions/dev/storage 为显式值（解法参考/开发者选项/存储管理页）。 */
+/** 页面视图：默认 title（无 view 参数）；solutions/dev/storage 为显式值（解法参考/开发者页面/存储管理页）。 */
 export type AppView = 'title' | 'solutions' | 'dev' | 'storage'
 
 /** 应用级 URL 状态 schema（单例）：lv 直达关卡、src 实时双向同步、v 记录页面视图

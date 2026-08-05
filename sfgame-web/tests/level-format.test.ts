@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { compileExpr, ExprError } from '../src/game/expr'
 import { parseLevelText, validateLevelJson } from '../src/game/level-format'
-import { LEVELS } from '../src/game/levels'
+import { LEVEL_ERRORS, LEVELS } from '../src/game/levels'
 
 test('表达式求值：四则、幂、函数与 x 变量', () => {
   expect(compileExpr('x + 2')(3)).toBe(5)
@@ -59,6 +59,28 @@ test('YAML 解析 + 校验：非法关卡被拒', () => {
       ].join('\n'),
     ),
   ).toThrow(/world/)
+  // 站点半径必须 > 0（r=0 永远无法抵达，视为非法配置而非崩溃）
+  expect(() =>
+    parseLevelText(
+      [
+        'schema: 1',
+        'id: 1',
+        'name: t',
+        'tagline: t',
+        'win: { title: t, text: t }',
+        'world: { w: 76, h: 56, cell: 0.75 }',
+        'ground: { expr: "40" }',
+        'budget: { hot: 1, cold: 0 }',
+        'spawn: { x: 0 }',
+        'goals: [{ x: 40, r: 0 }]',
+      ].join('\n'),
+    ),
+  ).toThrow(/goals/)
+})
+
+test('容错加载：仓库内关卡全部合法（LEVEL_ERRORS 为空）', () => {
+  expect(LEVELS).toHaveLength(5)
+  expect(LEVEL_ERRORS).toEqual([])
 })
 
 test('五个关卡：id 连续、协议一致、可往返序列化', () => {

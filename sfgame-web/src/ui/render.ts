@@ -43,6 +43,8 @@ const CLOUD = rgb(255, 255, 254)
 const CLOUD_SOLID_FRAC = 0.75
 /** 云横向拉伸：左右翼外移倍数，拉出 ~1.7× 高的宽扁云 */
 const CLOUD_STRETCH = 1.7
+/** 淡出时实核收缩下限系数：α→0 时实核趋零（纯渐变化散），云由内而外消散 */
+const CLOUD_CORE_MIN = 0.15
 
 // ---------- 视觉参数（世界单位，关卡 76×56 尺度） ----------
 
@@ -290,11 +292,13 @@ export class Renderer {
       const x = clouds.x[i]
       const y = clouds.y[i]
       const r = clouds.radius[i]
-      b.discGradCore(x, y, r, 24, CLOUD_SOLID_FRAC, ...CLOUD, 1.0 * a, ...CLOUD, 0)
-      b.discGradCore(x - 0.62 * r * CLOUD_STRETCH, y + 0.1 * r, 0.66 * r, 20, CLOUD_SOLID_FRAC, ...CLOUD, 0.9 * a, ...CLOUD, 0)
-      b.discGradCore(x + 0.62 * r * CLOUD_STRETCH, y + 0.08 * r, 0.66 * r, 20, CLOUD_SOLID_FRAC, ...CLOUD, 0.9 * a, ...CLOUD, 0)
-      b.discGradCore(x, y - 0.42 * r, 0.5 * r, 20, CLOUD_SOLID_FRAC, ...CLOUD, 0.78 * a, ...CLOUD, 0)
-      b.discGradCore(x, y + 0.3 * r, 0.46 * r, 20, CLOUD_SOLID_FRAC, ...CLOUD, 0.6 * a, ...CLOUD, 0)
+      // 淡出时实核同步收缩到纯渐变：云由内而外化散，消散更丝滑
+      const sf = CLOUD_SOLID_FRAC * (CLOUD_CORE_MIN + (1 - CLOUD_CORE_MIN) * a)
+      b.discGradCore(x, y, r, 18, sf, ...CLOUD, 1.0 * a, ...CLOUD, 0)
+      b.discGradCore(x - 0.62 * r * CLOUD_STRETCH, y + 0.1 * r, 0.66 * r, 14, sf, ...CLOUD, 0.9 * a, ...CLOUD, 0)
+      b.discGradCore(x + 0.62 * r * CLOUD_STRETCH, y + 0.08 * r, 0.66 * r, 14, sf, ...CLOUD, 0.9 * a, ...CLOUD, 0)
+      b.discGradCore(x, y - 0.42 * r, 0.5 * r, 14, sf, ...CLOUD, 0.78 * a, ...CLOUD, 0)
+      b.discGradCore(x, y + 0.3 * r, 0.46 * r, 14, sf, ...CLOUD, 0.6 * a, ...CLOUD, 0)
     }
   }
 

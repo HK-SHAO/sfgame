@@ -264,10 +264,14 @@ export class MeshBatch {
     }
   }
 
+  /** 渐变圆盘环带采样的上一角度各环点 scratch（核环+3 环带环，零分配） */
+  private gradRing = new Float32Array(8)
+
   /**
-   * 径向渐变圆盘：中心到 solidFrac·radius 保持实色，之外线性衰减到边缘色。
-   * 雾状图元（云朵）的"实核 + 可控软边"：模糊半径 = (1-solidFrac)·radius，
-   * 比 discGrad 的全径线性衰减边缘更利落。
+   * 径向渐变圆盘：中心到 solidFrac·radius 保持实色，之外沿 smoothstep
+   * 曲线衰减到边缘色。环带按 1/3、2/3、边缘三环逐顶点插值——核缘与外缘
+   * 切线连续（导数两头为 0），无线性渐变的"棱带"观感。
+   * 模糊半径 = (1-solidFrac)·radius。
    */
   discGradCore(
     cx: number, cy: number, radius: number, seg: number, solidFrac: number,
@@ -275,33 +279,68 @@ export class MeshBatch {
     er: number, eg: number, eb: number, ea: number,
   ) {
     if (radius <= 0) return
-    this.ensure(seg * 9)
+    this.ensure(seg * 21)
     const inner = radius * solidFrac
-    let px = 0
-    let py = 0
-    let ix = 0
-    let iy = 0
+    const band = radius - inner
+    // 带内 1/3、2/3 两环的半径与 smoothstep 衰减系数（s²(3−2s)）
+    const r1 = inner + band / 3
+    const r2 = inner + (band * 2) / 3
+    const t1 = 7 / 27
+    const t2 = 20 / 27
+    const c1r = cr + (er - cr) * t1
+    const c1g = cg + (eg - cg) * t1
+    const c1b = cb + (eb - cb) * t1
+    const c1a = ca + (ea - ca) * t1
+    const c2r = cr + (er - cr) * t2
+    const c2g = cg + (eg - cg) * t2
+    const c2b = cb + (eb - cb) * t2
+    const c2a = ca + (ea - ca) * t2
+    const g = this.gradRing
     for (let i = 0; i <= seg; i++) {
       const th = (i / seg) * Math.PI * 2
-      const ex = cx + radius * Math.cos(th)
-      const ey = cy + radius * Math.sin(th)
-      const nx = cx + inner * Math.cos(th)
-      const ny = cy + inner * Math.sin(th)
+      const cos = Math.cos(th)
+      const sin = Math.sin(th)
+      const n0x = cx + inner * cos
+      const n0y = cy + inner * sin
+      const n1x = cx + r1 * cos
+      const n1y = cy + r1 * sin
+      const n2x = cx + r2 * cos
+      const n2y = cy + r2 * sin
+      const n3x = cx + radius * cos
+      const n3y = cy + radius * sin
       if (i > 0) {
+        // 核盘（中心→核环全实色）
         this.push(cx, cy, cr, cg, cb, ca)
-        this.push(ix, iy, cr, cg, cb, ca)
-        this.push(nx, ny, cr, cg, cb, ca)
-        this.push(ix, iy, cr, cg, cb, ca)
-        this.push(px, py, er, eg, eb, ea)
-        this.push(ex, ey, er, eg, eb, ea)
-        this.push(ix, iy, cr, cg, cb, ca)
-        this.push(ex, ey, er, eg, eb, ea)
-        this.push(nx, ny, cr, cg, cb, ca)
+        this.push(g[0], g[1], cr, cg, cb, ca)
+        this.push(n0x, n0y, cr, cg, cb, ca)
+        // 环带三段，每段两三角；顶点颜色按 smoothstep 插值
+        this.push(g[0], g[1], cr, cg, cb, ca)
+        this.push(g[2], g[3], c1r, c1g, c1b, c1a)
+        this.push(n1x, n1y, c1r, c1g, c1b, c1a)
+        this.push(g[0], g[1], cr, cg, cb, ca)
+        this.push(n1x, n1y, c1r, c1g, c1b, c1a)
+        this.push(n0x, n0y, cr, cg, cb, ca)
+        this.push(g[2], g[3], c1r, c1g, c1b, c1a)
+        this.push(g[4], g[5], c2r, c2g, c2b, c2a)
+        this.push(n2x, n2y, c2r, c2g, c2b, c2a)
+        this.push(g[2], g[3], c1r, c1g, c1b, c1a)
+        this.push(n2x, n2y, c2r, c2g, c2b, c2a)
+        this.push(n1x, n1y, c1r, c1g, c1b, c1a)
+        this.push(g[4], g[5], c2r, c2g, c2b, c2a)
+        this.push(g[6], g[7], er, eg, eb, ea)
+        this.push(n3x, n3y, er, eg, eb, ea)
+        this.push(g[4], g[5], c2r, c2g, c2b, c2a)
+        this.push(n3x, n3y, er, eg, eb, ea)
+        this.push(n2x, n2y, c2r, c2g, c2b, c2a)
       }
-      px = ex
-      py = ey
-      ix = nx
-      iy = ny
+      g[0] = n0x
+      g[1] = n0y
+      g[2] = n1x
+      g[3] = n1y
+      g[4] = n2x
+      g[5] = n2y
+      g[6] = n3x
+      g[7] = n3y
     }
   }
 
@@ -350,14 +389,24 @@ export class MeshBatch {
     this.disc(pts[seg * 2], pts[seg * 2 + 1], hw, hw, 0, 8, r, g, b, a)
   }
 
-  /** 虚线圆：on/off 为弧长（世界单位），从角度 0 起按周长铺排 */
+  /**
+   * 虚线圆：on/off 为弧长（世界单位），从角度 0 起按周长铺排。
+   * 小半径兜底：周长装不下 6 段时按比例收缩 on/off——保证至少 6 段，
+   * 避免大间距小圆出现"碎块感"（虚线间距随半径动态适配）。
+   */
   dashRing(
     cx: number, cy: number, radius: number, on: number, off: number, w: number,
     r: number, g: number, b: number, a: number,
   ) {
     const circ = Math.PI * 2 * radius
-    const period = on + off
+    let period = on + off
     if (circ <= 0 || period <= 0) return
+    if (circ < 6 * period) {
+      const k = circ / (6 * period)
+      on *= k
+      off *= k
+      period = on + off
+    }
     let s = 0
     while (s < circ) {
       const segLen = Math.min(on, circ - s)

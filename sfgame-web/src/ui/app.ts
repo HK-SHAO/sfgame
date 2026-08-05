@@ -714,11 +714,8 @@ export class SfApp extends LitElement {
       height: 1.19rem;
     }
 
-    /* 速率按钮与并排的 chip 同字号（正文档 0.875rem），保持 HUD 一致性 */
-    .icon-btn.speed,
+    /* 速率按钮值：等宽数字防切换抖动；标签/字号与其他按钮一致（不加粗） */
     .icon-btn.speed b {
-      font-size: 0.875rem;
-      font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
 
@@ -846,6 +843,11 @@ export class SfApp extends LitElement {
       display: flex;
       gap: 0.625rem;
       justify-content: center;
+    }
+
+    /* 主按钮行与下方次按钮行之间留出间距（原两行紧贴） */
+    .win-card .row + .row {
+      margin-top: 0.75rem;
     }
 
     /* 主按钮单独一行居中：横向拉伸到 15rem 封顶，观感上是卡片主 CTA */

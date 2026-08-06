@@ -1,9 +1,8 @@
 // 自适应降级：帧成本 EMA + 持续慢帧计数，先降粒子档到底再降 dpr（GPU 化后粒子是剩余 CPU 大头）。
-// 预算随速率放大（倍速慢帧是预期，且流体成本不可降级）；偶发卡顿不触发（150 帧容错）
+// 预算随速率放大（倍速慢帧是预期，且流体成本不可降级）；偶发卡顿不触发（150 帧容错）。
+// 档位全平台统一（视觉一致，不为触控/iOS 预降档），降档只由实测帧成本驱动
 export const TRACER_TIERS = [400, 320, 240, 180, 128, 96]
-export const COARSE_TRACER_TIER = 2
-export const DPR_TIERS_COARSE = [2, 1.5, 1.0]
-export const DPR_TIERS_FINE = [2, 1.5]
+export const DPR_TIERS = [2, 1.5]
 
 export type DegradeAction = 'tracer' | 'dpr'
 

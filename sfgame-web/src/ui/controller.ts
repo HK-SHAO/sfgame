@@ -1,6 +1,6 @@
 import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
-import { PerformanceGovernor, TRACER_TIERS, COARSE_TRACER_TIER, DPR_TIERS_COARSE, DPR_TIERS_FINE } from '../core/governor'
+import { PerformanceGovernor, TRACER_TIERS, DPR_TIERS } from '../core/governor'
 import { buildWindProbes, isLanding, sampleWind } from '../core/wind'
 import { Tracers, TRAIL_LEN } from '../sim/particles'
 import { Clouds } from '../sim/clouds'
@@ -74,19 +74,11 @@ export class GameController {
     status.setLevel(level.id, level.name)
     document.body.appendChild(status)
     this.statusEl = status
+    // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降档（所有平台同一策略）
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const coarse = window.matchMedia('(pointer: coarse)').matches
-    this.governor = new PerformanceGovernor(
-      TRACER_TIERS,
-      coarse ? DPR_TIERS_COARSE : DPR_TIERS_FINE,
-      {
-        initialTracerLevel: reduced
-          ? TRACER_TIERS.length - 1
-          : coarse
-            ? COARSE_TRACER_TIER
-            : 0,
-      },
-    )
+    this.governor = new PerformanceGovernor(TRACER_TIERS, DPR_TIERS, {
+      initialTracerLevel: reduced ? TRACER_TIERS.length - 1 : 0,
+    })
     this.tracers = new Tracers(
       TRACER_TIERS[this.governor.tracerLevel],
       this.world,
@@ -291,8 +283,8 @@ export class GameController {
       batchMs: performance.now() - t0,
       vertices: this.renderer.lastVertexCount,
       uploadBytes: this.renderer.lastUploadBytes,
-      loopFrames: this.loop.frameCount,
-      loopRenders: this.loop.renderCount,
+      tracers: this.tracers.count,
+      dpr: this.pixelRatio(),
     })
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0

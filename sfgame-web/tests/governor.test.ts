@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { PerformanceGovernor, TRACER_TIERS, DPR_TIERS_COARSE } from '../src/core/governor'
+import { PerformanceGovernor, TRACER_TIERS, DPR_TIERS } from '../src/core/governor'
 
 const DPR = [2, 1.5, 1.0]
 
@@ -61,7 +61,7 @@ test('initialTracerLevel（reduce-motion）到底后直接转 dpr', () => {
 })
 
 test('pixelRatio 按档钳制，设备 dpr 缺失时以 1 计', () => {
-  const g = new PerformanceGovernor(TRACER_TIERS, DPR_TIERS_COARSE)
+  const g = new PerformanceGovernor(TRACER_TIERS, DPR_TIERS)
   expect(g.pixelRatio(3)).toBe(2)
   expect(g.pixelRatio(1)).toBe(1)
   expect(g.pixelRatio(0)).toBe(1)

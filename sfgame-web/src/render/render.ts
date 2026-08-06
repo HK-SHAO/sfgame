@@ -54,6 +54,11 @@ const LINE_ALPHA_AMBIENT = 0.18
 const LINE_ALPHA_COLORED = 0.42
 const TRACER_LINE_WIDTH = 0.3
 const TRACER_HEAD_RADIUS = 0.3
+// 拖尾尾端空间淡出段数（采样距 × 段数 = 淡出长度）：保证最旧端 alpha 恒为 0，
+// 避免缓冲写满/时间淡出未尽时线段末端出现可见切口
+const TRACER_TAIL_SEGS = 5
+const PLANE_TRAIL_TAIL_SEGS = 8
+const PLANE_TRAIL_WIDTH = 0.36
 const GUST_BASE = 0.7
 const GUST_BOOST = 0.6
 const GUST_FULL_SPEED = 4
@@ -66,6 +71,9 @@ const FLAG_RESPONSE_WIND = 3
 const POLE_HEIGHT = 5.7
 const POLE_FABRIC_LEN = 1.8
 const POLE_SINK = 0.6
+const SLEEVE_W = 0.55
+// 套筒全长 = 旗面长（胶囊底帽占去半径）
+const SLEEVE_LEN = POLE_FABRIC_LEN - SLEEVE_W / 2
 
 const TERRAIN_STEP = 0.25
 const TERRAIN_MAX_STEP = 2
@@ -288,6 +296,10 @@ export class Renderer {
       const tipX = g.x + dx * len - dy * wave
       const tipY = flagTop + dy * len * 0.55 + droop * len + dx * wave
       b.tri(g.x, flagTop, tipX, tipY, g.x, flagTop + POLE_FABRIC_LEN, ...GOAL, 1)
+      // 套筒：胶囊（圆头顶）+ 矩形补齐底帽抹平方底，静止不随风动，夺旗时与旗面一同消失
+      const sr = SLEEVE_W / 2
+      b.stroke(g.x, flagTop + sr, g.x, flagTop + SLEEVE_LEN, SLEEVE_W, ...GOAL, 1, true)
+      b.rect(g.x - sr, flagTop + SLEEVE_LEN, g.x + sr, flagTop + SLEEVE_LEN + sr, ...GOAL, 1)
     }
   }
 
@@ -390,7 +402,8 @@ export class Renderer {
         pts[k * 2] = trailX[base + k]
         pts[k * 2 + 1] = trailY[base + k]
         const a = (1 - (now - trailT[base + k]) / TRAIL_FADE_T) * env * gust
-        fade[k] = a > 0 ? Math.min(1, a) * colors[c0 + 4] : 0
+        const tail = k < TRACER_TAIL_SEGS ? k / TRACER_TAIL_SEGS : 1
+        fade[k] = a > 0 ? Math.min(1, a) * colors[c0 + 4] * tail : 0
       }
       pts[n * 2] = tracers.x[i]
       pts[n * 2 + 1] = tracers.y[i]
@@ -420,9 +433,9 @@ export class Renderer {
     for (let k = 0; k < n; k++) {
       const nx = k + 1 < n ? trail.xAt(k + 1) : p.x
       const ny = k + 1 < n ? trail.yAt(k + 1) : p.y
-      const ret = trail.retentionAt(k)
-      if (ret > VISIBLE_ALPHA) {
-        b.stroke(px, py, nx, ny, 0.1 + 0.26 * ret, TRAIL_INK[0], TRAIL_INK[1], TRAIL_INK[2], 0.5 * ret)
+      const f = Math.min(trail.retentionAt(k), k < PLANE_TRAIL_TAIL_SEGS ? k / PLANE_TRAIL_TAIL_SEGS : 1)
+      if (f > VISIBLE_ALPHA) {
+        b.stroke(px, py, nx, ny, PLANE_TRAIL_WIDTH, TRAIL_INK[0], TRAIL_INK[1], TRAIL_INK[2], 0.5 * f)
       }
       px = nx
       py = ny

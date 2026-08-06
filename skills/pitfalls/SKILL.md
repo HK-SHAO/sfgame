@@ -281,6 +281,7 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 ### I1 加速技术先跑真机基准再定默认（wasm 血泪教训，2026-08）
 **实测**：MoonBit 逐位一致的 wasm 求解器在**所有实测平台都比 JS 慢**——iPhone Safari +48%、macOS Safari +39%、Chrome +142%（JIT 引擎的 JS typed-array 数值循环已接近原生，wasm 的调用/转换开销是负资产），该套代码已移除。**但 #20 改用 AssemblyScript 在更大网格/更重内核上重新实测：WASM·SIMD 全面领先（~2-4×），遂定为唯一后端**；#21 按老大指示移除全部 JS 流体后端与切换机制（`?be=`、`--backend`、bench-backend）。
 **教训**：上任何加速技术（wasm/代码生成/Worker）前，先做真机基准再定默认；结论随时间与实现水平变化，过时基准要重测。当前（2026-08）基准：流体 0.5ms（JS 时代）→ wasm 迁移后更低、倍速帧 16× <12ms。
+**帧成本画像（2026-08-06 V8 实测，LEVEL_2 101×75 网格、400 粒子）**：fluid.step 0.57ms/tick · tracers.step 0.08ms · drawTracers JS 循环 0.04ms · 整帧批组装（6.6 万顶点）0.57ms——成本在 wasm 内部 tessellation，不在跨边界（单次边界调用 ≈3ns，每帧 ~2000 次仅 ≈6µs）。剩余 JS 数值循环合计 <0.15ms/帧，暂无有意义的 wasm 迁移目标；再要提速走渲染算法层（降顶点/实例化），别再想"JS→wasm"。
 **注**：bench 工具链（bench.html、scripts/bench*.ts、src/dev/bench-core.ts）已按老大指示移除（2026-08）；浏览器验证用 chrome-devtools-mcp 直连（原 CDP 一致性脚本 `scripts/browser-consistency.ts` 已随之移除）。
 
 ### I2 vite dev 只绑 IPv6 回环
@@ -307,12 +308,12 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 ### I6 iOS Safari WebGL（ANGLE→Metal）性能要点（2026-08 实测 + WebKit bug 255987）
 **根因**：iOS 15.4 起 WebGL 默认走 Metal 后端，同内容 GPU 负载显著更高（"内容本质是 GPU 受限"），另有帧呈现依赖（254912，可致有效 30fps）等系统问题；Chrome/Android/macOS Safari 无此问题。
 **对策**（已落地）：
-- **`antialias: false`**：iOS 上 MSAA 作用于整个帧缓冲，是最大开销之一
+- **MSAA 全平台开启**（2026-08-06 产品决策：视觉统一如桌面端，不按平台预降档；iOS 上 MSAA 作用于整个帧缓冲、是最大开销之一，其成本由 governor 实测自适应降档兜底——iOS 复现卡顿优先疑这里）
 - **静态背景烘焙到离屏纹理**（resize 时重建），每帧一次不透明 blit；动态层保持混合
 - **不透明/混合两趟绘制**：PowerVR 平铺 GPU 上全屏混合直接放大成本
 - **blend 状态每帧幂等重设**：canvas 尺寸变更会重置上下文状态，init 里设一次会失效
 - **渲染门控加容差**（`>= SIM_DT_MS - 1`）：60Hz 下 rAF 抖动会跳过半数渲染 → 16/33ms 交替伪 30fps
-- 调试：`?dev=1` 叠加层（src/dev/perf.ts）实时帧间隔分布/顶点量/上传字节，点击复制
+- 调试：`?dev=1` 叠加层（src/dev/perf.ts）实时 fps/p95/max/tick/batch/load/顶点/上传/粒子档/dpr
 **信号**：只有 iOS Safari 卡、其他平台都好 → 先怀疑 Metal 后端渲染路径，别动物理。
 
 ### I7 headless Chrome 默认无 WebGL

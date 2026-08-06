@@ -89,14 +89,11 @@ export class GlRenderer {
   }
 
   // 选 WebGL1：iOS Safari / Android WebView 全量可用且 GPU 加速
+  // MSAA 全平台开启（视觉一致，不按平台预降档）；iOS Metal 后端的额外开销由 governor 实测兜底
   static create(canvas: HTMLCanvasElement): GlRenderer | null {
-    // iOS（ANGLE→Metal）MSAA 作用于整帧缓冲、开销最大，且 dpr≥2 锯齿不明显，故 iOS 关
-    const ios =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     const opts: WebGLContextAttributes = {
       alpha: false,
-      antialias: !ios,
+      antialias: true,
       depth: false,
       stencil: false,
       powerPreference: 'high-performance',

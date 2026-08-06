@@ -105,6 +105,22 @@ test('set 微任务批量写入、等值跳过、replace 不新增历史', async
   expect(rep.fake.replaces).toEqual(['flag=1'])
 })
 
+test('批模式：一次 flush 即一次 history 操作，模式由批内最后一次调用的 opts 决定', async () => {
+  const { state, fake } = make('')
+  state.set('level', 1, { replace: true })
+  state.set('count', 3)
+  await flush()
+  expect(fake.replaces).toHaveLength(0)
+  expect(fake.pushes).toEqual(['level=1&count=3'])
+
+  const rep = make('')
+  rep.state.set('level', 1)
+  rep.state.set('count', 3, { replace: true })
+  await flush()
+  expect(rep.fake.pushes).toHaveLength(0)
+  expect(rep.fake.replaces).toEqual(['level=1&count=3'])
+})
+
 test('写读分离：set 不通知订阅者，外部 URL 变化才同步并通知；退订生效', async () => {
   const { state, fake } = make('level=1')
   let writes = 0

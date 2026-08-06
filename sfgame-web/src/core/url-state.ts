@@ -110,6 +110,7 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
     this.values.set(key, value)
     this.dirty.add(key)
     this.removed.delete(key)
+    // 批模式：一次 flush 即一次 history 操作（快照级，无法按键拆分），模式由批内最后一次调用的 opts 决定
     this.replaceMode = opts?.replace ?? false
     this.scheduleFlush()
   }
@@ -122,6 +123,7 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
     this.values.set(key, fallback)
     this.removed.add(key)
     this.dirty.delete(key)
+    // 同 set：批模式由批内最后一次调用的 opts 决定
     this.replaceMode = opts?.replace ?? false
     this.scheduleFlush()
   }

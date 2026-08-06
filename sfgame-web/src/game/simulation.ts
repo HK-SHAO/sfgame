@@ -92,24 +92,6 @@ export class LevelSimulation {
     }
   }
 
-  reset() {
-    this.fluid.clear()
-    this.sources = []
-    this.usedHot = 0
-    this.usedCold = 0
-    this.placed = 0
-    this.phase = 'playing'
-    this.time = 0
-    this.visited.fill(false)
-    this.visitedCount = 0
-    this.paused = false
-    this.plane.x = this.level.spawn.x
-    this.plane.y = this.spawnY
-    this.plane.vx = this.spawnVx
-    this.plane.vy = this.spawnVy
-    this.plane.angle = 0
-  }
-
   restart() {
     this.fluid.clear()
     this.phase = 'playing'

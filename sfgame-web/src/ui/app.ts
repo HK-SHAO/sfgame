@@ -12,6 +12,7 @@ import './solutions-view'
 import './storage-view'
 import './win-overlay'
 import { urlState } from '../game/state'
+import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
 import {
@@ -29,7 +30,6 @@ import {
 } from './icons'
 
 const FIRST_LEVEL = LEVELS[0]
-type Screen = 'title' | 'game' | 'solutions' | 'dev' | 'storage'
 
 @customElement('sf-app')
 export class SfApp extends LitElement {
@@ -62,10 +62,10 @@ export class SfApp extends LitElement {
   constructor() {
     super()
     sfx.unlock()
-    this.syncScreen()
+    this.applyScreen(screenFromUrl())
     window.addEventListener(DEV_OVERRIDE_EVENT, this.onDevOverride)
-    urlState.onChange('lv', () => this.syncScreen())
-    urlState.onChange('v', () => this.syncScreen())
+    urlState.onChange('lv', () => this.applyScreen(screenFromUrl()))
+    urlState.onChange('v', () => this.applyScreen(screenFromUrl()))
     urlState.onChange('src', (v) => {
       this.gameEl?.applySources(v)
       sfx.uiClick()
@@ -91,38 +91,18 @@ export class SfApp extends LitElement {
 
   // dev 覆写生效：切 lv=0 编辑槽并清 src（浏览器返回即复原）
   private onDevOverride = () => {
-    const level = resolveLevel(DEV_SLOT)
-    if (!level) return
-    this.activeLevel = level
-    this.initialSources = []
+    if (!resolveLevel(DEV_SLOT)) return
     urlState.set('lv', DEV_SLOT)
     urlState.clear('src')
+    this.applyScreen(screenFromUrl())
   }
 
-  // 写读分离：urlState.set/clear 不触发 onChange，UI 操作需自行设 screen
-  private syncScreen() {
-    const v = urlState.get('v')
-    if (v === 'solutions') {
-      this.screen = 'solutions'
-      return
-    }
-    if (v === 'dev') {
-      this.screen = 'dev'
-      return
-    }
-    if (v === 'storage') {
-      this.screen = 'storage'
-      return
-    }
-    const id = urlState.get('lv')
-    const level = id === null ? undefined : resolveLevel(id)
-    if (level) {
-      this.activeLevel = level
-      this.initialSources = urlState.get('src')
-      this.screen = 'game'
-    } else {
-      this.screen = 'title'
-    }
+  // URL 派生单入口：本地写（写读分离不回调）与外部变化（onChange）都经此应用，派生逻辑唯一在 game/screen.ts
+  private applyScreen(s: ScreenState) {
+    this.screen = s.screen
+    // 非 game 屏保留旧关卡：渲染不依赖，且 keyed(activeLevel) 换关重建语义由引用变化驱动
+    if (s.level) this.activeLevel = s.level
+    this.initialSources = s.sources
   }
 
   private resetHud(level: LevelDef) {
@@ -152,25 +132,19 @@ export class SfApp extends LitElement {
 
   private startGame(id: number) {
     sfx.uiEnter()
-    const level = resolveLevel(id) ?? FIRST_LEVEL
-    if (!level) return
-    this.activeLevel = level
-    this.initialSources = []
-    this.screen = 'game'
-    urlState.set('lv', level.id)
+    urlState.set('lv', id)
     urlState.clear('src')
+    this.applyScreen(screenFromUrl())
   }
 
   private playNext() {
     const next = resolveLevel(this.activeLevel.id + 1)
     if (!next) return
     sfx.uiEnter()
-    this.activeLevel = next
-    this.initialSources = []
-    // 同屏换关（screen 不变）：手动重置防上局 win 卡闪现
-    this.resetHud(next)
+    // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
     urlState.set('lv', next.id)
     urlState.clear('src')
+    this.applyScreen(screenFromUrl())
   }
 
   private goBack() {
@@ -182,28 +156,28 @@ export class SfApp extends LitElement {
 
   private backToTitle() {
     sfx.uiBack()
-    this.screen = 'title'
     urlState.clear('lv')
     urlState.clear('src')
     urlState.clear('v')
+    this.applyScreen(screenFromUrl())
   }
 
   private openSolutions() {
     sfx.uiEnter()
-    this.screen = 'solutions'
     urlState.set('v', 'solutions')
+    this.applyScreen(screenFromUrl())
   }
 
   private openDev() {
     sfx.uiEnter()
-    this.screen = 'dev'
     urlState.set('v', 'dev')
+    this.applyScreen(screenFromUrl())
   }
 
   private openStorage() {
     sfx.uiEnter()
-    this.screen = 'storage'
     urlState.set('v', 'storage')
+    this.applyScreen(screenFromUrl())
   }
 
   // replace：切换不进历史（后退不会"撤销切换"）

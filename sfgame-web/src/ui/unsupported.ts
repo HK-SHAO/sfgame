@@ -1,5 +1,6 @@
 import { LitElement, css, html } from 'lit'
 import { customElement } from 'lit/decorators.js'
+import { boxReset } from './shared-styles'
 
 // 终端页：WASM·SIMD 不可用时由 main.ts 挂载（无游戏可玩，不提供任何入口）
 @customElement('sf-unsupported')
@@ -15,19 +16,14 @@ export class SfUnsupported extends LitElement {
     `
   }
 
-  static styles = css`
-    /* shadow DOM 不继承全局 box-sizing */
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
-
-    :host {
-      display: block;
-      height: 100svh;
-      height: 100dvh;
-    }
+  static styles = [
+    boxReset,
+    css`
+      :host {
+        display: block;
+        height: 100svh;
+        height: 100dvh;
+      }
 
     .page {
       height: 100%;
@@ -65,7 +61,8 @@ export class SfUnsupported extends LitElement {
       line-height: 1.7;
       color: var(--ink-soft);
     }
-  `
+  `,
+  ]
 }
 
 export function mountUnsupported() {

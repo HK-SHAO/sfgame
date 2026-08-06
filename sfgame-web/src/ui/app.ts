@@ -15,6 +15,7 @@ import { urlState } from '../game/state'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
+import { boxReset } from './shared-styles'
 import {
   iconFlame,
   iconGear,
@@ -397,22 +398,20 @@ export class SfApp extends LitElement {
     `
   }
 
-  static styles = css`
-    /* shadow DOM 不继承全局 box-sizing */
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
-
-    :host {
-      display: block;
-      height: 100svh;
-      height: 100dvh;
-      overflow: hidden;
-      color: var(--ink);
-      container-type: inline-size;
-    }
+  static styles = [
+    boxReset,
+    css`
+      :host {
+        display: block;
+        height: 100svh;
+        height: 100dvh;
+        overflow: hidden;
+        color: var(--ink);
+        container-type: inline-size;
+        /* 祖先 touch-action 约束全部后代：禁 iOS 双击按钮放大（视口 user-scalable=no 在开启辅助放大时被忽略）；
+           画布自身 touch-action:none 取更严交集，拖尾/手势不受影响 */
+        touch-action: manipulation;
+      }
 
     svg {
       display: block;
@@ -758,7 +757,8 @@ export class SfApp extends LitElement {
     .chip.empty {
       opacity: 0.42;
     }
-  `
+  `,
+  ]
 }
 
 declare global {

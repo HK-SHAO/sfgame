@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { DEV_OVERRIDE_EVENT, getDevOverrideText, setDevOverride } from '../game/session'
 import { levelSource } from '../game/levels'
+import { iconChevron } from '../ui/icons'
 
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {
@@ -12,6 +13,14 @@ export class SfLevelEditor extends LitElement {
   static styles = css`
     :host {
       display: block;
+      /* dev 面板内的滚动条/控件按浅色渲染 */
+      color-scheme: light;
+    }
+
+    button,
+    textarea {
+      font-family: inherit;
+      color: inherit;
     }
 
     .toggle {
@@ -26,6 +35,7 @@ export class SfLevelEditor extends LitElement {
       background: transparent;
       color: inherit;
       font-size: 0.6875rem;
+      line-height: 1.5;
       text-align: left;
       cursor: pointer;
       -webkit-user-select: none;
@@ -36,18 +46,16 @@ export class SfLevelEditor extends LitElement {
       background: var(--dev-hover);
     }
 
-    .caret {
+    /* 折叠图标与面板头部图标同规格（0.75rem 描边 chevron），展开旋转 90° */
+    .toggle svg {
       flex: none;
-      width: 0;
-      height: 0;
-      border-left: 0.32em solid currentColor;
-      border-top: 0.22em solid transparent;
-      border-bottom: 0.22em solid transparent;
-      opacity: 0.8;
+      width: 0.75rem;
+      height: 0.75rem;
+      opacity: 0.75;
       transition: transform 150ms ease;
     }
 
-    .toggle[aria-expanded='true'] .caret {
+    .toggle[aria-expanded='true'] svg {
       transform: rotate(90deg);
     }
 
@@ -112,8 +120,8 @@ export class SfLevelEditor extends LitElement {
   protected override render() {
     return html`
       <button class="toggle" @click=${this.toggle} aria-expanded=${this.expanded}>
-        <span class="caret" aria-hidden="true"></span>
-        <span>关卡 YAML</span>
+        ${iconChevron}
+        <span>关卡编辑</span>
       </button>
       ${this.expanded
         ? html`

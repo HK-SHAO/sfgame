@@ -20,12 +20,6 @@ html {
   font-size: clamp(14px, calc(12.5px + min(0.7vw, 0.38vh)), 17px);
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
 html,
 body {
   margin: 0;
@@ -42,18 +36,4 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-}
-
-sf-app {
-  display: block;
-  height: 100%;
-  /* 祖先 touch-action 约束全部后代：禁 iOS 双击按钮放大（视口 user-scalable=no 在开启辅助放大时被忽略）；
-     画布自身 touch-action:none 取更严交集，拖尾/手势不受影响 */
-  touch-action: manipulation;
-}
-
-button {
-  font: inherit;
-  color: inherit;
 }

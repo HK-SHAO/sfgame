@@ -2,6 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { version, author, description } from '../../package.json'
 import { iconBack, iconDatabase, iconGear, iconRoute } from '../ui/icons'
+import { boxReset, card, pageShell } from '../ui/shared-styles'
 
 @customElement('sf-dev-menu')
 export class SfDevMenu extends LitElement {
@@ -25,14 +26,15 @@ export class SfDevMenu extends LitElement {
         </header>
 
         <section class="card">
-          <button class="row" @click=${this.onToggleDev}>
+          <label class="row" aria-label="开发者模式">
             <span class="ico">${iconGear}</span>
             <span class="txt">
               <b>开发者模式</b>
               <small>${this.dev ? '已开启（开发面板/高速档/不限量道具）' : '已关闭'}</small>
             </span>
-            <span class="switch ${this.dev ? 'on' : ''}" aria-hidden="true"><span class="knob"></span></span>
-          </button>
+            <input type="checkbox" class="switch-input" .checked=${this.dev} @change=${this.onToggleDev} />
+            <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+          </label>
           <button class="row" @click=${this.openSolutions}>
             <span class="ico">${iconRoute}</span>
             <span class="txt">
@@ -59,210 +61,140 @@ export class SfDevMenu extends LitElement {
     `
   }
 
-  static styles = css`
-    /* shadow DOM 不继承全局 box-sizing */
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
+  static styles = [
+    boxReset,
+    pageShell,
+    card,
+    css`
+      :host {
+        display: block;
+        height: 100%;
+        color: var(--ink);
+      }
 
-    :host {
-      display: block;
-      height: 100%;
-      color: var(--ink);
-    }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        width: 100%;
+        padding: 0.875rem 1rem;
+        /* 行含原生 button（解法参考/存储管理）：须清零 UA buttonface 底色与黑边框 */
+        border: none;
+        background: none;
+        border-radius: 0.75rem;
+        corner-shape: squircle;
+        color: inherit;
+        cursor: pointer;
+        text-align: left;
+        font: inherit;
+        -webkit-user-select: none;
+        user-select: none;
+        transition: background 120ms ease-out;
+      }
 
-    .page {
-      height: 100%;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 0 1.125rem calc(1.875rem + env(safe-area-inset-bottom, 0px));
-      background:
-        radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
-        linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
-    }
+      .row:hover {
+        background: rgba(255, 255, 255, 0.55);
+      }
 
-    /* 标题栏：sticky 悬浮 + 半透明薄雾（负 margin 顶开 page 侧 padding 通到视口边缘，模糊加够出云雾感），内容从栏下滚过 */
-    .bar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      margin: 0 calc(-1.125rem) 0.875rem;
-      padding:
-        calc(0.5rem + env(safe-area-inset-top, 0px)) 1.125rem 0.5rem;
-      background: rgba(255, 253, 248, 0.6);
-      backdrop-filter: blur(1.5rem) saturate(1.6);
-      -webkit-backdrop-filter: blur(1.5rem) saturate(1.6);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.45);
-      box-shadow: 0 0.25rem 1rem rgba(61, 52, 39, 0.08);
-      /* 底角圆润与卡片/按钮一致；顶角贴视口上沿，不圆 */
-      border-radius: 0 0 1rem 1rem;
-      corner-shape: squircle;
-    }
+      .row:active {
+        transform: scale(0.985);
+      }
 
-    .bar-inner {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      max-width: 35rem;
-      margin: 0 auto;
-    }
+      .ico {
+        flex: none;
+        width: 2.5rem;
+        height: 2.5rem;
+        display: grid;
+        place-items: center;
+        border-radius: 0.75rem;
+        corner-shape: squircle;
+        background: rgba(255, 237, 209, 0.85);
+        color: var(--ink);
+      }
 
-    .icon-btn {
-      flex: none;
-      width: 2.5rem;
-      height: 2.5rem;
-      display: grid;
-      place-items: center;
-      border: none;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(1rem) saturate(1.5);
-      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
-      border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
-      color: var(--ink);
-      cursor: pointer;
-      padding: 0;
-    }
+      .ico svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
 
-    .icon-btn:active {
-      transform: scale(0.97);
-    }
+      .txt {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        min-width: 0;
+        flex: 1;
+      }
 
-    .icon-btn svg {
-      width: 1.19rem;
-      height: 1.19rem;
-    }
+      .txt b {
+        font-size: 0.9375rem;
+        font-weight: 600;
+      }
 
-    .head-text h1 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
+      .txt small {
+        font-size: 0.75rem;
+        color: var(--ink-soft);
+      }
 
-    .card {
-      max-width: 35rem;
-      margin: 0 auto 1.25rem;
-      padding: 0.375rem;
-      background: var(--card);
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      border-radius: 1rem;
-      corner-shape: squircle;
-      box-shadow: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.07);
-    }
+      /* 原生 checkbox 承载开关状态：视觉由 :checked + 相邻兄弟选择器驱动，键盘可聚焦 */
+      .switch-input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
 
-    .row {
-      display: flex;
-      align-items: center;
-      gap: 0.875rem;
-      width: 100%;
-      padding: 0.875rem 1rem;
-      border: none;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      background: none;
-      color: inherit;
-      text-decoration: none;
-      cursor: pointer;
-      text-align: left;
-      font: inherit;
-      transition: background 120ms ease-out;
-    }
+      .switch {
+        flex: none;
+        position: relative;
+        width: 2.625rem;
+        height: 1.5rem;
+        border-radius: 999px;
+        background: rgba(61, 52, 39, 0.14);
+        transition: background 160ms ease-out;
+      }
 
-    .row:hover {
-      background: rgba(255, 255, 255, 0.55);
-    }
+      .switch .knob {
+        position: absolute;
+        top: 0.19rem;
+        left: 0.19rem;
+        width: 1.12rem;
+        height: 1.12rem;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 0.0625rem 0.25rem rgba(61, 52, 39, 0.25);
+        transition: transform 160ms ease-out;
+      }
 
-    .row:active {
-      transform: scale(0.985);
-    }
+      .switch-input:checked + .switch {
+        background: var(--goal);
+      }
 
-    .ico {
-      flex: none;
-      width: 2.5rem;
-      height: 2.5rem;
-      display: grid;
-      place-items: center;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      background: rgba(255, 237, 209, 0.85);
-      color: var(--ink);
-    }
+      .switch-input:checked + .switch .knob {
+        transform: translateX(1.12rem);
+      }
 
-    .ico svg {
-      width: 1.25rem;
-      height: 1.25rem;
-    }
+      .switch-input:focus-visible + .switch {
+        outline: 2px solid var(--cold);
+        outline-offset: 2px;
+      }
 
-    .txt {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-      min-width: 0;
-      flex: 1;
-    }
+      .about {
+        padding: 1rem 1.25rem;
+      }
 
-    .txt b {
-      font-size: 0.9375rem;
-      font-weight: 600;
-    }
+      .about h2 {
+        margin: 0 0 0.5rem;
+        font-size: 0.9375rem;
+        font-weight: 700;
+      }
 
-    .txt small {
-      font-size: 0.75rem;
-      color: var(--ink-soft);
-    }
-
-    .switch {
-      flex: none;
-      position: relative;
-      width: 2.625rem;
-      height: 1.5rem;
-      border-radius: 999px;
-      background: rgba(61, 52, 39, 0.14);
-      transition: background 160ms ease-out;
-    }
-
-    .switch .knob {
-      position: absolute;
-      top: 0.19rem;
-      left: 0.19rem;
-      width: 1.12rem;
-      height: 1.12rem;
-      border-radius: 50%;
-      background: #fff;
-      box-shadow: 0 0.0625rem 0.25rem rgba(61, 52, 39, 0.25);
-      transition: transform 160ms ease-out;
-    }
-
-    .switch.on {
-      background: var(--goal);
-    }
-
-    .switch.on .knob {
-      transform: translateX(1.12rem);
-    }
-
-    .about {
-      padding: 1rem 1.25rem;
-    }
-
-    .about h2 {
-      margin: 0 0 0.5rem;
-      font-size: 0.9375rem;
-      font-weight: 700;
-    }
-
-    .about .line {
-      margin: 0;
-      font-size: 0.875rem;
-      line-height: 1.8;
-      color: var(--ink-soft);
-    }
-  `
+      .about .line {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.8;
+        color: var(--ink-soft);
+      }
+    `,
+  ]
 }
 
 declare global {

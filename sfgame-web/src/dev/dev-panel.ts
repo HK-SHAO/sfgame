@@ -28,9 +28,10 @@ export class SfDevPanel extends LitElement {
       --dev-accent-bg: #ffe9c9;
       --dev-error: #ffb4a0;
 
+      color-scheme: light;
       position: fixed;
       /* 4rem = hud 总高 3.5rem + 0.5rem 间距 */
-      top: calc(4rem + env(safe-area-inset-top, 0px));
+      top: calc(3.5rem + env(safe-area-inset-top, 0px));
       left: calc(0.625rem + env(safe-area-inset-left, 0px));
       right: auto;
       z-index: 9999;

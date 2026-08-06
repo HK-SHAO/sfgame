@@ -57,7 +57,6 @@ export class GameLoop {
   }
 
   private frameInner(now: number) {
-    this.frameCount++
     let frameDt = (now - this.last) / 1000
     this.last = now
     if (frameDt > MAX_FRAME) frameDt = MAX_FRAME
@@ -85,14 +84,10 @@ export class GameLoop {
     }
     if (stepped && now - this.lastRender >= GameLoop.RENDER_MIN_INTERVAL) {
       this.handlers.render()
-      this.renderCount++
       this.lastRender = now
     }
     if (scheduleNext) {
       this.rafId = requestAnimationFrame(this.frame)
     }
   }
-
-  frameCount = 0
-  renderCount = 0
 }

@@ -145,7 +145,7 @@ export const iconDatabase = html`<svg
   <path d="M4.5 12c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8" />
 </svg>`
 
-export const iconChart = html`<svg
+export const iconChevron = html`<svg
   viewBox="0 0 24 24"
   fill="none"
   stroke="currentColor"
@@ -154,9 +154,7 @@ export const iconChart = html`<svg
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <path d="M4.5 20V4" />
-  <path d="M4.5 20h15" />
-  <polyline points="8 16 11.5 11.5 14 13.5 19.5 7" />
+  <polyline points="9 5.5 15.5 12 9 18.5" />
 </svg>`
 
 export const iconLogo = html`<svg viewBox="0 0 64 64" aria-hidden="true">

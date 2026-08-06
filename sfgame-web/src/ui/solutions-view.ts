@@ -4,6 +4,7 @@ import { LEVELS } from '../game/levels'
 import { solutionsFor, solutionUrl, type LevelSolution } from '../game/solutions'
 import type { LevelDef } from '../game/types'
 import { iconBack } from './icons'
+import { boxReset, pageShell } from './shared-styles'
 
 @customElement('sf-solutions')
 export class SfSolutions extends LitElement {
@@ -53,96 +54,21 @@ export class SfSolutions extends LitElement {
     `
   }
 
-  static styles = css`
-    /* shadow DOM 不继承全局 box-sizing */
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
+  static styles = [
+    boxReset,
+    pageShell,
+    css`
+      :host {
+        display: block;
+        height: 100%;
+        /* 显式颜色基线：不依赖 light DOM 继承（防 iOS 系统色泄漏） */
+        color: var(--ink);
+      }
 
-    :host {
-      display: block;
-      height: 100%;
-      /* 显式颜色基线：不依赖 light DOM 继承（防 iOS 系统色泄漏） */
-      color: var(--ink);
-    }
-
-    .page {
-      height: 100%;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 0 1.125rem calc(1.875rem + env(safe-area-inset-bottom, 0px));
-      background:
-        radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
-        linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
-    }
-
-    /* 标题栏：sticky 悬浮 + 半透明薄雾（负 margin 顶开 page 侧 padding 通到视口边缘，模糊加够出云雾感），内容从栏下滚过 */
-    .bar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      margin: 0 calc(-1.125rem) 0.875rem;
-      padding:
-        calc(0.5rem + env(safe-area-inset-top, 0px)) 1.125rem 0.5rem;
-      background: rgba(255, 253, 248, 0.6);
-      backdrop-filter: blur(1.5rem) saturate(1.6);
-      -webkit-backdrop-filter: blur(1.5rem) saturate(1.6);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.45);
-      box-shadow: 0 0.25rem 1rem rgba(61, 52, 39, 0.08);
-      /* 底角圆润与卡片/按钮一致；顶角贴视口上沿，不圆 */
-      border-radius: 0 0 1rem 1rem;
-      corner-shape: squircle;
-    }
-
-    .bar-inner {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      max-width: 35rem;
-      margin: 0 auto;
-    }
-
-    .icon-btn {
-      flex: none;
-      width: 2.5rem;
-      height: 2.5rem;
-      display: grid;
-      place-items: center;
-      border: none;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(1rem) saturate(1.5);
-      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
-      border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
-      color: var(--ink);
-      cursor: pointer;
-      padding: 0;
-    }
-
-    .icon-btn:active {
-      transform: scale(0.97);
-    }
-
-    .icon-btn svg {
-      width: 1.19rem;
-      height: 1.19rem;
-    }
-
-    .head-text h1 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
-
-    .level {
-      max-width: 35rem;
-      margin: 0 auto 1.5rem;
-    }
+      .level {
+        max-width: 35rem;
+        margin: 0 auto 1.5rem;
+      }
 
     .level h2 {
       display: flex;
@@ -215,7 +141,8 @@ export class SfSolutions extends LitElement {
       color: var(--ink-soft);
       word-break: break-all;
     }
-  `
+  `,
+  ]
 }
 
 declare global {

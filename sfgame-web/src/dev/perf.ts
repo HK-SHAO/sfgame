@@ -27,24 +27,52 @@ export class SfPerf extends LitElement {
   private lastAt = 0
   private lastRefresh = 0
   private last: PerfSample | null = null
-  private line1 = 'sampling…'
-  private line2 = ''
-  private line3 = ''
+  private fps = 'sampling…'
+  private p95 = '—'
+  private max = '—'
+  private tick = '—'
+  private batch = '—'
+  private load = '—'
+  private verts = '—'
+  private up = '—'
+  private tracers = '—'
+  private dpr = '—'
   @state() paused = false
 
   static styles = css`
     :host {
       display: block;
+      color-scheme: light;
     }
 
+    /* 3 列隐形格子：每指标一格、等宽占满，数字 tabular 定宽不抖动 */
     .lines {
-      display: flex;
-      flex-direction: column;
-      gap: 0.0625rem;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.0625rem 0.75rem;
       padding: 0.125rem 0.375rem;
+      /* 点击即全选整块文本，便于复制性能数据 */
+      user-select: all;
+    }
+
+    .cell {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.25rem;
+      min-width: 0;
       font-size: 0.6875rem;
       line-height: 1.5;
-      user-select: none;
+    }
+
+    .cell .k {
+      opacity: 0.55;
+      white-space: nowrap;
+    }
+
+    .cell .v {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
 
     .divider {
@@ -69,12 +97,24 @@ export class SfPerf extends LitElement {
     if (now - this.lastRefresh >= THROTTLE_MS && this.samples.length > 0) this.refresh(now)
   }
 
+  private cell(k: string, v: string) {
+    return html`<div class="cell"><span class="k">${k}</span><span class="v">${v}</span></div>`
+  }
+
   protected override render() {
     return html`
       <div class="lines">
-        <div>${this.line1}</div>
-        <div>${this.line2}</div>
-        <div>${this.line3}</div>
+        ${this.cell('fps', this.fps)}
+        ${this.cell('p95', this.p95)}
+        ${this.cell('max', this.max)}
+        ${this.cell('tick', this.tick)}
+        ${this.cell('batch', this.batch)}
+        ${this.cell('load', this.load)}
+        ${this.cell('verts', this.verts)}
+        ${this.cell('up', this.up)}
+        ${this.cell('tracers', this.tracers)}
+        ${this.cell('dpr', this.dpr)}
+        ${this.cell('状态', this.paused ? '暂停' : '运行')}
       </div>
       <div class="divider"></div>
     `
@@ -86,8 +126,9 @@ export class SfPerf extends LitElement {
     const sorted = this.samples.map((s) => s.interval).sort((a, b) => a - b)
     const p = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))].toFixed(1)
     const mean = sorted.reduce((s, v) => s + v, 0) / n
-    const fps = mean > 0 ? (1000 / mean).toFixed(0) : '—'
-    const max = sorted[sorted.length - 1].toFixed(1)
+    this.fps = mean > 0 ? (1000 / mean).toFixed(0) : '—'
+    this.p95 = `${p(0.95)}ms`
+    this.max = `${sorted[sorted.length - 1].toFixed(1)}ms`
     let tickSum = 0
     let batchSum = 0
     for (const s of this.samples) {
@@ -96,15 +137,14 @@ export class SfPerf extends LitElement {
     }
     const tickAvg = tickSum / n
     const batchAvg = batchSum / n
-    const load = Math.round(((tickAvg + batchAvg) / FRAME_BUDGET_MS) * 100)
+    this.tick = `${tickAvg.toFixed(2)}ms`
+    this.batch = `${batchAvg.toFixed(2)}ms`
+    this.load = `${Math.round(((tickAvg + batchAvg) / FRAME_BUDGET_MS) * 100)}%`
     const last = this.last
-    const mb = last ? (last.uploadBytes / 1024 / 1024).toFixed(2) : '—'
-    const pauseMark = this.paused ? ' · paused' : ''
-    this.line1 = `${fps} fps · p95 ${p(0.95)}ms · max ${max}ms`
-    this.line2 = `tick ${tickAvg.toFixed(2)}ms · batch ${batchAvg.toFixed(2)}ms · load ${load}%`
-    this.line3 = `verts ${last ? last.vertices : '—'} · up ${mb}MB · tracers ${last ? last.tracers : '—'} · dpr ${
-      last ? last.dpr.toFixed(1) : '—'
-    }${pauseMark}`
+    this.verts = last ? String(last.vertices) : '—'
+    this.up = last ? `${(last.uploadBytes / 1024 / 1024).toFixed(2)}MB` : '—'
+    this.tracers = last ? String(last.tracers) : '—'
+    this.dpr = last ? last.dpr.toFixed(1) : '—'
     this.requestUpdate()
   }
 }

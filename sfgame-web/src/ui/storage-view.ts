@@ -1,7 +1,8 @@
-import { LitElement, css, html, nothing } from 'lit'
+import { LitElement, css, html } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { name } from '../../package.json'
 import { iconBack, iconDatabase } from './icons'
+import { boxReset, card, pageShell } from './shared-styles'
 
 const KEY_PREFIXES = [`${name}.`]
 
@@ -30,7 +31,6 @@ function formatBytes(n: number): string {
 @customElement('sf-storage')
 export class SfStorage extends LitElement {
   @state() private armed: string | null = null
-  @state() private expanded = new Set<string>()
   private entries: StorageEntry[] = []
   private disarmTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -39,13 +39,6 @@ export class SfStorage extends LitElement {
   connectedCallback() {
     super.connectedCallback()
     this.entries = listEntries()
-  }
-
-  private toggleExpand(key: string) {
-    const next = new Set(this.expanded)
-    if (next.has(key)) next.delete(key)
-    else next.add(key)
-    this.expanded = next
   }
 
   private arm(key: string) {
@@ -89,25 +82,27 @@ export class SfStorage extends LitElement {
             ? html`<p class="empty">${iconDatabase}<span>暂无本地持久化数据</span></p>`
             : this.entries.map(
                 (e) => html`
-                  <div class="entry">
-                    <div class="entry-head">
+                  <details class="entry">
+                    <summary class="entry-head">
                       <code class="key">${e.key}</code>
                       <span class="size">${formatBytes(e.bytes)}</span>
+                      <span class="expand-ctl" aria-hidden="true">
+                        <span class="expand-open">收起</span>
+                        <span class="expand-closed">展开</span>
+                      </span>
                       <button
-                        class="expand ${this.expanded.has(e.key) ? 'open' : ''}"
-                        @click=${() => this.toggleExpand(e.key)}
-                        aria-label=${this.expanded.has(e.key) ? '收起' : '展开'}
+                        class="del"
+                        @click=${(ev: Event) => {
+                          ev.preventDefault()
+                          ev.stopPropagation()
+                          this.arm(e.key)
+                        }}
                       >
-                        ${this.expanded.has(e.key) ? '收起' : '展开'}
-                      </button>
-                      <button class="del" @click=${() => this.arm(e.key)}>
                         ${this.armed === e.key ? '确认删除' : '删除'}
                       </button>
-                    </div>
-                    ${this.expanded.has(e.key)
-                      ? html`<pre class="raw">${e.raw}</pre>`
-                      : nothing}
-                  </div>
+                    </summary>
+                    <pre class="raw">${e.raw}</pre>
+                  </details>
                 `,
               )}
         </section>
@@ -127,185 +122,121 @@ export class SfStorage extends LitElement {
     `
   }
 
-  static styles = css`
-    /* shadow DOM 不继承全局 box-sizing */
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
+  static styles = [
+    boxReset,
+    pageShell,
+    card,
+    css`
+      :host {
+        display: block;
+        height: 100%;
+        color: var(--ink);
+      }
 
-    :host {
-      display: block;
-      height: 100%;
-      color: var(--ink);
-    }
+      .entry {
+        padding: 0.75rem 0.875rem;
+        border-radius: 0.75rem;
+        corner-shape: squircle;
+      }
 
-    .page {
-      height: 100%;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 0 1.125rem calc(1.875rem + env(safe-area-inset-bottom, 0px));
-      background:
-        radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
-        linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
-    }
+      .entry + .entry {
+        border-top: 1px solid rgba(61, 52, 39, 0.06);
+      }
 
-    /* 标题栏：sticky 悬浮 + 半透明薄雾（负 margin 顶开 page 侧 padding 通到视口边缘，模糊加够出云雾感），内容从栏下滚过 */
-    .bar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      margin: 0 calc(-1.125rem) 0.875rem;
-      padding:
-        calc(0.5rem + env(safe-area-inset-top, 0px)) 1.125rem 0.5rem;
-      background: rgba(255, 253, 248, 0.6);
-      backdrop-filter: blur(1.5rem) saturate(1.6);
-      -webkit-backdrop-filter: blur(1.5rem) saturate(1.6);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.45);
-      box-shadow: 0 0.25rem 1rem rgba(61, 52, 39, 0.08);
-      /* 底角圆润与卡片/按钮一致；顶角贴视口上沿，不圆 */
-      border-radius: 0 0 1rem 1rem;
-      corner-shape: squircle;
-    }
+      /* 原生 details/summary：展开收起零 JS，open 状态由浏览器维护 */
+      summary.entry-head {
+        list-style: none;
+        cursor: pointer;
+      }
 
-    .bar-inner {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      max-width: 35rem;
-      margin: 0 auto;
-    }
+      summary::-webkit-details-marker {
+        display: none;
+      }
 
-    .head-text h1 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
+      .entry-head {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
 
-    .icon-btn {
-      flex: none;
-      width: 2.5rem;
-      height: 2.5rem;
-      display: grid;
-      place-items: center;
-      border: none;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(1rem) saturate(1.5);
-      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
-      border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
-      color: var(--ink);
-      cursor: pointer;
-      padding: 0;
-    }
+      .expand-ctl {
+        flex: none;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--ink-soft);
+      }
 
-    .icon-btn:active {
-      transform: scale(0.97);
-    }
+      .expand-open {
+        display: none;
+      }
 
-    .icon-btn svg {
-      width: 1.19rem;
-      height: 1.19rem;
-    }
+      details[open] .expand-open {
+        display: inline;
+      }
 
-    .card {
-      max-width: 35rem;
-      margin: 0 auto 1rem;
-      padding: 0.375rem;
-      background: var(--card);
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      border-radius: 1rem;
-      corner-shape: squircle;
-      box-shadow: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.07);
-    }
+      .expand-closed {
+        display: inline;
+      }
 
-    .entry {
-      padding: 0.75rem 0.875rem;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-    }
+      details[open] .expand-closed {
+        display: none;
+      }
 
-    .entry + .entry {
-      border-top: 1px solid rgba(61, 52, 39, 0.06);
-    }
+      .key {
+        flex: 1;
+        min-width: 0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
-    .entry-head {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
+      .size {
+        flex: none;
+        font-size: 0.75rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-soft);
+      }
 
-    .key {
-      flex: 1;
-      min-width: 0;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.8125rem;
-      font-weight: 600;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+      .del,
+      .clear {
+        color: var(--hot);
+        background: rgba(255, 90, 60, 0.08);
+        border: 1px solid rgba(255, 90, 60, 0.28);
+      }
 
-    .size {
-      flex: none;
-      font-size: 0.75rem;
-      font-variant-numeric: tabular-nums;
-      color: var(--ink-soft);
-    }
+      .del {
+        flex: none;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-radius: 999px;
+        corner-shape: squircle;
+        cursor: pointer;
+        transition: transform 100ms ease-out, background 120ms ease-out;
+      }
 
-    .del,
-    .expand {
-      flex: none;
-      padding: 0.375rem 0.75rem;
-      font-size: 0.75rem;
-      font-weight: 600;
-      border-radius: 999px;
-      corner-shape: squircle;
-      cursor: pointer;
-      transition: transform 100ms ease-out, background 120ms ease-out;
-    }
+      .del:active {
+        transform: scale(0.95);
+      }
 
-    .del {
-      color: var(--hot);
-      background: rgba(255, 90, 60, 0.08);
-      border: 1px solid rgba(255, 90, 60, 0.28);
-    }
-
-    .expand {
-      color: var(--ink-soft);
-      background: rgba(61, 52, 39, 0.06);
-      border: 1px solid rgba(61, 52, 39, 0.14);
-    }
-
-    .expand.open {
-      color: var(--ink);
-      background: rgba(61, 52, 39, 0.12);
-    }
-
-    .del:active,
-    .expand:active {
-      transform: scale(0.95);
-    }
-
-    .raw {
-      margin: 0.5rem 0 0;
-      padding: 0.625rem 0.75rem;
-      max-height: 10rem;
-      overflow: auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.6875rem;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      word-break: break-all;
-      color: var(--ink);
-      background: rgba(61, 52, 39, 0.05);
-      border-radius: 0.625rem;
-      corner-shape: squircle;
-    }
+      .raw {
+        margin: 0.5rem 0 0;
+        padding: 0.625rem 0.75rem;
+        max-height: 10rem;
+        overflow: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.6875rem;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: var(--ink);
+        background: rgba(61, 52, 39, 0.05);
+        border-radius: 0.625rem;
+        corner-shape: squircle;
+      }
 
     .empty {
       display: flex;
@@ -336,9 +267,6 @@ export class SfStorage extends LitElement {
       padding: 0.6875rem 1.375rem;
       font-size: 0.875rem;
       font-weight: 600;
-      color: var(--hot);
-      background: rgba(255, 90, 60, 0.08);
-      border: 1px solid rgba(255, 90, 60, 0.28);
       border-radius: 0.875rem;
       corner-shape: squircle;
       cursor: pointer;
@@ -367,7 +295,8 @@ export class SfStorage extends LitElement {
       color: var(--ink-soft);
       text-align: center;
     }
-  `
+  `,
+  ]
 }
 
 declare global {

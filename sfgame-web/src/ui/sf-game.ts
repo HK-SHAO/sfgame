@@ -4,6 +4,7 @@ import type { SourceKind } from '../sim/types'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { DevTools } from '../dev/devtools'
 import { GameController } from './controller'
+import { boxReset } from './shared-styles'
 
 export const HUD_CHANGE = 'hudchange'
 export const DENY = 'deny'
@@ -62,30 +63,26 @@ export class SfGame extends LitElement {
     `
   }
 
-  static styles = css`
-    /* shadow DOM 不继承全局 box-sizing */
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
+  static styles = [
+    boxReset,
+    css`
+      :host {
+        display: block;
+        width: 100%;
+        height: 100%;
+        color: var(--ink);
+      }
 
-    :host {
-      display: block;
-      width: 100%;
-      height: 100%;
-      color: var(--ink);
-    }
-
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-      touch-action: none;
-      /* WebGL 兜底底色：缓冲未初始化时不黑屏 */
-      background: #fff8ea;
-    }
-  `
+      canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        touch-action: none;
+        /* WebGL 兜底底色：缓冲未初始化时不黑屏 */
+        background: #fff8ea;
+      }
+    `,
+  ]
 }
 
 declare global {

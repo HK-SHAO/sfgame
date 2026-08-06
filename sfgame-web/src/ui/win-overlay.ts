@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { formatPenalty, formatTime } from '../game/timer'
+import { boxReset } from './shared-styles'
 
 @customElement('sf-win-overlay')
 export class SfWinOverlay extends LitElement {
@@ -50,15 +51,10 @@ export class SfWinOverlay extends LitElement {
     `
   }
 
-  static styles = css`
-    /* shadow DOM 不继承全局 box-sizing */
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
-
-    .overlay {
+  static styles = [
+    boxReset,
+    css`
+      .overlay {
       position: absolute;
       inset: 0;
       z-index: 5;
@@ -198,7 +194,8 @@ export class SfWinOverlay extends LitElement {
         opacity: 1;
       }
     }
-  `
+  `,
+  ]
 }
 
 declare global {

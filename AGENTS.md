@@ -34,7 +34,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 - `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`
 - `src/render/` — `render.ts`（场景 → 顶点批组装）、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（纯计算即时模式网格构建器）
 - `src/dev/` — ?dev=1 开发者工具：`devtools.ts`（组装：面板 + 性能块 + 编辑器，由 app 持有跨关卡重建延续）、`dev-panel.ts`（面板外壳：拖拽手柄 + 分割线 + slot 装配，主题经 --dev-* 变量共享）、`perf.ts`（性能块）、`level-editor.ts`（关卡 YAML 临时编辑器，默认折叠）、`dev-menu.ts`（开发者页面）
-- `src/core/` — 固定步长循环、音效、通用 URL 状态模块
+- `src/core/` — 固定步长循环、音效、性能治理（`governor.ts` 降级策略 / `wind.ts` 风强度与落地判定，均纯逻辑可无头测试）、通用 URL 状态模块
 
 ## 拖尾约定（2026-08 起）
 

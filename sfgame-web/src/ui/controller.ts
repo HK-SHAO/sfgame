@@ -1,5 +1,7 @@
 import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
+import { PerformanceGovernor, TRACER_TIERS, COARSE_TRACER_TIER, DPR_TIERS_COARSE, DPR_TIERS_FINE } from '../core/governor'
+import { buildWindProbes, isLanding, sampleWind } from '../core/wind'
 import { Tracers, TRAIL_LEN } from '../sim/particles'
 import { Clouds } from '../sim/clouds'
 import { Trail } from '../sim/trail'
@@ -13,26 +15,10 @@ import { urlState } from '../game/state'
 import { penaltySeconds } from '../game/timer'
 import type { DevTools } from '../dev/devtools'
 
-// 粒子数消耗 CPU 采样预算（渲染已 GPU 化），按模拟成本分档降级
-const TRACER_TIERS = [400, 320, 240, 180, 128, 96]
-const COARSE_TRACER_TIER = 2
 const PLANE_TRAIL_MAX_POINTS = 150
 const PLANE_TRAIL_SAMPLE = 0.3
 const PLANE_TRAIL_FADE = 6
-const WIND_PROBE_FX = [0.22, 0.5, 0.78]
-const WIND_PROBE_FY = [0.2, 0.35]
-const LAND_ALT_BEFORE = 0.9
-const LAND_ALT_AFTER = 0.55
-const LAND_IMPACT_MIN = 0.8
 const LAND_SOUND_MIN_INTERVAL = 150
-// dpr 降档是持续过载的最后手段（GPU 栅格化负载）
-const DPR_TIERS_COARSE = [2, 1.5, 1.0]
-const DPR_TIERS_FINE = [2, 1.5]
-// 持续超限才降级，避免偶发卡顿误触发
-const SLOW_FRAMES_TO_DEGRADE = 150
-// 60fps 预算 16.7ms，留余量
-const FRAME_BUDGET_MS = 13
-const FRAME_EMA_SMOOTH = 0.95
 export interface ControllerEvents {
   onHud(state: HudState): void
   onDeny(kind: SourceKind): void
@@ -54,11 +40,7 @@ export class GameController {
   private lastPhase: 'playing' | 'won' = 'playing'
   private windProbes: { x: number; y: number }[]
   private tmpAir = { x: 0, y: 0 }
-  private tracerLevel: number
-  private dprTier = 0
-  private dprTiers: number[]
-  private frameEma = 0
-  private slowFrames = 0
+  private governor: PerformanceGovernor
   private tickMs = 0
   private lastLand = -Infinity
   private rate = 1
@@ -90,14 +72,19 @@ export class GameController {
     this.statusEl = status
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const coarse = window.matchMedia('(pointer: coarse)').matches
-    this.dprTiers = coarse ? DPR_TIERS_COARSE : DPR_TIERS_FINE
-    this.tracerLevel = reduced
-      ? TRACER_TIERS.length - 1
-      : coarse
-        ? COARSE_TRACER_TIER
-        : 0
+    this.governor = new PerformanceGovernor(
+      TRACER_TIERS,
+      coarse ? DPR_TIERS_COARSE : DPR_TIERS_FINE,
+      {
+        initialTracerLevel: reduced
+          ? TRACER_TIERS.length - 1
+          : coarse
+            ? COARSE_TRACER_TIER
+            : 0,
+      },
+    )
     this.tracers = new Tracers(
-      TRACER_TIERS[this.tracerLevel],
+      TRACER_TIERS[this.governor.tracerLevel],
       this.world,
       this.ground,
       TRAIL_LEN,
@@ -105,9 +92,7 @@ export class GameController {
     this.clouds = new Clouds(level.id, this.world, this.ground)
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
-    this.windProbes = WIND_PROBE_FX.flatMap((fx) =>
-      WIND_PROBE_FY.map((fy) => ({ x: fx * w, y: fy * h })),
-    )
+    this.windProbes = buildWindProbes(w, h)
     this.renderer = new Renderer(canvas)
     this.loop = new GameLoop({ tick: this.tick, render: this.render })
     this.input = new GestureInput(canvas, {
@@ -190,7 +175,7 @@ export class GameController {
   }
 
   private pixelRatio(): number {
-    return Math.min(window.devicePixelRatio || 1, this.dprTiers[this.dprTier])
+    return this.governor.pixelRatio(window.devicePixelRatio || 1)
   }
 
   private fit = () => {
@@ -257,10 +242,11 @@ export class GameController {
       this.clouds.step(dt, this.sim.fluid)
       this.planeTrail.push(p.x, p.y, this.sim.time)
 
-      sfx.updateWind(this.fieldWind(), this.planeRelWind(), dt)
+      const wind = sampleWind(this.sim.fluid, this.windProbes, p, this.tmpAir)
+      sfx.updateWind(wind.field, wind.rel, dt)
       sfx.setPlanePan(p.x, this.world.w)
       const altAfter = this.sim.level.ground(p.x) - p.y
-      if (altBefore > LAND_ALT_BEFORE && altAfter <= LAND_ALT_AFTER && Math.abs(vyBefore) > LAND_IMPACT_MIN) {
+      if (isLanding(altBefore, altAfter, vyBefore)) {
         const now = performance.now()
         if (now - this.lastLand > LAND_SOUND_MIN_INTERVAL) {
           this.lastLand = now
@@ -281,25 +267,6 @@ export class GameController {
     }
 
     this.tickMs += performance.now() - t0
-  }
-
-  private fieldWind(): number {
-    const fluid = this.sim.fluid
-    let sum = 0
-    for (const pr of this.windProbes) {
-      fluid.sampleVelocity(pr.x, pr.y, this.tmpAir)
-      sum += Math.hypot(this.tmpAir.x, this.tmpAir.y)
-    }
-    const p = this.sim.plane
-    fluid.sampleVelocity(p.x, p.y, this.tmpAir)
-    sum += Math.hypot(this.tmpAir.x, this.tmpAir.y)
-    return sum / (this.windProbes.length + 1)
-  }
-
-  private planeRelWind(): number {
-    const p = this.sim.plane
-    this.sim.fluid.sampleVelocity(p.x, p.y, this.tmpAir)
-    return Math.hypot(p.vx - this.tmpAir.x, p.vy - this.tmpAir.y)
   }
 
   private render = () => {
@@ -324,27 +291,17 @@ export class GameController {
     })
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0
-    this.frameEma = this.frameEma === 0 ? cost : this.frameEma * FRAME_EMA_SMOOTH + cost * (1 - FRAME_EMA_SMOOTH)
-    // 预算随速率放大（1× 下限）：倍速慢帧是预期，且流体成本不可降级
-    if (this.frameEma > FRAME_BUDGET_MS * Math.max(1, this.rate)) {
-      // 先降粒子（观感影响小），到底仍不够再降 dpr
-      if (++this.slowFrames > SLOW_FRAMES_TO_DEGRADE) {
-        this.slowFrames = 0
-        if (this.tracerLevel < TRACER_TIERS.length - 1) {
-          this.tracerLevel++
-          this.tracers = new Tracers(
-            TRACER_TIERS[this.tracerLevel],
-            this.world,
-            this.ground,
-            TRAIL_LEN,
-          )
-        } else if (this.dprTier < this.dprTiers.length - 1) {
-          this.dprTier++
-          this.fit()
-        }
-      }
-    } else {
-      this.slowFrames = 0
+    // 降级执行留在 controller（tracers 重建 / fit 涉及模拟与渲染对象）
+    const action = this.governor.record(cost, this.rate)
+    if (action === 'tracer') {
+      this.tracers = new Tracers(
+        TRACER_TIERS[this.governor.tracerLevel],
+        this.world,
+        this.ground,
+        TRAIL_LEN,
+      )
+    } else if (action === 'dpr') {
+      this.fit()
     }
   }
 }

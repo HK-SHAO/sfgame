@@ -18,7 +18,7 @@ bun run check     # fail-fast：类型检查 + 测试 + 构建
 ```
 src/
   main.ts         入口：预热 WASM 流体内核后装配 UI（不支持 SIMD 时显示错误页）
-  core/           框架无关基础设施（游戏循环、音效、URL 状态）
+  core/           框架无关基础设施（游戏循环、音效、性能治理、URL 状态）
   sim/            物理内核：欧拉流体网格（WASM·SIMD）、刚体、示踪粒子（无 DOM）；fluid.ts 为引导 + 接口 + 工厂
   assembly/       AssemblyScript 源码：流体内核 SIMD 入口 + 标量通路（build:wasm 编译）
   game/           无头关卡逻辑：模拟、关卡数据、类型（无 DOM）

@@ -17,6 +17,7 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - 后退/前进"没反应"、源删不掉 → C5
 - 后退后历史条目异常 → C3、C4、C7
 - 点链接/跳转后 URL 状态（如 ?dev=1）丢失 → C9
+- 返回按钮跳到别的网站/空白页（直达链接场景）→ C10（history.length 不可靠）
 - iOS 卡顿/掉帧 → D1、D2、D5、D7
 - Canvas 2D 描边/渐变负载高、想上 WebGL → D7
 - WebGL 上下文恢复后白屏/资源泄漏 → D9
@@ -135,6 +136,11 @@ canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配
 **根因**：`solutionUrl` 从零拼 `?lv=..&src=..`——其他状态全丢。
 **修法**：`new URLSearchParams(base)` 复制当前查询参数，仅 `set`/`delete` 目标键（与 urlState.flush 同构）；被跳转的"页面视图"键（如 `v`）须显式删，因其优先于目标视图。
 **信号**：手写拼 URL 字符串、链接 href 不含当前其他参数。
+
+### C10 返回判定别用 history.length：pushState 带应用标记
+**症状**：直达链接/新标签页进子页面点"返回"跳到别的网站或空白页；`window.history.length > 1` 时 `history.back()` 会离开本站（length 是整个会话栈，含外部站点）。
+**修法**：应用内 pushState 统一带 `{ sf: true }`（url-state 唯一写入点），`replaceState` 保留当前条目标记（应用条目不丢、文档条目不被污染）；返回按钮按 `window.history.state?.sf` 决定 `back()` 还是回首页。
+**信号**：任何"返回上一页"按钮；手写 `history.back()` 或依赖 length 的判断。
 
 ## D. 渲染性能（Canvas 2D）
 

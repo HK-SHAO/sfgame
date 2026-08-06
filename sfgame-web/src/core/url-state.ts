@@ -217,13 +217,19 @@ function createBrowserSource(): UrlStateSource {
     },
     pushState(params) {
       try {
-        window.history.pushState(null, '', buildUrl(params))
+        // sf 标记 = 应用内导航条目：返回按钮据此区分"可回退上一应用页"与"直达/外部进入（回首页）"
+        window.history.pushState({ sf: true }, '', buildUrl(params))
       } catch {
       }
     },
     replaceState(params) {
       try {
-        window.history.replaceState(null, '', buildUrl(params))
+        // 保留当前条目标记：应用条目上 replace 不丢标记，文档条目（无标记）不被污染
+        window.history.replaceState(
+          window.history.state && window.history.state.sf ? { sf: true } : null,
+          '',
+          buildUrl(params),
+        )
       } catch {
       }
     },

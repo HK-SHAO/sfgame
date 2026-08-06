@@ -10,8 +10,8 @@ import { DevTools } from '../dev/devtools'
 import '../dev/dev-menu'
 import './solutions-view'
 import './storage-view'
+import './win-overlay'
 import { urlState } from '../game/state'
-import { formatPenalty, formatTime } from '../game/timer'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
 import {
@@ -175,7 +175,8 @@ export class SfApp extends LitElement {
 
   private goBack() {
     sfx.uiBack()
-    if (window.history.length > 1) window.history.back()
+    // 仅应用内导航（pushState 带 sf 标记）才回退上一页；直达链接/外部进入回首页
+    if (window.history.state && window.history.state.sf) window.history.back()
     else this.backToTitle()
   }
 
@@ -404,35 +405,19 @@ export class SfApp extends LitElement {
         </header>
 
         ${won
-          ? html`
-              <div class="overlay" role="dialog" aria-label="过关">
-                <div class="win-card">
-                  <h2>${this.activeLevel.win.title}</h2>
-                  <p class="desc">${this.activeLevel.win.text}</p>
-                  <p class="stats">
-                    <b class="total">合计 ${formatTime(this.hud.time + this.hud.extra)}</b>
-                    <span class="line">用时 ${formatTime(this.hud.time)}</span>
-                    <span class="line extra"
-                      >额外 ${this.hud.extra > 0 ? `${formatPenalty(this.hud.extra)}（使用 ${this.hud.sources} 个道具）` : '无'}</span
-                    >
-                    ${bestTotal !== undefined
-                      ? html`<span class="line record"
-                          >本关最佳 ${formatTime(bestTotal)}${this.winRank === 0 ? ' · 新纪录' : ''}</span
-                        >`
-                      : nothing}
-                  </p>
-                  <div class="row">
-                    <button class="primary next" @click=${hasNext ? this.playNext : this.restart}>
-                      ${hasNext ? '下一关' : '再玩一次'}
-                    </button>
-                  </div>
-                  <div class="row">
-                    ${hasNext ? html`<button class="ghost" @click=${this.restart}>再玩一次</button>` : nothing}
-                    <button class="ghost" @click=${this.backToTitle}>选关</button>
-                  </div>
-                </div>
-              </div>
-            `
+          ? html`<sf-win-overlay
+              .title=${this.activeLevel.win.title}
+              .text=${this.activeLevel.win.text}
+              .time=${this.hud.time}
+              .extra=${this.hud.extra}
+              .sources=${this.hud.sources}
+              .bestTotal=${bestTotal}
+              .rank=${this.winRank}
+              .hasNext=${hasNext}
+              @next=${this.playNext}
+              @replay=${this.restart}
+              @back=${this.backToTitle}
+            ></sf-win-overlay>`
           : nothing}
       </main>
     `
@@ -798,139 +783,6 @@ export class SfApp extends LitElement {
 
     .chip.empty {
       opacity: 0.42;
-    }
-
-    .overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 5;
-      display: flex;
-      flex-direction: column;
-      padding: 1.5rem;
-      background: var(--scrim);
-      backdrop-filter: blur(0.19rem);
-      -webkit-backdrop-filter: blur(0.19rem);
-      animation: fade 260ms ease-out;
-    }
-
-    .win-card {
-      width: 100%;
-      max-width: 22.5rem;
-      margin: auto;
-      padding: 1.875rem 1.875rem 1.625rem;
-      text-align: center;
-      background: var(--card);
-      border: 1px solid rgba(255, 255, 255, 0.7);
-      border-radius: 1.625rem;
-      corner-shape: squircle;
-      box-shadow: 0 1.5rem 3.75rem rgba(61, 52, 39, 0.22);
-      animation: pop 340ms cubic-bezier(0.3, 1.35, 0.5, 1);
-    }
-
-    .win-card h2 {
-      margin: 0 0 0.5rem;
-      font-size: 1.625rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-
-    .win-card .desc {
-      margin: 0 0 1.375rem;
-      font-size: 0.875rem;
-      line-height: 1.7;
-      color: var(--ink-soft);
-    }
-
-    .win-card .stats {
-      margin: 0 0 1.375rem;
-      padding: 0.875rem 1rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.375rem;
-      font-variant-numeric: tabular-nums;
-      color: var(--ink);
-      background: var(--card-warm);
-      border: 1px solid rgba(255, 255, 255, 0.55);
-      border-radius: 0.875rem;
-      corner-shape: squircle;
-    }
-
-    .win-card .stats .total {
-      font-size: 1.375rem;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
-
-    .win-card .stats .line {
-      font-size: 0.875rem;
-      font-weight: 500;
-      color: var(--ink-soft);
-      white-space: nowrap;
-    }
-
-    .win-card .stats .extra {
-      font-size: 0.75rem;
-    }
-
-    .win-card .stats .record {
-      color: var(--goal);
-      font-weight: 600;
-    }
-
-    .win-card .row {
-      display: flex;
-      gap: 0.625rem;
-      justify-content: center;
-    }
-
-    .win-card .row + .row {
-      margin-top: 0.75rem;
-    }
-
-    .win-card .row .next {
-      flex: 1;
-      max-width: 15rem;
-    }
-
-    .win-card button {
-      padding: 0.6875rem 1.375rem;
-      font-size: 0.875rem;
-      font-weight: 600;
-      border-radius: 0.875rem;
-      corner-shape: squircle;
-      transition: transform 100ms ease-out;
-    }
-
-    .win-card .primary {
-      background: linear-gradient(180deg, #ff7a52, #ff5a3c);
-      color: #fff;
-      box-shadow: 0 6px 16px rgba(255, 90, 60, 0.35);
-    }
-
-    .win-card .ghost {
-      background: var(--ink-wash);
-      color: var(--ink);
-    }
-
-    @keyframes pop {
-      from {
-        opacity: 0;
-        transform: scale(0.88);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
-    }
-
-    @keyframes fade {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
     }
   `
 }

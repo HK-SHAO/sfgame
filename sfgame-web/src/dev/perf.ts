@@ -11,16 +11,21 @@ export interface PerfSample {
 }
 
 const WINDOW = 90
+const THROTTLE_MS = 1000 / 24
+
+interface FrameSample {
+  interval: number
+  tick: number
+  batch: number
+}
 
 @customElement('sf-perf')
 export class SfPerf extends LitElement {
-  private intervals: number[] = []
-  private frames = 0
+  private samples: FrameSample[] = []
   private lastAt = 0
-  private tickSum = 0
-  private batchSum = 0
+  private lastRefresh = 0
   private last: PerfSample | null = null
-  private line1 = 'perf 采集中…'
+  private line1 = '性能采集中…'
   private line2 = ''
   @state() paused = false
 
@@ -49,11 +54,16 @@ export class SfPerf extends LitElement {
   record(sample: PerfSample) {
     this.last = sample
     const now = performance.now()
-    if (this.lastAt > 0) this.intervals.push(now - this.lastAt)
+    if (this.lastAt > 0) {
+      this.samples.push({
+        interval: now - this.lastAt,
+        tick: sample.tickMs,
+        batch: sample.batchMs,
+      })
+      if (this.samples.length > WINDOW) this.samples.shift()
+    }
     this.lastAt = now
-    this.tickSum += sample.tickMs
-    this.batchSum += sample.batchMs
-    if (++this.frames >= WINDOW) this.refresh()
+    if (now - this.lastRefresh >= THROTTLE_MS && this.samples.length > 0) this.refresh(now)
   }
 
   protected override render() {
@@ -66,26 +76,28 @@ export class SfPerf extends LitElement {
     `
   }
 
-  private refresh() {
-    const n = this.frames
-    const sorted = [...this.intervals].sort((a, b) => a - b)
+  private refresh(now: number) {
+    this.lastRefresh = now
+    const n = this.samples.length
+    const sorted = this.samples.map((s) => s.interval).sort((a, b) => a - b)
     const p = (q: number) => {
       const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * q))
       return idx < 0 ? '—' : sorted[idx].toFixed(1)
     }
-    const mean = sorted.length > 0 ? sorted.reduce((s, v) => s + v, 0) / sorted.length : 0
+    const mean = sorted.reduce((s, v) => s + v, 0) / n
     const fps = mean > 0 ? (1000 / mean).toFixed(0) : '—'
+    let tickSum = 0
+    let batchSum = 0
+    for (const s of this.samples) {
+      tickSum += s.tick
+      batchSum += s.batch
+    }
     const last = this.last
     const mb = last ? (last.uploadBytes / 1024 / 1024).toFixed(2) : '—'
     const pauseMark = this.paused ? ' · ⏸ 已暂停' : ''
-    this.line1 = `${fps} fps · p95 ${p(0.95)}ms · tick ${(this.tickSum / n).toFixed(2)}ms · batch ${(this.batchSum / n).toFixed(2)}ms`
+    this.line1 = `${fps} fps · p95 ${p(0.95)}ms · tick ${(tickSum / n).toFixed(2)}ms · batch ${(batchSum / n).toFixed(2)}ms`
     this.line2 = `顶点 ${last ? last.vertices : '—'} · 上传 ${mb}MB${pauseMark}`
     this.requestUpdate()
-    this.intervals.length = 0
-    this.frames = 0
-    this.tickSum = 0
-    this.batchSum = 0
-    this.lastAt = 0
   }
 }
 

@@ -1,5 +1,7 @@
 import { MeshBatch, VERTEX_STRIDE } from './batch'
 import { GlRenderer } from './gl'
+import { bilinearSample } from '../sim/fluid'
+import type { EngineHandle } from '../wasm/engine'
 import type { Tracers } from '../sim/particles'
 import { TRAIL_FADE_T } from '../sim/particles'
 import type { Clouds } from '../sim/clouds'
@@ -78,7 +80,10 @@ const SHADOW_MAX_ALPHA = 0.3
 export class Renderer {
   readonly canvas: HTMLCanvasElement
   private gl: GlRenderer | null
-  private batch = new MeshBatch()
+  private engine: EngineHandle
+  private batch: MeshBatch
+  // 零拷贝流体场视图（共享引擎内存）：按关卡网格尺寸建一次，视图恒定
+  private fields: { u: Float32Array; v: Float32Array; t: Float32Array; nx: number; ny: number; cell: number } | null = null
   private cssW = 0
   private cssH = 0
   private scale = 1
@@ -91,8 +96,10 @@ export class Renderer {
   lastVertexCount = 0
   lastUploadBytes = 0
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, engine: EngineHandle) {
     this.canvas = canvas
+    this.engine = engine
+    this.batch = new MeshBatch(engine)
     this.gl = GlRenderer.create(canvas)
     if (!this.gl) console.warn('WebGL 不可用，画布将保持空白')
   }
@@ -124,8 +131,9 @@ export class Renderer {
     const gl = this.gl
     if (!gl || this.cssW === 0 || this.cssH === 0) return
     const { sim, tracers, planeTrail, press, now } = scene
-    const { w, h } = sim.level.world
+    const { w, h, cell } = sim.level.world
     this.world = sim.level.world
+    this.ensureFields(Math.round(w / cell), Math.round(h / cell), cell)
 
     this.scale = Math.min(this.cssW / w, this.cssH / h)
     this.ox = (this.cssW - w * this.scale) / 2
@@ -148,15 +156,16 @@ export class Renderer {
 
     const b = this.batch
     b.reset()
+    // 遮挡契约：云/光晕最背景；气流粒子与轨迹在场景物体之后，被旗杆、旗面、太阳、地形遮挡；
+    // 飞机与飞机拖尾是主角层恒在最前
     this.drawClouds(b, scene.clouds)
-    // 云是最背景层：光晕/旗杆在云前，但仍在地形后
     this.drawSunHalo(b)
+    this.drawTracers(b, tracers)
     this.drawGoalPoles(b, sim)
     this.drawTerrain(b, sim, viewL, viewR, viewB)
     this.drawSun(b, now)
     this.drawGoal(b, sim)
     this.drawSources(b, sim, press)
-    this.drawTracers(b, sim, tracers)
     this.drawPlaneTrail(b, sim, planeTrail)
     this.drawPlane(b, sim)
     if (press && press.kind === 'place') this.drawPress(b, press, now)
@@ -317,11 +326,27 @@ export class Renderer {
 
   private static tmpAir = { x: 0, y: 0 }
 
-  private drawTracers(b: MeshBatch, sim: LevelSimulation, tracers: Tracers) {
+  private ensureFields(nx: number, ny: number, cell: number) {
+    const f = this.fields
+    if (f && f.nx === nx && f.ny === ny && f.cell === cell) return
+    const buf = this.engine.memory.buffer
+    const n = nx * ny
+    this.fields = {
+      u: new Float32Array(buf, this.engine.ex.fieldU(), n),
+      v: new Float32Array(buf, this.engine.ex.fieldV(), n),
+      t: new Float32Array(buf, this.engine.ex.fieldT(), n),
+      nx,
+      ny,
+      cell,
+    }
+  }
+
+  private drawTracers(b: MeshBatch, tracers: Tracers) {
     const { trailX, trailY, trailT, trailN, count } = tracers
     const trailLen = tracers.trailLen
-    const fluid = sim.fluid
     const air = Renderer.tmpAir
+    const f = this.fields!
+    const amb = this.engine.ambient
     if (this.tracerEnv.length < count) {
       this.tracerEnv = new Float32Array(count)
       this.tracerColor = new Float32Array(count * 5)
@@ -335,12 +360,12 @@ export class Renderer {
         envs[i] = 0
         continue
       }
-      fluid.sampleVelocity(tracers.x[i], tracers.y[i], air)
+      // 零拷贝采样：直读共享内存流体场（原每粒子 2 次 wasm 跨边界调用）
+      const temp = bilinearSample(f.u, f.v, f.t, f.nx, f.ny, f.cell, amb.x, amb.y, tracers.x[i], tracers.y[i], air)
       const sp2 = air.x * air.x + air.y * air.y
       envs[i] = env
-      const t = fluid.sampleTemp(tracers.x[i], tracers.y[i])
-      const u = Math.tanh(Math.abs(t) / AIR_SOFT)
-      const to = t >= 0 ? HOT : COLD
+      const u = Math.tanh(Math.abs(temp) / AIR_SOFT)
+      const to = temp >= 0 ? HOT : COLD
       const c0 = i * 5
       colors[c0] = AIR_AMBIENT[0] + (to[0] - AIR_AMBIENT[0]) * u
       colors[c0 + 1] = AIR_AMBIENT[1] + (to[1] - AIR_AMBIENT[1]) * u

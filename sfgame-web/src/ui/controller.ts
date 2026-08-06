@@ -10,6 +10,7 @@ import { LevelSimulation } from '../game/simulation'
 import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from '../render/render'
+import { createEngine, type EngineHandle } from '../wasm/engine'
 import { SfStatusBar } from './status-bar'
 import { urlState } from '../game/state'
 import { penaltySeconds } from '../game/timer'
@@ -27,6 +28,7 @@ export interface ControllerEvents {
 
 export class GameController {
   private sim: LevelSimulation
+  private engine: EngineHandle
   private tracers: Tracers
   private clouds: Clouds
   private planeTrail: Trail
@@ -62,7 +64,9 @@ export class GameController {
     this.host = host ?? canvas.parentElement ?? canvas
     this.world = level.world
     this.ground = level.ground
-    this.sim = new LevelSimulation(level)
+    // 物理与渲染共享同一 wasm 实例：渲染零拷贝读流体内存（每关一次，keyed 重建时整体释放）
+    this.engine = createEngine()
+    this.sim = new LevelSimulation(level, this.engine)
     if (urlState.get('dev')) this.sim.unlimited = true
     this.devTools = devTools ?? null
     // 挂 document.body：sf-game 无 slot，挂宿主 light DOM 不可见
@@ -93,7 +97,7 @@ export class GameController {
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
     this.windProbes = buildWindProbes(w, h)
-    this.renderer = new Renderer(canvas)
+    this.renderer = new Renderer(canvas, this.engine)
     this.loop = new GameLoop({ tick: this.tick, render: this.render })
     this.input = new GestureInput(canvas, {
       toWorld: (cx, cy) => this.renderer.toWorld(cx, cy),
@@ -188,6 +192,7 @@ export class GameController {
     if (w === this.fitW && h === this.fitH) return
     this.fitW = w
     this.fitH = h
+    // 画布铺满宿主，世界 contain 后界外由渲染器以天空外推填充（取景宽容：宽屏/竖屏均满屏）
     this.renderer.resize(w, h, this.pixelRatio())
     // canvas 尺寸变更会重置 WebGL 缓冲（黑屏）：补画一帧防首帧黑闪
     this.render()

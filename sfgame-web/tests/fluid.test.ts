@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { createFluid, type FluidConfig } from '../src/sim/fluid'
+import { bilinearSample, createFluid, type FluidConfig } from '../src/sim/fluid'
 
 const CFG: FluidConfig = {
   nx: 48,
@@ -53,4 +53,26 @@ test('固体掩码内无速度', () => {
 
 test('超编译期容量拒绝创建（无静默回退）', () => {
   expect(() => createFluid({ ...CFG, nx: 400, ny: 300 })).toThrow()
+})
+
+// 渲染零拷贝采样与 wasm 采样逐位一致（共享内存路径的防回归证明）
+test('bilinearSample 与 wasm sampleVelocity/sampleTemp 逐位一致', () => {
+  const f = createFluid(CFG)
+  f.setAmbient(0.3, -0.2)
+  for (let i = 0; i < 120; i++) {
+    f.addHeat(36, 38, 16 * DT)
+    f.step(DT)
+  }
+  const { u, v, t } = f.fieldViews()
+  const out1 = { x: 0, y: 0 }
+  const out2 = { x: 0, y: 0 }
+  for (let k = 0; k < 64; k++) {
+    const px = ((k * 7.13) % 68) + 0.4
+    const py = ((k * 3.77) % 48) + 0.4
+    const temp = bilinearSample(u, v, t, CFG.nx, CFG.ny, CFG.cell, 0.3, -0.2, px, py, out1)
+    f.sampleVelocity(px, py, out2)
+    expect(out1.x).toBe(out2.x)
+    expect(out1.y).toBe(out2.y)
+    expect(temp).toBe(f.sampleTemp(px, py))
+  }
 })

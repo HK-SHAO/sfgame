@@ -40,16 +40,27 @@ test('polyline：直角转角斜接相连，共线段直通无冗余折角', () 
   }
 })
 
-test('容量不足自动扩容不丢数据；reset 复用缓冲', () => {
-  const b = new MeshBatch(4)
-  for (let i = 0; i < 100; i++) b.rect(i, 0, i + 1, 1, 1, 1, 1, 1)
-  expect(b.count).toBe(600)
-  expect(b.data.length).toBeGreaterThanOrEqual(600 * VERTEX_STRIDE)
-  expect(vertex(b, 50 * 6)[0]).toBeCloseTo(50, 5)
+test('polylineFade：逐顶点 alpha 随数组生效', () => {
+  const b = new MeshBatch()
+  b.polylineFade(new Float32Array([0, 0, 2, 0]), 4, 0.5, 1, 0, 0, new Float32Array([0.25, 0.75]))
+  expect(b.count).toBe(6)
+  expect(vertex(b, 0)[5]).toBeCloseTo(0.25, 5)
+  expect(vertex(b, 1)[5]).toBeCloseTo(0.75, 5)
+})
+
+test('静态容量：写满后整体丢弃图元不越界，reset 复用缓冲', () => {
+  const b = new MeshBatch()
+  const cap = b.capacity
+  expect(cap).toBeGreaterThanOrEqual(131072)
+  for (let i = 0; i < cap / 6; i++) b.rect(0, 0, 1, 1, 1, 1, 1, 1)
+  expect(b.count).toBe(cap)
+  b.tri(0, 0, 1, 0, 0, 1, 1, 1, 1, 1)
+  expect(b.count).toBe(cap)
 
   const before = b.data
   b.reset()
   expect(b.count).toBe(0)
   b.tri(0, 0, 1, 0, 0, 1, 1, 1, 1, 1)
+  expect(b.count).toBe(3)
   expect(b.data).toBe(before)
 })

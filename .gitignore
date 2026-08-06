@@ -46,4 +46,4 @@ coverage
 *.sln
 *.sw?
 # wasm 编译产物（bun run build:wasm 生成）
-sfgame-web/src/sim/wasm/*.wasm
+sfgame-web/src/wasm/*.wasm

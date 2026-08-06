@@ -14,6 +14,10 @@
 
 ## 2026/08/05
 
+- #23 考虑一下渲染部分，例如烘焙或实时渲染，是否也可以用 assemblyscript 进行数值运算加速？如果合适就大胆执行。
+
+- #22 渲染部分：旗杆、旗子、太阳等是否应该挡住「气流粒子和轨迹」。云则保持原样。渲染出的地图边界为何左侧留有空间看不到气流，且点击不能防止道具。是不是“摄像机”拍到了边界外面？应该让画面“取景”刚好合适。
+
 - #21【ok】完整移除关于数值计算 js 后端的所有代码、文件。把整个项目清理干净。
 
 - #20【ok】通过 AssemblyScript、WASM、SIMD、Worker、共享内存等加速、高性能手段，把涉及到数值计算、图形渲染等 CPU 密集工作完整的，逐一迁移过去。要求研发时考虑好一致性、性能加速、鲁棒性。进行完善完整的迁移，包括“无头”测试、模拟、run-level、寻找解等可以被良好的加速。对应的 js 代码不要移除，方便通过切换“后端”的方式进行切换，进行性能验证。参考资料有：https://www.assemblyscript.org/getting-started.html 、https://www.assemblyscript.org/stdlib/globals.html、https://www.assemblyscript.org/concepts.html 。（installed assemblyscript@0.28.20 with binaries）。遇到特别难题卡点可以网上查资料。

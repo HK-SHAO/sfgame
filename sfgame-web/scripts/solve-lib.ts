@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { levelFromJson, parseLevelText } from '../src/game/level-format'
 import { LevelSimulation } from '../src/game/simulation'
 import type { LevelDef } from '../src/game/types'
-import { bootWasm } from '../src/sim/fluid'
+import { bootEngine } from '../src/wasm/engine'
 
 // FINE_DT 与浏览器固定步长 SIM_DT 一致（无头 ↔ 真机同语义）；COARSE_DT 粗筛是"另一套物理"，胜点必须 FINE_DT 精验
 export const FINE_DT = 1 / 60
@@ -10,10 +10,10 @@ export const COARSE_DT = 1 / 30
 
 // 无头引导：wasm 缺失/不可用直接抛错——脚本场景下无声回退等于产出假结果
 export async function initBackend(): Promise<void> {
-  const ok = await bootWasm(() =>
-    Promise.resolve(readFileSync(`${import.meta.dir}/../src/sim/wasm/sfsim.wasm`)),
+  const ok = await bootEngine(() =>
+    Promise.resolve(readFileSync(`${import.meta.dir}/../src/wasm/sfengine.wasm`)),
   )
-  if (!ok) throw new Error('流体内核（sfsim.wasm）加载失败，请先 bun run build:wasm')
+  if (!ok) throw new Error('WASM 引擎（sfengine.wasm）加载失败，请先 bun run build:wasm')
 }
 
 export type SourceTuple = [number, number, 'hot' | 'cold']

@@ -41,6 +41,7 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - run-level --verify/--solve 输出"通关 0.0s · 路程 NaN" → I8（bun 运行时 WASM·SIMD 误执行，先验过 vitest）
 - 只有 iOS Safari 卡、其他平台都好 → I6（Metal 后端渲染路径）
 - headless Chrome 截图/验证画面空白或只有背景色 → I7
+- AS/wasm 移植后数值"差不多但不对"（整数字面量相除截断）→ I9
 - vite dev 自动化访问 127.0.0.1 失败（000）→ I2
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
 
@@ -317,6 +318,12 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 ### I7 headless Chrome 默认无 WebGL
 **症状**：headless Chrome（`--headless=new`）里 `getContext('webgl')` 返回 null，游戏画面空白/只有 CSS 背景色；还容易误判为产品 bug。
 **修法**：加 `--enable-unsafe-swiftshader`（软件 WebGL）。注意 SwiftShader 性能不代表真机，只用于管线正确性验证。
+
+### I9 AssemblyScript 整数字面量相除会截断（2026-08，#23 逐位对照抓出）
+**症状**：AS 移植的几何代码与 JS 逐位对照时，插值系数（如 `7/27`）产出 0 而非 0.259——渐变环颜色全错，画面却"看起来正常"，目测无法发现。
+**根因**：AS 静态类型：`7 / 27` 两操作数推断为 i32，整数除法截断为 0；JS 同写法是浮点除。
+**修法**：显式浮点 `<f64>7 / 27`（或 `7.0 / 27.0`）。移植 JS 数值代码后必须跑逐位对照（旧/新实现同场景比对 Float32Array），别靠目测。
+**信号**：AS/wasm 移植后视觉"差不多但不对"、逐位对照出现整常数差异。
 
 ### H3 Lit 3 样式在 `shadowRoot.adoptedStyleSheets`
 无 `<style>` 标签，查生效规则读 `cssRules` 的 `cssText`。

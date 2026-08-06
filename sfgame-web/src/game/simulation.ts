@@ -1,5 +1,6 @@
 import type { FluidConfig, FluidLike } from '../sim/fluid'
 import { createFluid } from '../sim/fluid'
+import type { EngineHandle } from '../wasm/engine'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import type { SourceKind } from '../sim/types'
 import { penaltySeconds } from './timer'
@@ -48,15 +49,19 @@ export class LevelSimulation {
   private spawnVx: number
   private spawnVy: number
 
-  constructor(level: LevelDef) {
+  // engine 可选：浏览器由 controller 注入（流体与渲染共享同一 wasm 实例/内存）；无头脚本/测试不传则自建独立实例
+  constructor(level: LevelDef, engine?: EngineHandle) {
     this.level = level
     const { w, h, cell } = level.world
-    this.fluid = createFluid({
-      nx: Math.round(w / cell),
-      ny: Math.round(h / cell),
-      cell,
-      ...FLUID_TUNING,
-    })
+    this.fluid = createFluid(
+      {
+        nx: Math.round(w / cell),
+        ny: Math.round(h / cell),
+        cell,
+        ...FLUID_TUNING,
+      },
+      engine,
+    )
     this.fluid.setGroundMask(level.ground)
     this.applyAmbient(0)
     this.visited = level.goals.map(() => false)

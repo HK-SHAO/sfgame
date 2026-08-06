@@ -58,7 +58,8 @@ export class Tracers {
   private respawn(i: number, scatter = false) {
     const { w } = this.world
     for (let tries = 0; tries < RESPAWN_TRIES; tries++) {
-      const x = 2 + Math.random() * (w - 4)
+      // 满宽重生（含左缘）：风向右吹时左缘粒子一出现就被带走，旧 2 单位真空带让左缘看起来"没气流"
+      const x = 0.6 + Math.random() * (w - 1.2)
       const ceil = this.groundY(x) - 1.5
       if (ceil < 3) continue
       const y = 2 + Math.random() * (ceil - 2)

@@ -14,7 +14,9 @@
 
 ## 2026/08/05
 
-- #20 通过 AssemblyScript、WASM、SIMD、Worker、共享内存等加速、高性能手段，把涉及到数值计算、图形渲染等 CPU 密集工作完整的，逐一迁移过去。要求研发时考虑好一致性、性能加速、鲁棒性。进行完善完整的迁移，包括“无头”测试、模拟、run-level、寻找解等可以被良好的加速。对应的 js 代码不要移除，方便通过切换“后端”的方式进行切换，进行性能验证。参考资料有：https://www.assemblyscript.org/getting-started.html 、https://www.assemblyscript.org/stdlib/globals.html、https://www.assemblyscript.org/concepts.html 。（installed assemblyscript@0.28.20 with binaries）。遇到特别难题卡点可以网上查资料。
+- #21 完整移除关于数值计算 js 后端的所有代码、文件。把整个项目清理干净。
+
+- #20【ok】通过 AssemblyScript、WASM、SIMD、Worker、共享内存等加速、高性能手段，把涉及到数值计算、图形渲染等 CPU 密集工作完整的，逐一迁移过去。要求研发时考虑好一致性、性能加速、鲁棒性。进行完善完整的迁移，包括“无头”测试、模拟、run-level、寻找解等可以被良好的加速。对应的 js 代码不要移除，方便通过切换“后端”的方式进行切换，进行性能验证。参考资料有：https://www.assemblyscript.org/getting-started.html 、https://www.assemblyscript.org/stdlib/globals.html、https://www.assemblyscript.org/concepts.html 。（installed assemblyscript@0.28.20 with binaries）。遇到特别难题卡点可以网上查资料。
 
 - #19【ok】大胆删掉几乎所有注释，进行排序后，只保留20%真正必要的注释。
 

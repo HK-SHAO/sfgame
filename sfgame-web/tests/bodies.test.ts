@@ -1,9 +1,9 @@
 import { expect, test } from 'vitest'
 import { createBody, stepBody } from '../src/sim/bodies'
-import { Fluid } from '../src/sim/fluid'
+import { createFluid } from '../src/sim/fluid'
 
 function makeCalmFluid() {
-  return new Fluid({
+  return createFluid({
     nx: 8,
     ny: 8,
     cell: 10,

@@ -24,14 +24,10 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
 
 export type AppView = 'title' | 'solutions' | 'dev' | 'storage'
 
-// be = 流体物理后端（?be=js / ?be=wasm），性能验证用；缺省 auto 由运行时探测
-export type BackendParam = 'auto' | 'js' | 'wasm'
-
 export const urlState = new UrlState({
   // lv=0 为 dev 面板编辑槽（默认内容 = 第 1 关，见 session.ts）
   lv: codecs.int(null, 0, 99),
   src: codecs.list<SourcePlacement>([], sourceItem, '_'),
   v: codecs.enum<AppView>('title', ['solutions', 'dev', 'storage']),
   dev: codecs.bool(false),
-  be: codecs.enum<BackendParam>('auto', ['auto', 'js', 'wasm']),
 })

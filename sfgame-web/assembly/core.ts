@@ -103,8 +103,9 @@ export function rebuildSolid(): void {
   coreGroupN = 0
   bndEvenN = 0
   bndOddN = 0
-  // 8 格连续组：i 从 1 起步进 8，组内全为 core 格（SIMD 无分支直通的前提）
-  for (let j = 0; j < ny; j++) {
+  // 8 格连续组：i 从 1 起步进 8，组内全为 core 格（SIMD 无分支直通的前提）。
+  // 仅扫 j∈[1,ny-2]：isCore 会读 idx±nx，行 0/ny-1 上的越界索引靠"边行恒为固体"短路豁免，空掩码时会踩 OOB
+  for (let j = 1; j < ny - 1; j++) {
     const row = j * nx
     for (let i = 1; i + 7 <= nx - 2; i += 8) {
       let all = true

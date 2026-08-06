@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { LEVEL_2 } from '../src/game/levels'
 import { LevelSimulation } from '../src/game/simulation'
-import { Fluid } from '../src/sim/fluid'
+import { WasmFluid } from '../src/sim/fluid'
 
 const DT = 1 / 60
 
@@ -43,8 +43,8 @@ test('restart 保留玩家已放置的源与预算，仅清场复位飞机', () 
   expect(sim.hotLeft).toBe(2)
   // born 归零：否则新一局 time < born，渲染 pop 为负源隐形
   expect(sim.sources.every((s) => s.born === 0)).toBe(true)
-  // 未初始化 wasm 时 createFluid 返回 JS Fluid，直读温度场验证清场
-  expect((sim.fluid as Fluid).t.every((v) => v === 0)).toBe(true)
+  // 清场语义：直读内核温度场验证全零
+  expect((sim.fluid as WasmFluid).fieldViews().t.every((v) => v === 0)).toBe(true)
   expect(sim.plane.x).toBeLessThan(0)
   expect(sim.time).toBe(0)
   expect(sim.phase).toBe('playing')

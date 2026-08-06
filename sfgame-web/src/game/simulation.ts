@@ -1,5 +1,5 @@
 import type { FluidConfig, FluidLike } from '../sim/fluid'
-import { createFluid } from '../sim/wasm-fluid'
+import { createFluid } from '../sim/fluid'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import type { SourceKind } from '../sim/types'
 import { penaltySeconds } from './timer'

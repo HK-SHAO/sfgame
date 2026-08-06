@@ -18,8 +18,8 @@
 - `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = vitest
 - `bun run build:wasm` = asc 编译 `assembly/main.ts` → `src/sim/wasm/sfsim.wasm`（dev/test/build 均已内置，改 assembly/ 后无需手动跑）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
-- 关卡工具：`bun run scripts/run-level.ts levels/level-N.yaml --verify … --solve … --sim N [--backend js|wasm|auto]`（默认 auto = wasm 可用即用；详见 `skills/level-design/SKILL.md` §5-6）
-- 性能/一致性对照：`bun run scripts/bench-backend.ts levels/level-N.yaml`（js vs wasm 的 ms/step 与通关一致性）
+- 关卡工具：`bun run scripts/run-level.ts levels/level-N.yaml --verify … --solve … --sim N`（物理内核恒为 WASM·SIMD；详见 `skills/level-design/SKILL.md` §5-6）
+- `bun run test` 通过 `tests/setup.ts` 预热 WASM 流体内核（缺产物会抛错提示先 build:wasm）
 
 ## 类型配置
 
@@ -29,7 +29,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 分层不变量：`src/core/`、`src/game/`、`src/sim/` 无 DOM，可在 node 无头测试（tests 只 import game/sim/core 与 render/batch；core 的浏览器面必须可注入，如 url-state 的 URL 源）。DOM 仅在 `src/ui/`（玩家界面）与 `src/dev/`（开发者工具）；`src/render/` 是 WebGL 渲染层，其中 `batch.ts` 为纯计算可无头测试。
 
-- `src/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子、云）。流体双后端：`fluid.ts`（JS，恒可用）+ `wasm-fluid.ts`（WASM·SIMD 实现 + 后端工厂/回退）、`wasm-boot.ts`（平台无关引导，字节来源由调用方注入）；`assembly/` 为 AssemblyScript 源码（`main.ts` 入口 + `core.ts` 状态/标量通路），编译产物 `src/sim/wasm/sfsim.wasm`（gitignore）。两后端逐位一致（f64 车道语义镜像 JS），`?be=js|wasm` 或 dev 页切换验证
+- `src/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子、云）。流体内核为 WASM·SIMD 唯一实现：`fluid.ts`（引导 + 包装 + FluidLike 接口 + 工厂）、`assembly/` 为 AssemblyScript 源码（`main.ts` 入口 + `core.ts` 状态/标量通路），编译产物 `src/sim/wasm/sfsim.wasm`（gitignore）；不支持 WASM·SIMD 的环境在 main.ts 明示无法运行，绝不静默回退
 - `src/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例：level/sources/view）、`solutions.ts`（解法注册表 + solutionUrl）、`session.ts`（会话级关卡覆写：dev 面板 YAML 编辑，不落盘）
 - `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`
 - `src/render/` — `render.ts`（场景 → 顶点批组装）、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（纯计算即时模式网格构建器）

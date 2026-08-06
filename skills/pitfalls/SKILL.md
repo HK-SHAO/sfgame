@@ -37,6 +37,7 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - 布局测量与预期不符 → A1、H1
 - 挂进宿主元素的覆盖层元素"消失"（getBoundingClientRect 全 0/视口外）→ A9
 - 想用 wasm/代码生成/Worker 加速、移动端"应该更慢"的想当然 → I1、I5
+- run-level --verify/--solve 输出"通关 0.0s · 路程 NaN" → I8（bun 运行时 WASM·SIMD 误执行，先验过 vitest）
 - 只有 iOS Safari 卡、其他平台都好 → I6（Metal 后端渲染路径）
 - headless Chrome 截图/验证画面空白或只有背景色 → I7
 - vite dev 自动化访问 127.0.0.1 失败（000）→ I2
@@ -158,7 +159,7 @@ canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配
 **倍速下帧预算按速率放大**（预算 × rate）：每帧本就要消化 rate×tick，慢帧是预期而非故障；且主导成本（流体）不可降级，阶梯在高速率下只会白降画质。**追赶封顶**：单帧最多消化 60 模拟步（≈1s 模拟），暂停回归在 16× 下不会单帧冻结。
 
 ### D7 Canvas 2D → WebGL1 批量渲染（#7 性能重构的结论与要点）
-iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描边是瓶颈；WebGL1 在 iOS 8+/全部 WebView 可用且 GPU 加速，是兼容性最优解（WebGPU 太新、WASM 物理收益不抵工具链复杂度）。落地要点：
+iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描边是瓶颈；WebGL1 在 iOS 8+/全部 WebView 可用且 GPU 加速，是兼容性最优解（WebGPU 太新；物理数值内核 #20 起另走 WASM·SIMD，见 I1）。落地要点：
 - **公共 API 不变**：Renderer 的 constructor/resize/toWorld/draw 保持原签名，控制器与 UI 零改动。
 - **顶点批 `render/batch.ts`（纯计算无 DOM，可无头测试）+ `render/gl.ts`（上下文/着色器/缓冲薄层）**：整帧一个动态 VBO、一次 drawArrays(TRIANGLES)。
 - **GL `lineWidth` 多平台恒为 1**：线宽必须几何化——线段沿法线展开为四边形（`stroke()`），别指望 `gl.lineWidth`。
@@ -271,8 +272,8 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 ## I. 双环境工具链 / 浏览器自动化（实测）
 
 ### I1 加速技术先跑真机基准再定默认（wasm 血泪教训，2026-08）
-**实测**：MoonBit 逐位一致的 wasm 求解器在**所有实测平台都比 JS 慢**——iPhone Safari +48%、macOS Safari +39%、Chrome +142%（JIT 引擎的 JS typed-array 数值循环已接近原生，wasm 的调用/转换开销是负资产）。"无 JIT 的 WKWebView 才需要 wasm"的假设从未被实测证实，wasm 全套已按老大指示移除。
-**教训**：上任何加速技术（wasm/代码生成/Worker）前，先做真机基准再定默认；**实测无瓶颈就不引入复杂度**。当前（2026-08）基准：fluid 0.5ms、倍速帧 16× <12ms，无真实瓶颈。
+**实测**：MoonBit 逐位一致的 wasm 求解器在**所有实测平台都比 JS 慢**——iPhone Safari +48%、macOS Safari +39%、Chrome +142%（JIT 引擎的 JS typed-array 数值循环已接近原生，wasm 的调用/转换开销是负资产），该套代码已移除。**但 #20 改用 AssemblyScript 在更大网格/更重内核上重新实测：WASM·SIMD 全面领先（~2-4×），遂定为唯一后端**；#21 按老大指示移除全部 JS 流体后端与切换机制（`?be=`、`--backend`、bench-backend）。
+**教训**：上任何加速技术（wasm/代码生成/Worker）前，先做真机基准再定默认；结论随时间与实现水平变化，过时基准要重测。当前（2026-08）基准：流体 0.5ms（JS 时代）→ wasm 迁移后更低、倍速帧 16× <12ms。
 **注**：bench 工具链（bench.html、scripts/bench*.ts、src/dev/bench-core.ts）已按老大指示移除（2026-08）；浏览器验证用 chrome-devtools-mcp 直连（原 CDP 一致性脚本 `scripts/browser-consistency.ts` 已随之移除）。
 
 ### I2 vite dev 只绑 IPv6 回环
@@ -290,6 +291,11 @@ headless Chrome 自动化现直接用 chrome-devtools-mcp 工具连接（页面�
 
 ### I5 真机基准页的"帧预算"解读
 iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是量化底噪，不代表真实抖动；看 mean 与整帧构成（倍速帧项）判断瓶颈。iOS Safari 的 fluid JS 比桌面还快（0.49ms）——**"移动端更慢"要逐平台实测，别想当然**。
+
+### I8 bun 运行时误执行 WASM·SIMD 内核（2026-08，bun 1.4.0-canary）
+**症状**：`bun run scripts/run-level.ts --verify` 对注册解输出「通关 0.0-0.1s · 路程 NaN」，`--sim` 正常；同一关卡 vitest（node 运行时）通关时间与记录一致。偶发 `abort 167:45 / 1304:64`（advectPass 的 Float32Array 越界检查在字段全零、数学上不可能越界时触发）。
+**根因**：bun（JSC）对含 SIMD 指令的 wasm 模块存在误编译，advectPass/平流路径产出越界或发散值（实测同一二进制 node/V8 与浏览器逐位正确）。`evalCandidate` 已加 NaN 守卫——发散即抛错，绝不输出假通关。
+**修法**：脚本验证改用 vitest 侧（`solutions.test.ts` 注册解 ±2s 天然覆盖）或浏览器实测；等 bun 修复后恢复 run-level 工作流。JS 回退后端已随 #21 移除，无备用后端。
 
 ### I6 iOS Safari WebGL（ANGLE→Metal）性能要点（2026-08 实测 + WebKit bug 255987）
 **根因**：iOS 15.4 起 WebGL 默认走 Metal 后端，同内容 GPU 负载显著更高（"内容本质是 GPU 受限"），另有帧呈现依赖（254912，可致有效 30fps）等系统问题；Chrome/Android/macOS Safari 无此问题。

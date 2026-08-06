@@ -1,7 +1,6 @@
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
 import {
-  backendLabel,
   better,
   evalCandidate,
   FINE_DT,
@@ -9,7 +8,6 @@ import {
   loadLevel,
   mulberry32,
   spotGrid,
-  type BackendOpt,
   type CandidateMetric,
   type SourceTuple,
 } from './solve-lib'
@@ -30,10 +28,7 @@ const levelFile = resolve(file)
 const level = loadLevel(levelFile)
 console.log(`关卡 ${level.id}「${level.name}」 ${level.world.w}×${level.world.h} 预算 热${level.budget.hot}/冷${level.budget.cold}`)
 
-// 物理后端：缺省 auto（wasm 可用则 wasm），可 --backend js 强制 JS 做性能/一致性对照
-const backendOpt = opt('--backend', 'auto') as BackendOpt
-await initBackend(backendOpt)
-console.log(`物理后端：${backendLabel()}${backendOpt === 'wasm' && backendLabel() === 'JS' ? '（不可用，已回退）' : ''}`)
+await initBackend()
 
 function parseSources(raw: string): SourceTuple[] {
   return raw
@@ -242,7 +237,7 @@ class WorkerPool {
   }
 
   private spawn() {
-    const proc = Bun.spawn([process.execPath, `${import.meta.dir}/solve-worker.ts`, levelFile, backendOpt], {
+    const proc = Bun.spawn([process.execPath, `${import.meta.dir}/solve-worker.ts`, levelFile], {
       cwd: import.meta.dir,
       stdin: 'pipe',
       stdout: 'pipe',

@@ -97,7 +97,7 @@ solutions:
 cd sfgame-web
 # 1. 无操作 30s：必须不通关
 bun run scripts/run-level.ts levels/level-N.yaml --sim 30
-# 2. 参考解：必须可通关且快（教学关建议 ≤25s）；加 --backend js|wasm 可对照后端
+# 2. 参考解：必须可通关且快（教学关建议 ≤25s）
 bun run scripts/run-level.ts levels/level-N.yaml --verify 20-29.3-h,50-21.3-h
 # 3. 全量测试：solutions.test.ts 守护每个解的 winTime ±2s
 bun run test

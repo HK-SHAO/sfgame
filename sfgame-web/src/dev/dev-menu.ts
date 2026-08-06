@@ -1,9 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { version, author, description } from '../../package.json'
-import { iconBack, iconChip, iconDatabase, iconGear, iconRoute } from '../ui/icons'
-import { urlState } from '../game/state'
-import { activeBackend, backendPref, resolvedBackend, wasmReady } from '../sim/wasm-fluid'
+import { iconBack, iconDatabase, iconGear, iconRoute } from '../ui/icons'
 
 @customElement('sf-dev-menu')
 export class SfDevMenu extends LitElement {
@@ -13,27 +11,6 @@ export class SfDevMenu extends LitElement {
   private openSolutions = () => this.dispatchEvent(new CustomEvent('open-solutions'))
   private openStorage = () => this.dispatchEvent(new CustomEvent('open-storage'))
   private onToggleDev = () => this.dispatchEvent(new CustomEvent('toggle-dev', { detail: !this.dev }))
-
-  // 开关语义：ON = WASM 生效；WASM 不可用时置灰禁用（切过去也无意义）
-  private get wasmOn(): boolean {
-    return resolvedBackend() === 'wasm'
-  }
-
-  private get wasmUnavailable(): boolean {
-    return !wasmReady() && backendPref() !== 'js'
-  }
-
-  private get backendDesc(): string {
-    if (this.wasmOn) return activeBackend() === 'wasm' ? 'WASM·SIMD（加速物理内核）' : 'WASM·SIMD（已加载）'
-    return this.wasmUnavailable ? 'JS（当前设备不支持 WASM·SIMD）' : 'JS（关闭加速）'
-  }
-
-  // 与开发者模式开关同款 replaceState 写入；后端在模拟构造时定型，重载生效
-  private onToggleBackend = () => {
-    if (this.wasmOn) urlState.set('be', 'js', { replace: true })
-    else urlState.clear('be', { replace: true })
-    setTimeout(() => window.location.reload(), 0)
-  }
 
   protected override render() {
     return html`
@@ -53,18 +30,6 @@ export class SfDevMenu extends LitElement {
               <small>${this.dev ? '已开启（开发面板/高速档/不限量道具）' : '已关闭'}</small>
             </span>
             <span class="switch ${this.dev ? 'on' : ''}" aria-hidden="true"><span class="knob"></span></span>
-          </button>
-          <button class="row" @click=${this.onToggleBackend} ?disabled=${this.wasmUnavailable}>
-            <span class="ico">${iconChip}</span>
-            <span class="txt">
-              <b>物理后端</b>
-              <small>${this.backendDesc}</small>
-            </span>
-            <span
-              class="switch ${this.wasmOn ? 'on' : ''}${this.wasmUnavailable ? ' disabled' : ''}"
-              aria-hidden="true"
-              ><span class="knob"></span
-            ></span>
           </button>
           <button class="row" @click=${this.openSolutions}>
             <span class="ico">${iconRoute}</span>
@@ -261,14 +226,6 @@ export class SfDevMenu extends LitElement {
 
     .switch.on .knob {
       transform: translateX(1.12rem);
-    }
-
-    .switch.disabled {
-      opacity: 0.45;
-    }
-
-    .row:disabled {
-      cursor: default;
     }
 
     .about {

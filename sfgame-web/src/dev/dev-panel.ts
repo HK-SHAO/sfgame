@@ -37,9 +37,7 @@ export class SfDevPanel extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 0.3125rem;
-      width: min(50vw, 30rem);
-      min-width: min(50vw, 30rem);
-      max-width: min(44rem, calc(100vw - 1.25rem));
+      width: min(20rem, calc(100vw - 1.25rem));
       max-height: calc(100dvh - 4.5rem - env(safe-area-inset-top, 0px));
       overflow-y: auto;
       scrollbar-width: thin;

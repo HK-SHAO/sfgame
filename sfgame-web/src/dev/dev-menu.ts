@@ -15,10 +15,12 @@ export class SfDevMenu extends LitElement {
   protected override render() {
     return html`
       <main class="page">
-        <header class="head">
-          <button class="icon-btn" @click=${this.onBack} aria-label="返回">${iconBack}</button>
-          <div class="head-text">
-            <h1>开发者页面</h1>
+        <header class="bar">
+          <div class="bar-inner">
+            <button class="icon-btn" @click=${this.onBack} aria-label="返回">${iconBack}</button>
+            <div class="head-text">
+              <h1>开发者页面</h1>
+            </div>
           </div>
         </header>
 
@@ -75,20 +77,36 @@ export class SfDevMenu extends LitElement {
       height: 100%;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      padding:
-        calc(0.875rem + env(safe-area-inset-top, 0px)) 1.125rem
-        calc(1.875rem + env(safe-area-inset-bottom, 0px));
+      padding: 0 1.125rem calc(1.875rem + env(safe-area-inset-bottom, 0px));
       background:
         radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
         linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
     }
 
-    .head {
+    /* 标题栏：sticky 悬浮 + 半透明薄雾（负 margin 顶开 page 侧 padding 通到视口边缘，模糊加够出云雾感），内容从栏下滚过 */
+    .bar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      margin: 0 calc(-1.125rem) 0.875rem;
+      padding:
+        calc(0.5rem + env(safe-area-inset-top, 0px)) 1.125rem 0.5rem;
+      background: rgba(255, 253, 248, 0.6);
+      backdrop-filter: blur(1.5rem) saturate(1.6);
+      -webkit-backdrop-filter: blur(1.5rem) saturate(1.6);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: 0 0.25rem 1rem rgba(61, 52, 39, 0.08);
+      /* 底角圆润与卡片/按钮一致；顶角贴视口上沿，不圆 */
+      border-radius: 0 0 1rem 1rem;
+      corner-shape: squircle;
+    }
+
+    .bar-inner {
       display: flex;
       align-items: center;
       gap: 0.75rem;
       max-width: 35rem;
-      margin: 0 auto 1.25rem;
+      margin: 0 auto;
     }
 
     .icon-btn {

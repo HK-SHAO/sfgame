@@ -2,7 +2,7 @@
   "name": "sfgame-web",
   "private": true,
   "version": "0.0.0",
-  "description": "烧风 · 用温度创造风",
+  "description": "烧风 · 一个用能量创造风的游戏",
   "author": "烧风 (HK-SHAO)",
   "type": "module",
   "scripts": {

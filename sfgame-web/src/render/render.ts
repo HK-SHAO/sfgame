@@ -69,11 +69,11 @@ const SOURCE_CORE_RADIUS = 1.15
 const FLAG_RESPONSE_BASE = 1.2
 const FLAG_RESPONSE_WIND = 3
 const POLE_HEIGHT = 5.7
+const POLE_W = 0.34
 const POLE_FABRIC_LEN = 1.8
-const POLE_SINK = 0.6
-const SLEEVE_W = 0.55
-// 套筒全长 = 旗面长（胶囊底帽占去半径）
-const SLEEVE_LEN = POLE_FABRIC_LEN - SLEEVE_W / 2
+const SLEEVE_W = 0.4
+// 套筒长 = 旗面长 + 杆半径：顶/底帽尖对称超出旗面上下边各 POLE_W/2（底帽尖半径另占去 sr）
+const SLEEVE_LEN = POLE_FABRIC_LEN + POLE_W / 2 - SLEEVE_W / 2
 
 const TERRAIN_STEP = 0.25
 const TERRAIN_MAX_STEP = 2
@@ -155,6 +155,8 @@ export class Renderer {
       const bg = this.batch
       bg.reset()
       this.drawSky(bg, viewL, viewT, viewR, viewB, h)
+      // 地形静态，每帧重细分是纯浪费；旗杆留在动态层（须挡在云前，见 draw 顶部遮挡契约注释）
+      this.drawTerrain(bg, sim, viewL, viewR, viewB)
       if (gl.bakeBg(bg, viewL, viewT, viewR, viewB)) {
         this.bgDirty = false
         gl.bgStale = false
@@ -163,14 +165,14 @@ export class Renderer {
 
     const b = this.batch
     b.reset()
-    // 遮挡契约（远→近）：太阳光晕最背景 → 气流粒子与轨迹 → 太阳盘面 → 云（遮粒子与日芒，
-    // 但被地面/旗杆旗面遮挡）→ 旗杆 → 地形 → 旗面/抵达圆 → 源 → 飞机拖尾 → 飞机
+    // 遮挡契约（远→近）：天空/地形烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
+    // 太阳盘面 → 云（遮粒子与日芒；低垂贴山的云叠画在烘焙地形上，不再被山体盖住——换取地形免每帧细分的取舍）→
+    // 旗杆 → 旗面/套筒/抵达圆 → 源 → 飞机拖尾 → 飞机
     this.drawSunHalo(b)
     this.drawTracers(b, tracers)
     this.drawSun(b, now)
     this.drawClouds(b, scene.clouds)
     this.drawGoalPoles(b, sim)
-    this.drawTerrain(b, sim, viewL, viewR, viewB)
     this.drawGoal(b, sim)
     this.drawSources(b, sim, press)
     this.drawPlaneTrail(b, sim, planeTrail)
@@ -261,7 +263,8 @@ export class Renderer {
   private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {
     for (const g of sim.level.goals) {
       const gy = sim.level.ground(g.x)
-      b.stroke(g.x, gy + POLE_SINK, g.x, gy - POLE_HEIGHT, 0.34, ...FLAG_POLE, 1, true)
+      // 底端从 gy - POLE_W/2 起画：圆头帽尖正好落在地面线上（地形已烘在背景，杆身不得埋入地内）
+      b.stroke(g.x, gy - POLE_W / 2, g.x, gy - POLE_HEIGHT, POLE_W, ...FLAG_POLE, 1, true)
     }
   }
 
@@ -296,10 +299,11 @@ export class Renderer {
       const tipX = g.x + dx * len - dy * wave
       const tipY = flagTop + dy * len * 0.55 + droop * len + dx * wave
       b.tri(g.x, flagTop, tipX, tipY, g.x, flagTop + POLE_FABRIC_LEN, ...GOAL, 1)
-      // 套筒：胶囊（圆头顶）+ 矩形补齐底帽抹平方底，静止不随风动，夺旗时与旗面一同消失
+      // 套筒：纯胶囊（两端圆润），贴杆几乎同粗，静止不随风动，夺旗时与旗面一同消失
+      // 顶帽尖在 flagTop - POLE_W/2：正好盖住旗杆圆头帽尖（杆帽伸出杆身 POLE_W/2）；
+      // 底帽尖在 flagTop + POLE_FABRIC_LEN + POLE_W/2：与顶侧对称，帽尖距旗面上下边同为 POLE_W/2
       const sr = SLEEVE_W / 2
-      b.stroke(g.x, flagTop + sr, g.x, flagTop + SLEEVE_LEN, SLEEVE_W, ...GOAL, 1, true)
-      b.rect(g.x - sr, flagTop + SLEEVE_LEN, g.x + sr, flagTop + SLEEVE_LEN + sr, ...GOAL, 1)
+      b.stroke(g.x, flagTop - POLE_W / 2 + sr, g.x, flagTop + SLEEVE_LEN, SLEEVE_W, ...GOAL, 1, true)
     }
   }
 
@@ -409,7 +413,6 @@ export class Renderer {
       pts[n * 2 + 1] = tracers.y[i]
       fade[n] = colors[c0 + 3] * env
       b.polylineFade(pts, np * 2, TRACER_LINE_WIDTH, colors[c0], colors[c0 + 1], colors[c0 + 2], fade)
-      b.disc(tracers.x[i], tracers.y[i], TRACER_LINE_WIDTH / 2, TRACER_LINE_WIDTH / 2, 0, 8, colors[c0], colors[c0 + 1], colors[c0 + 2], fade[n])
     }
 
     for (let i = 0; i < count; i++) {

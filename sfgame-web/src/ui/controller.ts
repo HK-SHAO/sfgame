@@ -1,6 +1,6 @@
 import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
-import { PerformanceGovernor, TRACER_TIERS, DPR_TIERS } from '../core/governor'
+import { PerformanceGovernor, DPR_TIERS } from '../core/governor'
 import { buildWindProbes, isLanding, sampleWind } from '../core/wind'
 import { Tracers, TRAIL_LEN } from '../sim/particles'
 import { Clouds } from '../sim/clouds'
@@ -20,6 +20,8 @@ const PLANE_TRAIL_MAX_POINTS = 150
 const PLANE_TRAIL_SAMPLE = 0.3
 const PLANE_TRAIL_FADE = 6
 const LAND_SOUND_MIN_INTERVAL = 150
+// 粒子数全平台恒定（视觉一致）；性能兜底只降 dpr 分辨率档
+const TRACER_COUNT = 400
 export interface ControllerEvents {
   onHud(state: HudState): void
   onDeny(kind: SourceKind): void
@@ -74,17 +76,9 @@ export class GameController {
     status.setLevel(level.id, level.name)
     document.body.appendChild(status)
     this.statusEl = status
-    // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降档（所有平台同一策略）
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    this.governor = new PerformanceGovernor(TRACER_TIERS, DPR_TIERS, {
-      initialTracerLevel: reduced ? TRACER_TIERS.length - 1 : 0,
-    })
-    this.tracers = new Tracers(
-      TRACER_TIERS[this.governor.tracerLevel],
-      this.world,
-      this.ground,
-      TRAIL_LEN,
-    )
+    // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降 dpr（所有平台同一策略）
+    this.governor = new PerformanceGovernor(DPR_TIERS)
+    this.tracers = new Tracers(TRACER_COUNT, this.world, this.ground, TRAIL_LEN)
     this.clouds = new Clouds(level.id, this.world, this.ground)
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
@@ -288,17 +282,7 @@ export class GameController {
     })
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0
-    // 降级执行留在 controller（tracers 重建 / fit 涉及模拟与渲染对象）
-    const action = this.governor.record(cost, this.rate)
-    if (action === 'tracer') {
-      this.tracers = new Tracers(
-        TRACER_TIERS[this.governor.tracerLevel],
-        this.world,
-        this.ground,
-        TRAIL_LEN,
-      )
-    } else if (action === 'dpr') {
-      this.fit()
-    }
+    // 降级执行留在 controller（fit 涉及渲染对象）
+    if (this.governor.record(cost, this.rate)) this.fit()
   }
 }

@@ -37,6 +37,7 @@ description: 本项目（Lit 3 + Canvas 2D + vite/bun 单页游戏）实踩并�
 - 贴地飞机"推不动"疑为 bug → G8
 - 布局测量与预期不符 → A1、H1
 - 挂进宿主元素的覆盖层元素"消失"（getBoundingClientRect 全 0/视口外）→ A9
+- CSS/样式改了却不生效（Lit 模板里写了 `//` 注释） → A12
 - 想用 wasm/代码生成/Worker 加速、移动端"应该更慢"的想当然 → I1、I5
 - run-level --verify/--solve 输出"通关 0.0s · 路程 NaN" → I8（bun 运行时 WASM·SIMD 误执行，先验过 vitest）
 - 只有 iOS Safari 卡、其他平台都好 → I6（Metal 后端渲染路径）
@@ -211,10 +212,17 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 **修法**：所有驱动模板的状态字段一律 `@state()`（含外部直接赋值读取的，如 `paused`）。
 **信号**：组件内有"点了没反应/慢半拍"的交互字段——查它是不是普通字段；组件依赖外部周期性 requestUpdate 才更新。
 
+### A12 Lit CSS 模板里 `//` 不是注释：整条规则静默失效
+**症状**：给 `static styles` 某条 CSS 声明加 `// 注释` 后该规则完全不生效（如宽度规则失效、盒子缩回内容宽），无任何报错；`:host` 里混入更隐蔽（整块 :host 声明可能被废）。
+**根因**：`css` 标签模板把内容原样拼进 `<style>`，CSS 里 `//` 是非法词法（CSS 注释只有 `/* */`），解析器按错误恢复规则吞掉后续声明。
+**修法**：CSS 模板里注释一律 `/* */`；`//` 只允许写在模板外的 TS 代码处。
+**信号**：改动只加/改了注释、某样式却失效——先查注释写法；dev 面板宽度类规则尤其常见。
+
 ## E. 手势 / 移动端
 
 ### E1 `touch-action: none` + `user-scalable=no`
 否则长按弹系统菜单、双击缩放。
+**2026-08 续坑**：视口 meta 已 `user-scalable=no`，但用户开启系统辅助缩放（Settings → 缩放）时该 meta 被忽略，iOS 双击按钮仍会放大页面。**修法**：在根元素（`sf-app`）设 `touch-action: manipulation`——祖先值约束全部后代（canvas 自身 `none` 取更严交集，拖尾手势不受影响），双击放大被禁、滚动保留。Android 无此问题。
 
 ### E2 右键与左键冲突
 `pointerdown` 只处理 `button === 0`（右键若放行会先走热源 tap 流程），右键放冷源走 `contextmenu`（preventDefault）。

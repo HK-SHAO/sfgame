@@ -1,8 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { name } from '../../package.json'
-import { STORAGE_KEY as PROGRESS_KEY } from '../game/progress'
-import { MUTED_KEY } from '../core/sfx'
 import { iconBack, iconDatabase } from './icons'
 
 const KEY_PREFIXES = [`${name}.`]
@@ -10,24 +8,7 @@ const KEY_PREFIXES = [`${name}.`]
 interface StorageEntry {
   key: string
   bytes: number
-  summary: string
   raw: string
-}
-
-function summarize(key: string, raw: string): string {
-  if (key === PROGRESS_KEY) {
-    try {
-      const levels = Object.entries((JSON.parse(raw) as { levels?: Record<string, unknown> }).levels ?? {})
-      if (levels.length === 0) return '暂无通关记录'
-      return levels
-        .map(([id, list]) => `第 ${id} 关 ${Array.isArray(list) ? list.length : 0} 条成绩`)
-        .join(' · ')
-    } catch {
-      return '数据损坏（JSON 解析失败）'
-    }
-  }
-  if (key === MUTED_KEY) return raw === '1' ? '声音已关闭' : '声音已开启'
-  return raw.slice(0, 80)
 }
 
 function listEntries(): StorageEntry[] {
@@ -36,7 +17,7 @@ function listEntries(): StorageEntry[] {
     const key = localStorage.key(i)
     if (!key || !KEY_PREFIXES.some((p) => key.startsWith(p))) continue
     const raw = localStorage.getItem(key) ?? ''
-    out.push({ key, bytes: new TextEncoder().encode(raw).length, summary: summarize(key, raw), raw })
+    out.push({ key, bytes: new TextEncoder().encode(raw).length, raw })
   }
   return out
 }
@@ -94,10 +75,12 @@ export class SfStorage extends LitElement {
     const total = this.entries.reduce((s, e) => s + e.bytes, 0)
     return html`
       <main class="page">
-        <header class="head">
-          <button class="icon-btn" @click=${this.onBack} aria-label="返回">${iconBack}</button>
-          <div class="head-text">
-            <h1>存储管理</h1>
+        <header class="bar">
+          <div class="bar-inner">
+            <button class="icon-btn" @click=${this.onBack} aria-label="返回">${iconBack}</button>
+            <div class="head-text">
+              <h1>存储管理</h1>
+            </div>
           </div>
         </header>
 
@@ -121,7 +104,6 @@ export class SfStorage extends LitElement {
                         ${this.armed === e.key ? '确认删除' : '删除'}
                       </button>
                     </div>
-                    <p class="summary">${e.summary}</p>
                     ${this.expanded.has(e.key)
                       ? html`<pre class="raw">${e.raw}</pre>`
                       : nothing}
@@ -163,20 +145,36 @@ export class SfStorage extends LitElement {
       height: 100%;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      padding:
-        calc(0.875rem + env(safe-area-inset-top, 0px)) 1.125rem
-        calc(1.875rem + env(safe-area-inset-bottom, 0px));
+      padding: 0 1.125rem calc(1.875rem + env(safe-area-inset-bottom, 0px));
       background:
         radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
         linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
     }
 
-    .head {
+    /* 标题栏：sticky 悬浮 + 半透明薄雾（负 margin 顶开 page 侧 padding 通到视口边缘，模糊加够出云雾感），内容从栏下滚过 */
+    .bar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      margin: 0 calc(-1.125rem) 0.875rem;
+      padding:
+        calc(0.5rem + env(safe-area-inset-top, 0px)) 1.125rem 0.5rem;
+      background: rgba(255, 253, 248, 0.6);
+      backdrop-filter: blur(1.5rem) saturate(1.6);
+      -webkit-backdrop-filter: blur(1.5rem) saturate(1.6);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: 0 0.25rem 1rem rgba(61, 52, 39, 0.08);
+      /* 底角圆润与卡片/按钮一致；顶角贴视口上沿，不圆 */
+      border-radius: 0 0 1rem 1rem;
+      corner-shape: squircle;
+    }
+
+    .bar-inner {
       display: flex;
       align-items: center;
       gap: 0.75rem;
       max-width: 35rem;
-      margin: 0 auto 1.25rem;
+      margin: 0 auto;
     }
 
     .head-text h1 {
@@ -291,13 +289,6 @@ export class SfStorage extends LitElement {
     .del:active,
     .expand:active {
       transform: scale(0.95);
-    }
-
-    .summary {
-      margin: 0.375rem 0 0;
-      font-size: 0.8125rem;
-      line-height: 1.6;
-      color: var(--ink-soft);
     }
 
     .raw {

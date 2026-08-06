@@ -1,26 +1,18 @@
-// dev 一体化：初始编译 wasm → 监视 assembly/*.ts 变更自动重编（vite 检测 wasm 变化整页刷新）→ 拉起 vite。
-// Ctrl+C 一并清理不残留进程。asc flags 须与 package.json 的 build:wasm 一致
+// dev 一体化：确保 wasm 最新（跳过时即启动）→ 拉起 vite → 监视 assembly/*.ts 与 build-wasm.ts 变更自动重编
+// （vite 检测 wasm 变化整页刷新）。Ctrl+C 一并清理不残留进程。编译逻辑与 flags 单一来源 scripts/build-wasm.ts
 import { watch, type FSWatcher } from 'node:fs'
 import { join } from 'node:path'
+import { compileWasm } from './build-wasm'
 
 const root = import.meta.dir + '/..'
-const ASC_FLAGS = ['assembly/engine.ts', '-o', 'src/wasm/sfengine.wasm', '-O3', '--noAssert', '--runtime', 'stub', '--enable', 'simd']
+const assemblyDir = join(root, 'assembly')
 
 let compiling = false
 let pending = false
 let timer: ReturnType<typeof setTimeout> | null = null
 
 async function compile(): Promise<boolean> {
-  const t0 = performance.now()
-  const r = Bun.spawnSync(['asc', ...ASC_FLAGS], { cwd: root })
-  const ms = (performance.now() - t0).toFixed(0)
-  if (r.success) {
-    console.log(`[wasm] 编译 ✓ ${ms}ms`)
-    return true
-  }
-  console.error(`[wasm] 编译 ✗（保留旧产物）${ms}ms`)
-  if (r.stderr) process.stderr.write(r.stderr)
-  return false
+  return compileWasm()
 }
 
 function schedule() {
@@ -51,20 +43,29 @@ if (!(await compile())) {
 const args = process.argv.slice(2).filter((a) => a !== '--')
 const vite = Bun.spawn(['vite', ...args], { cwd: root, stdout: 'inherit', stderr: 'inherit' })
 
-let watcher: FSWatcher | null = null
+const watchers: FSWatcher[] = []
 try {
-  watcher = watch(join(root, 'assembly'), { recursive: true }, (_event, name) => {
-    if (name?.endsWith('.ts')) schedule()
-  })
+  watchers.push(
+    watch(assemblyDir, { recursive: true }, (_event, name) => {
+      if (name?.endsWith('.ts')) schedule()
+    }),
+  )
+  watchers.push(
+    watch(import.meta.dir, { recursive: false }, (_event, name) => {
+      if (name === 'build-wasm.ts') schedule()
+    }),
+  )
 } catch (err) {
-  console.error('[dev] assembly 监视失败：', err)
+  console.error('[dev] 监视失败（assembly/ 或 scripts/ 不可用）：', err)
+  watchers.forEach((w) => w.close())
+  process.exit(1)
 }
 
 let cleaned = false
 function cleanup(code: number) {
   if (cleaned) return
   cleaned = true
-  watcher?.close()
+  watchers.forEach((w) => w.close())
   vite.kill()
   process.exit(code)
 }

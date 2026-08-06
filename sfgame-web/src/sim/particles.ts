@@ -7,50 +7,34 @@ interface SourcePoint {
   kind: SourceKind
 }
 
-/** 每颗粒子记录的轨迹点数（实例可调：移动端缩短以控制描边负载） */
 export const TRAIL_LEN = 24
 const TRAIL_SAMPLE = 0.45
-/** 轨迹点自记录后随**时间**淡出的总时长（秒） */
 export const TRAIL_FADE_T = 5
-/** 生命首尾的淡入/淡出时长（秒），避免粒子凭空闪现 */
 const FADE_IN = 0.5
 const FADE_OUT = 0.7
-/** 随机重生的位置尝试次数（地形下无空位时放弃） */
 const RESPAWN_TRIES = 8
 const PLUME_PER_STEP = 2
-/** 羽流粒子绕源散开的半径 / 生命范围（秒） */
 const PLUME_RADIUS = 1.6
 const PLUME_LIFE_MIN = 0.9
 const PLUME_LIFE_SPAN = 1.2
 
-/**
- * 示踪粒子（拉格朗日）：被动平流于风场，把看不见的风可视化。
- * 颜色由局部温度决定（热红冷蓝中性灰），透明度随风速增大——"有风的地方才看得见风"；
- * 每条按**时间**淡出的短轨迹（streakline）营造风场线条感，粒子停驻时轨迹同样老化消失。
- */
 export class Tracers {
   count: number
-  /** 轨迹点数上限（按设备档位传入，控制描边负载） */
   readonly trailLen: number
   x: Float32Array
   y: Float32Array
   life: Float32Array
   maxLife: Float32Array
-  /** 各粒子累计路程（仅用于等距采样） */
   odo: Float32Array
-  /** 轨迹点坐标与写入时刻，按 count×trailLen 平铺 */
   trailX: Float32Array
   trailY: Float32Array
   trailT: Float32Array
-  /** 各粒子当前轨迹点数（≤ trailLen） */
   trailN: Uint8Array
-  /** 模拟时钟（step 累计），轨迹淡出的时间基准 */
   time = 0
 
   private lastOdo: Float32Array
   private world: WorldBounds
   private groundY: (x: number) => number
-  /** 采样复用对象：热路径零分配 */
   private air = { x: 0, y: 0 }
 
   constructor(count: number, world: WorldBounds, groundY: (x: number) => number, trailLen = TRAIL_LEN) {
@@ -117,7 +101,6 @@ export class Tracers {
     this.lastOdo[i] = this.odo[i]
   }
 
-  /** 生命首尾淡入淡出包络（0..1），供渲染层调制整体透明度。 */
   envelope(i: number): number {
     const age = this.maxLife[i] - this.life[i]
     const env = Math.min(1, age / FADE_IN, this.life[i] / FADE_OUT)
@@ -153,7 +136,6 @@ export class Tracers {
       }
     }
 
-    // 在活跃的源附近补充"羽流"粒子，强化因果感
     if (sources.length > 0) {
       for (let n = 0; n < PLUME_PER_STEP; n++) {
         const s = sources[(Math.random() * sources.length) | 0]

@@ -1,21 +1,17 @@
 import type { SourceKind } from '../sim/types'
 
-/** 放置描述（URL 状态/初始化用，无 id/born）。 */
 export interface SourcePlacement {
   x: number
   y: number
   kind: SourceKind
 }
 
-/** 解法（可内嵌于关卡 JSON，供解法参考页与测试校验）。 */
 export interface SolutionDef {
   name: string
   sources: SourcePlacement[]
-  /** 无头确定性模拟实测通关时刻（秒） */
   winTime: number
 }
 
-/** 潮汐风：在常风基础上叠加周期正弦分量。 */
 export interface TideDef {
   period: number
   phase?: number
@@ -29,33 +25,24 @@ export interface AmbientDef {
   tide?: TideDef
 }
 
-/** 站点：飞机进入抵达圆（圆心 = 地面上方 GOAL_LIFT，半径 = r，与虚线圆一致）即算抵达过；全部抵达过即过关（顺序无关）。 */
 export interface GoalDef {
   x: number
   r: number
 }
 
-/**
- * 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.yaml）：
- * 六个原子字段积木式组合，不引入一次性特例；solutions 可选（DIY 关卡可不带，
- * 解法参考页自动跳过）。
- */
+// 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.yaml）；solutions 可选（DIY 关卡可不带，解法参考页自动跳过）
 export interface LevelJson {
   schema: 1
   id: number
   name: string
   tagline: string
-  /** 过关结算文案：每关自己的表达，不写死在 UI 层 */
   win: { title: string; text: string }
   world: { w: number; h: number; cell: number }
-  /** 地形公式：y = f(x) 的表达式（可移植，函数表见 expr.ts） */
   ground: { expr: string }
   budget: { hot: number; cold: number }
-  /** 出生状态：可在世界外（如画布左外侧飞入）；vx/vy 为初速度 */
+  // 出生状态：可在世界外（如画布左外侧飞入）；vx/vy 为初速度
   spawn: { x: number; y?: number; vx?: number; vy?: number }
-  /** 站点序列（≥1） */
   goals: GoalDef[]
-  /** 环境背景风（谷风等），可叠加潮汐分量。默认无。 */
   ambient?: AmbientDef
   solutions?: SolutionDef[]
 }
@@ -65,7 +52,6 @@ export interface Source {
   kind: SourceKind
   x: number
   y: number
-  /** 放置时刻（模拟时钟），用于生长动画 */
   born: number
 }
 
@@ -74,18 +60,14 @@ export interface LevelDef {
   id: number
   name: string
   tagline: string
-  /** 过关结算文案：每关自己的表达，不写死在 UI 层 */
   win: { title: string; text: string }
   world: { w: number; h: number; cell: number }
-  /** 地形高度（世界坐标，y 向下）；由 ground.expr 编译而来 */
+  // 世界坐标 y 向下；由 ground.expr 编译而来
   ground: (x: number) => number
   budget: { hot: number; cold: number }
-  /** 出生状态：可在世界外（如画布左外侧飞入）；vx/vy 为初速度 */
   spawn: { x: number; y?: number; vx?: number; vy?: number }
   goals: GoalDef[]
-  /** 环境背景风（谷风等），可叠加潮汐。默认无。 */
   ambient?: AmbientDef
-  /** 原始 JSON（序列化/往返测试用），与 ground 函数同源 */
   json: LevelJson
 }
 
@@ -93,15 +75,10 @@ export interface HudState {
   phase: 'playing' | 'won'
   hotLeft: number
   coldLeft: number
-  /** 累计放置次数，用于隐藏新手引导 */
   placed: number
-  /** 模拟耗时（秒）；通关后冻结 = 通关时刻 */
   time: number
-  /** 惩罚性耗时（秒）：按当前场上源数计，叠加在通关总耗时上 */
   extra: number
-  /** 当前场上源数（惩罚计费依据） */
   sources: number
-  /** 显式暂停（HUD 暂停/恢复按钮） */
   paused: boolean
 }
 

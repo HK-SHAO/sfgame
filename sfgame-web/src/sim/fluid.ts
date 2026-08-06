@@ -1,35 +1,17 @@
 import type { Vec2 } from './types'
 
-/**
- * 均匀网格稳定流体求解器（Jos Stam, "Real-Time Fluid Dynamics for Games"）——欧拉视角。
- * 场：速度 (u,v) 与温度扰动 t（热正冷负）。每步：浮力 → 涡度约束 → MacCormack 二阶
- * 平流（含衰减）→ 压强投影（保持无散度）。
- * MacCormack（Selle et al. 2006）"前推-回溯误差补偿"把一阶半拉格朗日升为二阶：耗散大降、
- * 细节保留更好，代价仅两趟平流 + 邻域钳制（保证无条件稳定）。
- * 压强投影为红黑 Gauss-Seidel + 上一帧压强 warm-start 初值（流场逐帧缓变，收敛更好）。
- * 游戏叙事：热源加热 → 浮力上升 → 投影使周围冷空气补充流入，压强差涌现水平风；冷源相反。
- */
+// 欧拉稳定流体（Jos Stam）：浮力 → 涡度约束 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风
 export interface FluidConfig {
-  /** 网格列数 / 行数 */
   nx: number
   ny: number
-  /** 单元格边长（世界单位） */
   cell: number
-  /** 每单位温度产生的浮力加速度（世界单位/s²） */
   buoyancy: number
-  /** 温度绝对值上限 */
   tMax: number
-  /** 源每秒注入的温度量（中心处） */
   heatRate: number
-  /** 源的注入半径（世界单位） */
   sourceRadius: number
-  /** 速度每步保留比例（数值阻尼） */
   velDamping: number
-  /** 温度每步保留比例（向环境回归） */
   tDamping: number
-  /** 压强投影的 Gauss-Seidel 迭代次数 */
   iterations: number
-  /** 涡度约束强度（0 关闭） */
   vorticity: number
 }
 
@@ -37,7 +19,6 @@ export class Fluid {
   readonly nx: number
   readonly ny: number
   readonly cell: number
-  /** 温度绝对值上限（与 cfg.tMax 同步，供渲染等只读使用） */
   readonly tMax: number
   private cfg: FluidConfig
 
@@ -49,14 +30,12 @@ export class Fluid {
   private u0: Float32Array
   private v0: Float32Array
   private t0: Float32Array
-  /** MacCormack 误差补偿的临时场（q1/q2 跨场复用，场间串行处理） */
   private q1: Float32Array
   private q2: Float32Array
   private p: Float32Array
   private div: Float32Array
   private divH2: Float64Array
   private curl: Float32Array
-  /** 固体格索引表（setGroundMask 时构建）：enforceBoundary 只扫固体，免全阵扫描 */
   private solidIdx = new Int32Array(0)
 
   constructor(cfg: FluidConfig) {
@@ -91,13 +70,12 @@ export class Fluid {
   private ambientX = 0
   private ambientY = 0
 
-  /** 环境背景风（谷风等）：叠加在采样结果上，平流场本身不受扰动。 */
+  // 环境风只叠加到采样结果，不进入平流场
   setAmbient(x: number, y: number) {
     this.ambientX = x
     this.ambientY = y
   }
 
-  /** 地形高度函数以下（含）的单元格视为固体壁。同时封闭网格四边。 */
   setGroundMask(groundY: (x: number) => number) {
     const { nx, ny, cell } = this
     this.solid.fill(0)
@@ -121,7 +99,6 @@ export class Fluid {
     this.solidIdx = list
   }
 
-  /** 在世界坐标 (wx, wy) 附近注入温度（热为正、冷为负），按半径线性衰减。 */
   addHeat(wx: number, wy: number, amount: number) {
     const { cell, nx, ny, t } = this
     const gr = this.cfg.sourceRadius / cell
@@ -149,7 +126,6 @@ export class Fluid {
     }
   }
 
-  /** 双线性采样速度场（世界单位/s），结果写入 out。 */
   sampleVelocity(wx: number, wy: number, out: Vec2) {
     const { nx, ny, cell, u, v } = this
     let gx = wx / cell - 0.5
@@ -224,7 +200,7 @@ export class Fluid {
   private applyBuoyancy(dt: number) {
     const { nx, ny, v, t } = this
     const k = this.cfg.buoyancy * dt
-    // 固体格 t=0 不变量 → v -= k*0 恒为无操作，分支可去（逐位不变）
+    // 固体格 t=0 不变量 → v -= k*0 恒为无操作，免 solid 分支（逐位不变）
     for (let j = 1; j < ny - 1; j++) {
       const row = j * nx
       for (let i = 1; i < nx - 1; i++) {
@@ -265,11 +241,7 @@ export class Fluid {
     }
   }
 
-  /**
-   * MacCormack 二阶平流（Selle et al. 2006）：q1 前向半拉格朗日、q2 反向回溯 q1，
-   * q_new = q1 + (src - q2)/2，再钳制到 src 的 3×3 邻域极值——钳制保证不产生新极值、
-   * 无条件稳定。所有场都用本步开始前的速度场 (u0, v0) 回溯，互不干扰。
-   */
+  // MacCormack 二阶平流：q1 前向、q2 回溯 q1，q1+(src-q2)/2 误差补偿；钳制到 src 3×3 邻域极值保证不产生新极值、无条件稳定；所有场用本步开始前的速度场 (u0,v0) 回溯
   private advectMacCormack(dst: Float32Array, src: Float32Array, dt: number, damping: number) {
     const { nx, ny, solid, q1, q2 } = this
     this.advectPass(q1, src, dt, 1)
@@ -282,7 +254,7 @@ export class Fluid {
           dst[idx] = 0
           continue
         }
-        // 3×3 邻域极值（含固体格，其值为 0，钳制方向安全）——展开保持原比较次序
+        // 3×3 邻域极值含固体格（值 0，钳制方向安全）；展开以逐位保持原比较次序
         let lo = src[idx]
         let hi = lo
         let v: number
@@ -321,10 +293,7 @@ export class Fluid {
     }
   }
 
-  /**
-   * 单趟半拉格朗日平流：沿速度场回溯（sign=1）或前推（sign=-1）一个 dt，
-   * 双线性插值采样源场。无条件稳定，一阶精度。
-   */
+  // 单趟半拉格朗日平流：sign=1 回溯 / -1 前推；无条件稳定、一阶精度
   private advectPass(dst: Float32Array, src: Float32Array, dt: number, sign: number) {
     const { nx, ny, u0, v0, solid, cell } = this
     const dt0 = (dt / cell) * sign
@@ -342,7 +311,6 @@ export class Fluid {
         else if (x > nx - 1.5) x = nx - 1.5
         if (y < 0.5) y = 0.5
         else if (y > ny - 1.5) y = ny - 1.5
-        // 钳制后 x/y 恒为正：|0 与 floor 逐位等价
         const i0 = x | 0
         const j0 = y | 0
         const fx = x - i0
@@ -366,7 +334,7 @@ export class Fluid {
     const inv2h = 1 / (2 * h)
     const h2 = h * h
 
-    // 散度场。p 不清零：warm-start，沿用上一帧压强做初值（收敛更快）。
+    // p 不清零：warm-start 沿用上一帧压强做初值（流场逐帧缓变，收敛更快）
     for (let j = 1; j < ny - 1; j++) {
       const row = j * nx
       for (let i = 1; i < nx - 1; i++) {
@@ -384,12 +352,10 @@ export class Fluid {
       }
     }
 
-    // h²×div 预乘一次：与逐迭代 h2*div[idx] 逐位相同（div 在 GS 期间不变）
     const n = div.length
     for (let i = 0; i < n; i++) divH2[i] = h2 * div[i]
 
-    // 红黑 Gauss-Seidel：两色交替扫描，收敛约两倍于顺序 GS，
-    // 且天然可并行。网格四边恒为固体，内圈邻域索引必在界内。
+    // 红黑 Gauss-Seidel 交替扫描（收敛约两倍于顺序 GS）；网格四边恒为固体，内圈邻域索引必在界内
     const iterations = this.cfg.iterations
     for (let it = 0; it < iterations; it++) {
       for (let parity = 0; parity < 2; parity++) {

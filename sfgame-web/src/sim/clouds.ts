@@ -1,36 +1,24 @@
 import type { Fluid } from './fluid'
 import type { WorldBounds } from './types'
 
-/** 云数量：76×56 世界尺度下 3 朵（体积大、间距开，克制） */
 const CLOUD_COUNT = 3
-/** 云半径范围（世界单位）：体积上限约太阳（r=4）的 14 倍（8~15 倍区间） */
 const CLOUD_R_MIN = 5.6
 const CLOUD_R_SPAN = 4.0
-/** 出生高度：离地（该处地形）的 60%~85% 高度处——天空上三分之一、靠近顶部 */
 const ALT_LOW_F = 0.6
 const ALT_SPAN_F = 0.25
-/** 地图外出生带：超出左右边界的距离区间（云从画布外漂入） */
 const SPAWN_BAND_MIN = 8
 const SPAWN_BAND_SPAN = 12
-/** 超出地图该距离（或高于顶界）即淡出消失 */
 const DESPAWN_MARGIN = 30
-/** 云底低到该离地高度即淡出：贴地或被下沉风按到地 = 云消（阈值高于地形，先淡后消失） */
 const FADE_ALT = 3
-/** 一生中累积下沉距离达此值即淡出：被下沉风反复压低的云，比贴地更早消散 */
 const DESCEND_LIMIT = 16
-/** 水平 / 垂直风响应（1/s）：横快纵慢——"难下降"的物理性格 */
 const RESPOND_H = 1.2
 const RESPOND_V = 0.25
-/** 向出生高度的弱回复（1/s）：无风时缓慢回归，维持一定高度 */
 const HOME_RESTORE = 0.06
-/** 淡入淡出速率（1/s，约 2 秒过渡） */
 const ALPHA_RATE = 1.2
-/** 淡没判定阈值：alpha 低于此值即视为消失，按序列重生 */
 const ALPHA_DEAD = 0.02
-/** 出生位置里"空中"的比例，其余出生在地图外 */
 const IN_AIR_RATIO = 0.7
 
-/** 可复现 PRNG（mulberry32）：同一 level id → 同一片云，重开/重放布局稳定 */
+// 可复现 PRNG（mulberry32，黄金比例哈希使相邻 id 布局也分散）：同一 level id → 同一片云
 const mulberry32 = (seed: number) => {
   let a = seed >>> 0
   return () => {
@@ -41,17 +29,9 @@ const mulberry32 = (seed: number) => {
   }
 }
 
-/**
- * 云（视觉层物理，无头可测）：被动平流于风场，为天空加一层活的天气感。
- * 不参与关卡判定；未来若要做云的玩法，此模块可整体升级为实体。
- * 物理性格从简：一阶低通跟随风（水平快垂直慢）→ 云难下降；弱回复回
- * 出生高度 → 维持一定高度；被压到离地 FADE_ALT 以下、一生累积下沉达
- * DESCEND_LIMIT、或漂出地图 DESPAWN_MARGIN 即淡出，淡没后按伪随机
- * 序列在"空中/地图外"重生。
- */
+// 视觉层物理：云被动平流于风场，不参与关卡判定
 export class Clouds {
   readonly count: number
-  /** 云心位置 / 半径 / 不透明度（0..1，渲染与淡出共用同一包络） */
   x: Float32Array
   y: Float32Array
   radius: Float32Array
@@ -60,7 +40,6 @@ export class Clouds {
   private vx: Float32Array
   private vy: Float32Array
   private homeY: Float32Array
-  /** 本朵云累积下沉距离（y 增量的正部分累计） */
   private descent: Float32Array
   private world: WorldBounds
   private groundY: (x: number) => number
@@ -71,7 +50,6 @@ export class Clouds {
     this.count = count
     this.world = world
     this.groundY = groundY
-    // 黄金比例哈希：相邻 id 的关卡布局也彼此不同
     this.rng = mulberry32(Math.imul(levelId, 0x9e3779b1))
     this.x = new Float32Array(count)
     this.y = new Float32Array(count)
@@ -84,7 +62,6 @@ export class Clouds {
     for (let i = 0; i < count; i++) this.respawn(i)
   }
 
-  /** 出生域：70% 空中、30% 地图外（界外高度按最近边缘地形计算）。 */
   private respawn(i: number) {
     const { w } = this.world
     const rng = this.rng

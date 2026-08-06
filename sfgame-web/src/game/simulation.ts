@@ -4,7 +4,6 @@ import type { SourceKind } from '../sim/types'
 import { penaltySeconds } from './timer'
 import type { HudState, LevelDef, Source, SourcePlacement } from './types'
 
-/** 流体物理调参：所有关卡共享同一套"空气性格"。 */
 const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
   buoyancy: 2.0,
   tMax: 9,
@@ -16,27 +15,19 @@ const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
   vorticity: 0.5,
 }
 
-/** 悬停阈值 = gravity/dragK ≈ 1.0（上升风需超过它才能抬升）。 */
+// 悬停阈值 = gravity/dragK ≈ 1.0（上升风需超过它才能抬升）
 const PLANE_PHYSICS = { radius: 1.0, dragK: 3.0, gravity: 3.0 }
 
-/** 源之间的最小间距，避免叠放。 */
 const MIN_SOURCE_GAP = 3.2
 const SOURCE_HIT_RADIUS = 3.0
-/** 放置下限：地面之上该高度内均可放置；贴地吸附高度 */
 const GROUND_PLACE_MARGIN = 0.6
 const GROUND_SNAP_LIFT = 0.7
-/** 目标区圆心在地面上的抬升高度（虚线圆渲染与检测共用，见 render.ts） */
+// 目标区圆心在地面上的抬升高度（虚线圆渲染与检测共用，见 render.ts）
 export const GOAL_LIFT = 2
-/** URL 位置匹配容差：对齐 URL 的 1 位小数精度（舍入误差 ≤0.05） */
+// URL 位置匹配容差：对齐 URL 的 1 位小数精度（舍入误差 ≤0.05）
 const URL_PRECISION_TOLERANCE = 0.06
 
-/**
- * 无头关卡模拟（不依赖 DOM，可在 bun 中测试）。
- * 胜负语义：飞机进入抵达圆（圆心 = 目标点上方 GOAL_LIFT，半径 = 关卡 g.r，
- * 与渲染的虚线圆完全一致）即算"抵达过"，贴地滑入同样计数；顺序不限。
- * 挂机不可通关由关卡设计保证（见 tests/solutions.test.ts 的零操作回归）。
- * 过关瞬间与显式暂停都会冻结物理与时钟——结算弹窗弹出时背景不再运行。
- */
+// 胜负语义：进入抵达圆（与渲染虚线圆一致）即算抵达，贴地滑入同样计数、顺序不限；过关瞬间与显式暂停都冻结物理与时钟
 export class LevelSimulation {
   readonly level: LevelDef
   readonly fluid: Fluid
@@ -44,11 +35,8 @@ export class LevelSimulation {
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
   time = 0
-  /** 各站点是否已飞行抵达过（全部 true 即过关）。 */
   visited: boolean[]
-  /** 已抵达站点数（渲染/音效用）。 */
   visitedCount = 0
-  /** 显式暂停 step（dev 空格切换；过关自动等效暂停）。 */
   paused = false
 
   private nextId = 1
@@ -87,7 +75,7 @@ export class LevelSimulation {
     return this.unlimited ? Infinity : this.level.budget.cold - this.usedCold
   }
 
-  /** 道具不限量（预算校验跳过；HUD 显示 ∞）。仅 dev 模式（?dev=1）由 controller 注入，产品路径恒 false */
+  // 道具不限量：仅 dev 模式（?dev=1）由 controller 注入，产品路径恒 false
   unlimited = false
 
   hudState(): HudState {
@@ -96,7 +84,6 @@ export class LevelSimulation {
       hotLeft: this.hotLeft,
       coldLeft: this.coldLeft,
       placed: this.placed,
-      // time 为通关时刻（won 即冻结），extra 为按场上源数计的罚时
       time: this.time,
       extra: penaltySeconds(this.sources.length),
       sources: this.sources.length,
@@ -104,7 +91,6 @@ export class LevelSimulation {
     }
   }
 
-  /** 完整重置：清场、清空源与预算占用。 */
   reset() {
     this.fluid.clear()
     this.sources = []
@@ -123,7 +109,6 @@ export class LevelSimulation {
     this.plane.angle = 0
   }
 
-  /** 只清场与复位飞机，保留玩家已放置的源与预算（UI「再玩一次」语义）。 */
   restart() {
     this.fluid.clear()
     this.phase = 'playing'
@@ -140,7 +125,6 @@ export class LevelSimulation {
     this.plane.angle = 0
   }
 
-  /** 显式暂停/恢复（dev 空格）；过关冻结独立于此标志。 */
   setPaused(paused: boolean) {
     this.paused = paused
   }
@@ -168,7 +152,7 @@ export class LevelSimulation {
     return best
   }
 
-  /** force 仅绕过"must be playing"（URL 状态恢复用，含获胜后重做）；预算与位置校验仍生效。 */
+  // force 仅绕过"must be playing"（URL 状态恢复用，含获胜后重做）；预算与位置校验仍生效
   placeSource(x: number, y: number, kind: SourceKind, force = false): Source | null {
     if (!force && this.phase !== 'playing') return null
     if (!this.unlimited && (kind === 'hot' ? this.hotLeft <= 0 : this.coldLeft <= 0)) return null
@@ -193,8 +177,7 @@ export class LevelSimulation {
     return true
   }
 
-  /** 源集合收敛到目标列表（URL 状态应用，最小差异）：存活源保留原 id/born（不重播生长动画）；
-   * 移除必须与目标列表比对（比对场上会永不删除）；幂等，可安全重复调用。 */
+  // URL 状态最小差异收敛：存活源保留原 id/born（不重播生长动画）；移除必须与目标列表比对（比对场上会永不删除）；幂等
   applySources(target: SourcePlacement[]): void {
     const match = (a: Source, b: SourcePlacement) =>
       a.kind === b.kind &&
@@ -222,7 +205,6 @@ export class LevelSimulation {
     this.checkGoals()
   }
 
-  /** 常风 + 潮汐正弦分量的合成（确定性，随模拟时钟推进）。 */
   private applyAmbient(t: number) {
     const a = this.level.ambient
     let ax = a?.x ?? 0

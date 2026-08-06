@@ -1,6 +1,6 @@
 # AGENTS.md
 
-烧风（sfgame-web）：Lit 3 + Canvas 2D 物理益智游戏。放置热/冷源造风，让纸飞机抵达目标。注释与 README 均为中文。
+烧风（sfgame-web）：Lit 3 + WebGL 物理益智游戏。放置热/冷源造风，让纸飞机抵达目标。注释与 README 均为中文。
 
 ## 注释约定（本仓库特有）
 
@@ -25,11 +25,13 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 ## 架构边界
 
-分层不变量：**只有 `src/ui/` 接触 DOM**；`src/core/`、`src/game/`、`src/sim/` 无 DOM，可在 node 无头测试（tests 只 import game/sim/core；core 的浏览器面必须可注入，如 url-state 的 URL 源）。
+分层不变量：`src/core/`、`src/game/`、`src/sim/` 无 DOM，可在 node 无头测试（tests 只 import game/sim/core 与 render/batch；core 的浏览器面必须可注入，如 url-state 的 URL 源）。DOM 仅在 `src/ui/`（玩家界面）与 `src/dev/`（开发者工具）；`src/render/` 是 WebGL 渲染层，其中 `batch.ts` 为纯计算可无头测试。
 
-- `src/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子）
+- `src/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子、云）
 - `src/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`levels.ts`、`types.ts`、`state.ts`（URL 状态 schema 单例：level/sources/view）、`solutions.ts`（解法注册表 + solutionUrl）、`session.ts`（会话级关卡覆写：dev 面板 YAML 编辑，不落盘）
-- `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`render.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`、`gl.ts`、`devtools.ts`（?dev=1 组装开发面板）、`dev-panel.ts`（开发面板外壳：拖拽手柄 + 分割线 + slot 装配，默认宽约视图一半、不超视图、主题经 --dev-* 变量共享）、`perf.ts`（性能块，独立组件）、`level-editor.ts`（关卡 YAML 临时编辑器，独立组件，默认折叠）、`dev-menu.ts`
+- `src/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）、`controller.ts`、`input.ts`、`icons.ts`、`solutions-view.ts`、`storage-view.ts`、`status-bar.ts`
+- `src/render/` — `render.ts`（场景 → 顶点批组装）、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（纯计算即时模式网格构建器）
+- `src/dev/` — ?dev=1 开发者工具：`devtools.ts`（组装：面板 + 性能块 + 编辑器，由 app 持有跨关卡重建延续）、`dev-panel.ts`（面板外壳：拖拽手柄 + 分割线 + slot 装配，主题经 --dev-* 变量共享）、`perf.ts`（性能块）、`level-editor.ts`（关卡 YAML 临时编辑器，默认折叠）、`dev-menu.ts`（开发者页面）
 - `src/core/` — 固定步长循环、音效、通用 URL 状态模块
 
 ## 拖尾约定（2026-08 起）
@@ -48,12 +50,12 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 ## 玩法不变量（回归测试守护，别破坏）
 
-- 零操作挂机不能通关：抵达圆（虚线圆 = 检测圆）内滑行与飞行同等计数，故各关卡挂机轨迹必须不穿过任何抵达圆（`tests/solutions.test.ts` 零操作回归）；每个解初始一次性放置必通关且与记录时间一致（±2s）
+- 零操作挂机不能通关：抵达圆（虚线圆 = 检测圆）内滑行与飞行同等计数，故各关卡挂机轨迹必须不穿过任何抵达圆（设计红线，新关卡须用 `run-level.ts --sim` 自查；#18 起不再设自动回归）；每个解初始一次性放置必通关且与记录时间一致（±2s，`tests/solutions.test.ts` 守护）
 - 参考解须"基本全程飞行"（贴地累计 ≤1.5s），坐标 1 位小数（URL 可放置），鲁棒性 ≥75%（见 `skills/level-design/SKILL.md` §6）
 - 右键 = 放冷源：`input.ts` 的 `onDown` 只处理 `e.button === 0`，右键走 contextmenu
 
 ## 验证策略
 
-- 保留 `tests/` 自动测试，重点测试核心模块，而非宏观
+- `tests/` 保持最小集（#18/#19 精简至 ~36 项、十余秒跑完）：只测核心模块的白盒行为（流体/刚体/循环/URL 状态/关卡协议/注册解通关），不做整局玩法与 E2E；删测试可以大胆，新增须证明无可替代
 - 布局问题用 headless Chrome 数值化探针验证（方法见 pitfalls H1）
 - 游戏体验验证依赖用户/玩家反馈，非必要或无用户要求，研发不得进行 Computer Use 或 E2E 脚本验证实验。这个目标是为了减少 token 浪费。涉及到 UI 的不受此约束。

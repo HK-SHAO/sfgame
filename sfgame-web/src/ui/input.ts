@@ -1,26 +1,19 @@
 import type { Vec2 } from '../sim/types'
 import type { Source } from '../game/types'
 
-/** 长按判定阈值（毫秒）：超过即确认为冷源。 */
 export const LONG_PRESS_MS = 380
 
-/** 位移超过该像素值视为"移动"，取消轻点/长按语义（可拖离以撤销）。 */
 const MOVE_SLOP_PX = 14
 
 export interface GestureHandlers {
-  /** client 坐标 → 世界坐标；落在可玩区域外返回 null */
   toWorld(clientX: number, clientY: number): Vec2 | null
-  /** 按压起点命中了已有源（进入移除手势） */
   hitSource(w: Vec2): Source | null
   sourceGrabbed(source: Source): void
   sourceReleased(source: Source): void
   pressStarted(w: Vec2): void
-  /** 长按达到阈值，确认放置冷源 */
   longPressConfirmed(w: Vec2): void
-  /** 轻点（快速抬起），确认放置热源 */
   tap(w: Vec2): void
   pressCancelled(): void
-  /** 桌面端右键 = 直接放冷源 */
   secondaryTap(w: Vec2): void
 }
 
@@ -34,11 +27,6 @@ interface PointerTrack {
   timer: number
 }
 
-/**
- * 统一指针手势（Pointer Events）：轻点空白 = 热源；长按空白 = 冷源；
- * 按住已有源并抬起 = 移除（拖离原位可撤销）。
- * 反馈必须从 pointerdown 即刻开始（渲染层按 pressStarted 时间绘制进度环）。
- */
 export class GestureInput {
   private el: HTMLElement
   private handlers: GestureHandlers
@@ -74,8 +62,7 @@ export class GestureInput {
   }
 
   private onDown = (e: PointerEvent) => {
-    // 只处理主键（左键/触摸）。右键由 contextmenu 走"直接放冷源"路径，
-    // 若在此放行，右键会先按热源 tap 流程放置热源，与设计冲突。
+    // 右键走 contextmenu 放冷源；此处放行会先按 tap 放热源
     if (e.button !== 0) return
     const w = this.handlers.toWorld(e.clientX, e.clientY)
     if (!w) return

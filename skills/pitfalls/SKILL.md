@@ -160,7 +160,7 @@ canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配
 ### D7 Canvas 2D → WebGL1 批量渲染（#7 性能重构的结论与要点）
 iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描边是瓶颈；WebGL1 在 iOS 8+/全部 WebView 可用且 GPU 加速，是兼容性最优解（WebGPU 太新、WASM 物理收益不抵工具链复杂度）。落地要点：
 - **公共 API 不变**：Renderer 的 constructor/resize/toWorld/draw 保持原签名，控制器与 UI 零改动。
-- **顶点批 `core/batch.ts`（纯计算无 DOM，可无头测试）+ `ui/gl.ts`（上下文/着色器/缓冲薄层）**：整帧一个动态 VBO、一次 drawArrays(TRIANGLES)。
+- **顶点批 `render/batch.ts`（纯计算无 DOM，可无头测试）+ `render/gl.ts`（上下文/着色器/缓冲薄层）**：整帧一个动态 VBO、一次 drawArrays(TRIANGLES)。
 - **GL `lineWidth` 多平台恒为 1**：线宽必须几何化——线段沿法线展开为四边形（`stroke()`），别指望 `gl.lineWidth`。
 - **逐顶点颜色取代分桶**：透明度/颜色不再离散分桶（Canvas 的 strokeStyle 状态机所迫），每段直接带精确 RGBA，一次提交。
 - **径向渐变 = 扇形逐顶点插值**：中心色→边缘色线性插值即等价两端色标的 createRadialGradient，免每帧建渐变与精灵烘焙。
@@ -299,7 +299,7 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 - **不透明/混合两趟绘制**：PowerVR 平铺 GPU 上全屏混合直接放大成本
 - **blend 状态每帧幂等重设**：canvas 尺寸变更会重置上下文状态，init 里设一次会失效
 - **渲染门控加容差**（`>= SIM_DT_MS - 1`）：60Hz 下 rAF 抖动会跳过半数渲染 → 16/33ms 交替伪 30fps
-- 调试：`?dev=1` 叠加层（src/ui/perf.ts）实时帧间隔分布/顶点量/上传字节，点击复制
+- 调试：`?dev=1` 叠加层（src/dev/perf.ts）实时帧间隔分布/顶点量/上传字节，点击复制
 **信号**：只有 iOS Safari 卡、其他平台都好 → 先怀疑 Metal 后端渲染路径，别动物理。
 
 ### I7 headless Chrome 默认无 WebGL

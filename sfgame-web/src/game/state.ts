@@ -1,13 +1,13 @@
 import { UrlState, codecs, type UrlStateListCodec } from '../core/url-state'
 import type { SourcePlacement } from './types'
 
-/** 坐标 1 位小数，整数去掉尾部 .0（20.0 → 20）。 */
+// 坐标 1 位小数，整数去掉尾部 .0（20.0 → 20）
 export const num = (v: number) => {
   const s = v.toFixed(1)
   return s.endsWith('.0') ? s.slice(0, -2) : s
 }
 
-/** sources 列表项："x-y-k"（k: h/c）；`-` 与 `_` 均为 URL 免编码字符，全程零百分号转义。 */
+// sources 列表项 "x-y-k"（k: h/c）；`-` 与 `_` 均为 URL 免编码字符，全程零百分号转义
 export const sourceItem: UrlStateListCodec<SourcePlacement> = {
   encode(s) {
     return `${num(s.x)}-${num(s.y)}-${s.kind === 'hot' ? 'h' : 'c'}`
@@ -22,12 +22,8 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
   },
 }
 
-/** 页面视图：默认 title（无 view 参数）；solutions/dev/storage 为显式值（解法参考/开发者页面/存储管理页）。 */
 export type AppView = 'title' | 'solutions' | 'dev' | 'storage'
 
-/** 应用级 URL 状态 schema（单例）：lv 直达关卡、src 实时双向同步、v 记录页面视图
- * （解法参考页刷新不丢失）、dev 开启开发者功能（perf 叠加层、8×/16× 高速档、空格暂停物理）。
- * 键名取短，压缩分享 URL。例：?lv=1&src=20-44-h_36-28-h、?v=solutions、?dev=1 */
 export const urlState = new UrlState({
   // lv=0 为 dev 面板编辑槽（默认内容 = 第 1 关，见 session.ts）
   lv: codecs.int(null, 0, 99),

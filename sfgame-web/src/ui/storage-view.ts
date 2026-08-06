@@ -5,14 +5,12 @@ import { STORAGE_KEY as PROGRESS_KEY } from '../game/progress'
 import { MUTED_KEY } from '../core/sfx'
 import { iconBack, iconDatabase } from './icons'
 
-/** 本 app 持久化的数据键前缀（存储管理页的可见范围，跟随 package.json 的 name） */
 const KEY_PREFIXES = [`${name}.`]
 
 interface StorageEntry {
   key: string
   bytes: number
   summary: string
-  /** 原始值（展开时展示） */
   raw: string
 }
 
@@ -48,16 +46,9 @@ function formatBytes(n: number): string {
   return `${(n / 1024).toFixed(1)} KB`
 }
 
-/**
- * 存储管理页：只读展示本 app 的持久化数据（键/大小/内容摘要），提供删除与清空。
- * 删除后整页重载——进度/音效等模块单例在内存里持有旧数据，重载是最可靠的一致性保证
- * （URL 带 v=storage，重载后仍回到本页）。
- */
 @customElement('sf-storage')
 export class SfStorage extends LitElement {
-  /** 两击确认：记录已武装的键（'*' = 清空全部），3 秒后自动解除 */
   @state() private armed: string | null = null
-  /** 展开查看原始值的键集合 */
   @state() private expanded = new Set<string>()
   private entries: StorageEntry[] = []
   private disarmTimer: ReturnType<typeof setTimeout> | null = null
@@ -83,6 +74,7 @@ export class SfStorage extends LitElement {
       } else {
         localStorage.removeItem(key)
       }
+      // 整页重载：模块单例在内存持有旧数据（URL 带 v=storage，重载仍回本页）
       location.reload()
       return
     }
@@ -308,7 +300,6 @@ export class SfStorage extends LitElement {
       color: var(--ink-soft);
     }
 
-    /* 展开的原始值：等宽小字，可滚动 */
     .raw {
       margin: 0.5rem 0 0;
       padding: 0.625rem 0.75rem;

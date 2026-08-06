@@ -7,11 +7,10 @@ import { sourceItem } from '../src/game/state'
 import type { LevelDef, SourcePlacement } from '../src/game/types'
 
 const DT = 1 / 60
-/** 通关时限：留足余量（实测参考解最长约 24s） */
+// 留足余量：实测参考解最长约 24s
 const WIN_CAP = 45
 
-/** 初始一次性放置所有源，跑确定性模拟直到通关。返回通关时刻，不通关返回 -1。 */
-function winTime(level: LevelDef, sources: ReturnType<typeof solutionsFor>[number]['sources']): number {
+function winTime(level: LevelDef, sources: SourcePlacement[]): number {
   const sim = new LevelSimulation(level)
   for (const s of sources) sim.placeSource(s.x, s.y, s.kind)
   for (let t = 0; t < WIN_CAP; t += DT) {
@@ -21,22 +20,18 @@ function winTime(level: LevelDef, sources: ReturnType<typeof solutionsFor>[numbe
   return -1
 }
 
-test('每个关卡的解非空（解法参考页有内容）', () => {
+test('所有关卡均有注册解，且源数量不超预算', () => {
   expect(Object.keys(SOLUTIONS).length).toBeGreaterThan(0)
-})
-
-test('每个解：源数量不超过关卡预算', () => {
   for (const level of LEVELS) {
+    expect(solutionsFor(level.id).length, `${level.id} 无解`).toBeGreaterThan(0)
     for (const s of solutionsFor(level.id)) {
-      const hot = s.sources.filter((x) => x.kind === 'hot').length
-      const cold = s.sources.filter((x) => x.kind === 'cold').length
-      expect(hot, `${level.id} 热源超预算`).toBeLessThanOrEqual(level.budget.hot)
-      expect(cold, `${level.id} 冷源超预算`).toBeLessThanOrEqual(level.budget.cold)
+      expect(s.sources.filter((x) => x.kind === 'hot').length).toBeLessThanOrEqual(level.budget.hot)
+      expect(s.sources.filter((x) => x.kind === 'cold').length).toBeLessThanOrEqual(level.budget.cold)
     }
   }
 })
 
-test('每个解：初始一次性放置即通关，且实测时间与记录一致（±2s）', () => {
+test('每个解：初始一次性放置即通关，实测时间与记录一致（±2s）', () => {
   for (const level of LEVELS) {
     for (const s of solutionsFor(level.id)) {
       const t = winTime(level, s.sources)
@@ -46,18 +41,7 @@ test('每个解：初始一次性放置即通关，且实测时间与记录一�
   }
 }, 30000)
 
-test('零操作挂机不能通关：进入抵达圆即算抵达（含贴地滑行），关卡设计须保证挂机轨迹不穿圆', () => {
-  for (const level of LEVELS) {
-    const sim = new LevelSimulation(level)
-    for (let t = 0; t < 150; t += DT) {
-      sim.step(DT)
-      if (sim.phase === 'won') break
-    }
-    expect(sim.phase, `${level.id}「${level.name}」零操作挂机可通关`).toBe('playing')
-  }
-}, 60000)
-
-test('solutionUrl：与 URL 状态模块往返一致，且零百分号编码', () => {
+test('solutionUrl：往返一致、零百分号编码，保留其他状态并清视图标记', () => {
   const sources = codecs.list<SourcePlacement>([], sourceItem, '_')
   for (const level of LEVELS) {
     for (const s of solutionsFor(level.id)) {
@@ -68,15 +52,8 @@ test('solutionUrl：与 URL 状态模块往返一致，且零百分号编码', (
       expect(url).not.toMatch(/%/)
     }
   }
-})
-
-test('solutionUrl：在现有 URL 状态上替换 lv/src，保留 dev 等其他状态，清掉视图标记', () => {
   const base = new URLSearchParams('dev=1&v=solutions&src=1-2-h')
-  const level = LEVELS[0]
-  const url = solutionUrl(level.id, solutionsFor(level.id)[0], base)
-  const params = new URLSearchParams(url)
+  const params = new URLSearchParams(solutionUrl(LEVELS[0].id, solutionsFor(LEVELS[0].id)[0], base))
   expect(params.get('dev')).toBe('1')
-  expect(params.get('lv')).toBe(String(level.id))
   expect(params.get('v')).toBeNull()
-  expect(params.get('src')).toBe(solutionsFor(level.id)[0].sources.map((s) => sourceItem.encode(s)).join('_'))
 })

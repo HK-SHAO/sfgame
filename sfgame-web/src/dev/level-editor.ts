@@ -3,13 +3,6 @@ import { customElement, state } from 'lit/decorators.js'
 import { DEV_OVERRIDE_EVENT, getDevOverrideText, setDevOverride } from '../game/session'
 import { levelSource } from '../game/levels'
 
-/**
- * dev 关卡编辑器（?dev=1）：编辑第 1 关 YAML（lv=0 槽，见 game/session.ts）。
- * 独立组件、不关心定位/拖动/性能——由 DevTools 装配进开发面板（sf-dev-panel）
- * 的 slot 随面板移动；主题色复用面板的 --dev-* CSS 变量（继承穿透 shadow 边界）。
- * 默认折叠（无边框披露行 + 小三角）；「确认生效」写入会话覆写并派发
- * DEV_OVERRIDE_EVENT（app 跳 ?lv=0，浏览器返回即复原）；非法 YAML 内联报错。
- */
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {
   @state() private expanded = false
@@ -21,7 +14,6 @@ export class SfLevelEditor extends LitElement {
       display: block;
     }
 
-    /* 折叠控件：无边框披露行（小三角 + 标签），3D 调试面板风格 */
     .toggle {
       display: flex;
       align-items: center;
@@ -146,7 +138,6 @@ export class SfLevelEditor extends LitElement {
     this.expanded = !this.expanded
     if (this.expanded) {
       this.error = ''
-      // 预填：上次覆写文本（可继续迭代）→ 第 1 关原始 YAML
       this.editorText = getDevOverrideText() ?? levelSource(1) ?? ''
     }
   }
@@ -160,15 +151,12 @@ export class SfLevelEditor extends LitElement {
     this.editorText = (e.target as HTMLTextAreaElement).value
   }
 
-  /** 校验 + 写入会话覆写，成功后派发事件（app 跳到 ?lv=0）；保持展开不收起，
-   * 便于连续迭代。 */
   private confirm() {
     try {
       setDevOverride(this.editorText)
       window.dispatchEvent(new CustomEvent(DEV_OVERRIDE_EVENT))
       this.error = ''
     } catch (e) {
-      // 非法 YAML/校验失败：留在编辑器内显示错误原文，不打断当前局
       this.error = e instanceof Error ? e.message : String(e)
     }
   }

@@ -1,27 +1,15 @@
 import type { SourcePlacement } from './types'
 import { name } from '../../package.json'
 
-/**
- * 玩家进度持久化（localStorage，可注入存储以便无头测试）：
- * 每关记录通关成绩榜（只留合计耗时最优秀的 PROGRESS_TOP_N 条，含当时解法摆放），
- * 关卡解锁 = 第 1 关恒解锁，其余需上一关至少通关一次。
- * 载荷带 schema 版本，解析容错（损坏/未知版本 → 空进度，绝不抛错）。
- * 键前缀统一跟随 package.json 的 name（存储管理页据此识别/摘要，勿改）。
- */
+// localStorage 进度载荷带版本（.progress.v1），解析容错：损坏/未知版本 → 空进度绝不抛错；键前缀跟随 package.json name（存储管理页据此识别，勿改）
 export const PROGRESS_TOP_N = 3
-/** localStorage 键：name 前缀 + 载荷版本 */
 export const STORAGE_KEY = `${name}.progress.v1`
 
 export interface ScoreEntry {
-  /** 实际用时（秒） */
   time: number
-  /** 罚时（秒） */
   extra: number
-  /** 合计耗时 = time + extra（成绩排序键） */
   total: number
-  /** 该次通关的解法摆放（URL src 同构） */
   sources: SourcePlacement[]
-  /** 记录时刻（去重/排序兜底） */
   at: number
 }
 
@@ -83,7 +71,6 @@ function parseProgress(raw: string | null): ProgressJson {
   return { v: 1, levels }
 }
 
-/** 成绩榜排序：合计耗时升序，其次实际用时，最后记录时刻（并列时旧记录在前）。 */
 function sortEntries(entries: ScoreEntry[]): ScoreEntry[] {
   return [...entries].sort((a, b) => a.total - b.total || a.time - b.time || a.at - b.at)
 }
@@ -101,7 +88,7 @@ export function createBrowserStorage(): ProgressStorage {
       try {
         if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, raw)
       } catch {
-        /* 隐私模式/存储禁用：静默降级，进度仅本次会话有效 */
+        // 隐私模式/存储禁用：静默降级，进度仅本次会话有效
       }
     },
   }
@@ -116,8 +103,6 @@ export class PlayerProgress {
     this.data = parseProgress(storage.get())
   }
 
-  /** 记录一次通关：并入该关成绩榜（只留 TOP_N 条）并持久化。
-   * 返回该次成绩的排名（0 = 新纪录；-1 = 未进榜）。 */
   record(levelId: number, entry: Omit<ScoreEntry, 'total' | 'at'> & { at?: number }): number {
     const full: ScoreEntry = { ...entry, total: entry.time + entry.extra, at: entry.at ?? Date.now() }
     const list = sortEntries([...(this.data.levels[String(levelId)] ?? []), full]).slice(0, PROGRESS_TOP_N)
@@ -126,7 +111,6 @@ export class PlayerProgress {
     return list.indexOf(full)
   }
 
-  /** 该关成绩榜（按合计耗时升序，≤ PROGRESS_TOP_N 条；无记录 = 空） */
   best(levelId: number): ScoreEntry[] {
     return this.data.levels[String(levelId)] ?? []
   }
@@ -135,11 +119,9 @@ export class PlayerProgress {
     return this.best(levelId).length > 0
   }
 
-  /** 关卡解锁：第 1 关恒解锁，其余需上一关通关至少一次。 */
   isUnlocked(levelId: number): boolean {
     return levelId === 1 || this.completed(levelId - 1)
   }
 }
 
-/** 浏览器单例（无头环境安全：localStorage 访问全部 try/catch 兜底） */
 export const progress = new PlayerProgress(createBrowserStorage())

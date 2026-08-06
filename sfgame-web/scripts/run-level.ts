@@ -1,21 +1,3 @@
-/**
- * 无头关卡工具（协议 v1）：
- *   bun run scripts/run-level.ts <关卡.yaml|json> [--sim 秒] [--verify 源列表] [--solve 源数]
- *
- * --sim N          无源跑 N 秒，打印轨迹要点与是否通关
- * --verify list    源列表 "x-y-h,x-y-c,…"（h=热 c=冷），跑至通关（上限 120s），
- *                  打印通关时刻与质量指标（路程/贴地/耗时），可加 --robust 做扰动抽查
- * --solve N        多目标遗传算法搜索 N 个源的最优摆法（默认预算 45s），
- *                  优先级：路程短 → 少贴地 → 少耗时；worker 并行评估
- * --kinds h,c      搜索只允许指定源类型（h=热 c=冷；默认两者皆可）——
- *                  教学关可约束参考解贴合本关概念（如 L1 只放热源）
- * --robust         对 --verify 的每个源做 ±1 单位 8 方向扰动，统计仍通关比例
- *
- * 例：
- *   bun run scripts/run-level.ts levels/level-3.yaml --sim 20
- *   bun run scripts/run-level.ts levels/level-3.yaml --verify 26-28-h --robust
- *   bun run scripts/run-level.ts levels/level-5.yaml --solve 2 --budget-ms 20000 --workers 8
- */
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
 import { better, evalCandidate, FINE_DT, loadLevel, mulberry32, spotGrid, type CandidateMetric, type SourceTuple } from './solve-lib'
@@ -39,7 +21,6 @@ console.log(`关卡 ${level.id}「${level.name}」 ${level.world.w}×${level.wor
 function parseSources(raw: string): SourceTuple[] {
   return raw
     .split(',')
-    // 空段（`--verify ""` 或尾部逗号）会解析成 (0,0,cold) 假源，直接丢弃
     .filter((part) => part.length > 0)
     .map((part) => {
       const [xs, ys, ks] = part.split('-')
@@ -64,7 +45,6 @@ if (args.includes('--verify')) {
   const m = evalCandidate(level, sources, { dt: FINE_DT, cap: 120 })
   console.log(`解有效：${fmt(m)}`)
   if (args.includes('--robust')) {
-    // 扰动抽查：每个源 ±1 单位 8 方向，统计仍通关比例（pitfalls G7）
     const moves = [
       [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1],
     ]
@@ -114,7 +94,7 @@ if (args.includes('--solve')) {
   }
 }
 
-/** 遗传算法：种群 + 精英保留 + 锦标赛选择 + 均匀交叉 + 邻域变异，worker 并行评估。 */
+// 遗传算法：精英保留 + 锦标赛选择 + 均匀交叉 + 邻域变异，worker 并行评估；种子含已登记参考解（至少保住当前解），连续停滞重随机重启
 async function geneticSolve(
   n: number,
   budgetMs: number,
@@ -129,7 +109,6 @@ async function geneticSolve(
   const POP = 32
   const ELITE = 4
   const pool = new WorkerPool(workerCount)
-  // 种子 = 关卡 YAML 里已登记的参考解（搜索至少保住当前解），其余随机个体
   const seeds: SourceTuple[][] = []
   for (const s of level.json.solutions ?? []) {
     if (s.sources.length !== n || !s.sources.every((p) => kinds.has(p.kind))) continue
@@ -162,7 +141,6 @@ async function geneticSolve(
       lastPrint = now
       console.log(`[solve] 第 ${gen} 代 · ${((now - t0) / 1000).toFixed(0)}s · 最优 ${best ? fmt(best.m) : '—'}`)
     }
-    // 精英 + 锦标赛生子
     const order = pop.map((_, i) => i).sort((a, b) => (better(metrics[b], metrics[a]) ? 1 : better(metrics[a], metrics[b]) ? -1 : 0))
     const next: SourceTuple[][] = []
     for (let i = 0; i < ELITE; i++) next.push(pop[order[i]])
@@ -171,7 +149,6 @@ async function geneticSolve(
     }
     pop = next
     gen++
-    // 停滞重启：连续多代无改进说明早熟收敛，保留精英与种子后重随机
     if (++stale > 8) {
       const keep = pop.slice(0, ELITE)
       pop = [...keep, ...seeds.slice(0, POP - keep.length)]
@@ -194,7 +171,6 @@ function srcKey(src: SourceTuple[]): string {
   return src.map((s) => `${s[0]}-${s[1]}-${s[2][0]}`).join(',')
 }
 
-/** 候选榜：保留至多 5 个互不相同的通关解，按质量排序。 */
 function addToHall(
   hall: Array<{ src: SourceTuple[]; m: CandidateMetric }>,
   entry: { src: SourceTuple[]; m: CandidateMetric },
@@ -209,7 +185,6 @@ function addToHall(
 function tournament(rng: () => number, order: number[]): number {
   const a = order[Math.floor(rng() * order.length)]
   const b = order[Math.floor(rng() * order.length)]
-  // order 已按优劣排序：下标小者更优，取二者中更小下标（近似锦标赛，代价 O(1)）
   return a <= b ? a : b
 }
 
@@ -223,7 +198,6 @@ function child(
   for (let j = 0; j < a.length; j++) {
     let s = rng() < 0.5 ? a[j] : b[j]
     if (rng() < 0.3) {
-      // 变异：半数做邻域微调（保持探索粒度），半数全局重抽
       if (rng() < 0.5) {
         let idx = spots.findIndex((p) => p[0] === s[0] && p[1] === s[1] && p[2] === s[2])
         if (idx < 0) idx = Math.floor(rng() * spots.length)
@@ -238,10 +212,8 @@ function child(
   return c
 }
 
-/** worker 异常退出时的兜底评估结果：按"失败"计（GA 只会因此丢弃该候选）。 */
 const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0 }
 
-/** 并行评估池：多 worker 子进程，逐行 JSON 请求/响应。 */
 class WorkerPool {
   private procs: Array<{ proc: import('bun').Subprocess; buf: string; idle: boolean; jobId: number }> = []
   private queue: Array<{ src: SourceTuple[]; resolve: (m: CandidateMetric) => void }> = []
@@ -261,8 +233,7 @@ class WorkerPool {
     })
     const w = { proc, buf: '', idle: true, jobId: 0 }
     this.procs.push(w)
-    // worker 意外退出（OOM/被杀）：丢弃其在途任务（按失败计）并补起替身——
-    // 否则在途 Promise 永不 resolve，evaluate 无声挂死
+    // worker 意外退出：丢弃其在途任务（按失败计）并补起替身——否则在途 Promise 永不 resolve，evaluate 无声挂死
     void proc.exited.then(() => {
       if (this.closed) return
       const i = this.procs.indexOf(w)
@@ -327,7 +298,6 @@ class WorkerPool {
     }
   }
 
-  /** 并行评估一批候选，返回与输入同序的结果。 */
   evaluate(list: SourceTuple[][]): Promise<CandidateMetric[]> {
     const out = new Array<CandidateMetric>(list.length)
     return new Promise((resolveAll) => {

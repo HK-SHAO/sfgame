@@ -1,23 +1,14 @@
-/**
- * 时间驱动的拖尾轨迹（拉格朗日记录）：每点记录写入时刻，淡出 = 距当前时刻 / fadeTime——
- * 物体停住时旧点照常老化消失，运动越快新点越密。环形缓冲、按路程等距采样，索引 0 为最旧。
- * 无 DOM 依赖，可无头测试。
- */
 export class Trail {
   readonly maxPoints: number
   readonly sampleDist: number
   readonly fadeTime: number
-  /** 当前模拟时刻（每次 push 刷新） */
   time = 0
-  /** 缓冲中的点数（≤ maxPoints） */
   count = 0
 
   private xs: Float32Array
   private ys: Float32Array
-  /** 各点写入时刻 */
   private ts: Float32Array
   private head = 0
-  /** 累计路程（世界单位，仅用于等距采样） */
   private odo = 0
   private lastOdo = 0
   private lastX = Number.NaN
@@ -32,7 +23,6 @@ export class Trail {
     this.ts = new Float32Array(maxPoints)
   }
 
-  /** 记录物体当前位置与时刻；路程未达采样间隔则只推进时刻。 */
   push(x: number, y: number, t: number) {
     this.time = t
     if (Number.isNaN(this.lastX)) {
@@ -61,7 +51,6 @@ export class Trail {
       this.ys[i] = y
       this.ts[i] = t
     } else {
-      // 已满：覆写最旧槽位（head），head 前移指向新的最旧点
       const i = this.head
       this.xs[i] = x
       this.ys[i] = y
@@ -91,7 +80,6 @@ export class Trail {
     return { x: this.xs[i], y: this.ys[i], t: this.ts[i] }
   }
 
-  /** 轨迹点当前的存留比例：1 最新，≤0 应丢弃（已过 fadeTime 秒）。 */
   retentionAt(k: number): number {
     const r = 1 - (this.time - this.tAt(k)) / this.fadeTime
     return r < 0 ? 0 : r > 1 ? 1 : r

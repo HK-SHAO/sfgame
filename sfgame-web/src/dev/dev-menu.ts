@@ -1,12 +1,10 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { version, author, description } from '../../package.json'
-import { iconBack, iconDatabase, iconGear, iconRoute } from './icons'
+import { iconBack, iconDatabase, iconGear, iconRoute } from '../ui/icons'
 
-/** 开发者页面：dev 模式开关/解法参考/存储管理入口 + 关于（作者与版本号随 package.json）。 */
 @customElement('sf-dev-menu')
 export class SfDevMenu extends LitElement {
-  /** 当前 dev 模式（?dev=1），来自 app 状态 */
   @property({ attribute: false }) dev = false
 
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))
@@ -29,7 +27,7 @@ export class SfDevMenu extends LitElement {
             <span class="ico">${iconGear}</span>
             <span class="txt">
               <b>开发者模式</b>
-              <small>${this.dev ? '已开启（?dev=1：性能叠加层/高速档/空格暂停）' : '已关闭'}</small>
+              <small>${this.dev ? '已开启（开发面板/高速档/不限量道具）' : '已关闭'}</small>
             </span>
             <span class="switch ${this.dev ? 'on' : ''}" aria-hidden="true"><span class="knob"></span></span>
           </button>
@@ -200,7 +198,6 @@ export class SfDevMenu extends LitElement {
       color: var(--ink-soft);
     }
 
-    /* dev 开关：胶囊轨道 + 圆钮，与整体药丸风格一致 */
     .switch {
       flex: none;
       position: relative;

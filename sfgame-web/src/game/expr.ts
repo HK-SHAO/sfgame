@@ -1,7 +1,4 @@
-/**
- * 迷你表达式求值器（零依赖）：刻意不做变量赋值/条件/字符串——地形只是 y=f(x)，
- * 且表达式可移植：同一串文本可被任意数学工具直接解释。
- */
+// 迷你表达式求值器（零依赖）：刻意不做变量赋值/条件/字符串——地形只是 y=f(x)，且表达式可移植到任意数学工具
 
 type Node =
   | { k: 'num'; v: number }
@@ -184,7 +181,7 @@ function evalNode(n: Node, x: number): number {
   }
 }
 
-/** 编译为 height(x)；语法错误在关卡加载期抛出，而非模拟中。 */
+// 语法错误在关卡加载期抛出，而非模拟中
 export function compileExpr(src: string): (x: number) => number {
   const tree = new Parser(src).parse()
   return (x) => evalNode(tree, x)

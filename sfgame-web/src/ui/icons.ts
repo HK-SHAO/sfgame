@@ -1,7 +1,5 @@
 import { html } from 'lit'
 
-/** 统一线性图标：2px 圆头描边，随 currentColor 着色。 */
-
 export const iconFlame = html`<svg
   viewBox="0 0 24 24"
   fill="currentColor"
@@ -120,7 +118,6 @@ export const iconRoute = html`<svg
   <path d="M6.6 16.6c3.4-1.4 5-6.4 10.8-9.2" stroke-dasharray="1 1.6" />
 </svg>`
 
-/** 开发者页面：滑块设置图标（横线 + 圆形旋钮） */
 export const iconGear = html`<svg
   viewBox="0 0 24 24"
   fill="none"
@@ -134,7 +131,6 @@ export const iconGear = html`<svg
   <circle cx="9" cy="16" r="2" />
 </svg>`
 
-/** 存储：数据库圆柱体 */
 export const iconDatabase = html`<svg
   viewBox="0 0 24 24"
   fill="none"
@@ -149,7 +145,6 @@ export const iconDatabase = html`<svg
   <path d="M4.5 12c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8" />
 </svg>`
 
-/** 性能诊断：折线图 */
 export const iconChart = html`<svg
   viewBox="0 0 24 24"
   fill="none"
@@ -179,7 +174,6 @@ export const iconLogo = html`<svg viewBox="0 0 64 64" aria-hidden="true">
   </g>
 </svg>`
 
-/** 暂停：两条竖杠 */
 export const iconPause = html`<svg
   viewBox="0 0 24 24"
   fill="currentColor"
@@ -189,7 +183,6 @@ export const iconPause = html`<svg
   <rect x="14" y="4.5" width="4.5" height="15" rx="1.5" />
 </svg>`
 
-/** 播放（恢复）：向右三角 */
 export const iconPlay = html`<svg
   viewBox="0 0 24 24"
   fill="currentColor"

@@ -5,13 +5,12 @@ import { solutionsFor, solutionUrl, type LevelSolution } from '../game/solutions
 import type { LevelDef } from '../game/types'
 import { iconBack } from './icons'
 
-/** 解法参考页：逐关列出解的相对 URL（点击即进入对应摆放）。纯声明式、无副作用。 */
 @customElement('sf-solutions')
 export class SfSolutions extends LitElement {
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))
 
   private row(level: LevelDef, sol: LevelSolution) {
-    // 基于当前 URL 状态生成链接：dev 等参数保留，只替换 lv/src（见 solutionUrl）
+    // 保留当前 URL 其余参数（如 dev），只替换 lv/src
     const href = solutionUrl(level.id, sol, new URLSearchParams(window.location.search))
     return html`
       <a class="row" href=${href}>

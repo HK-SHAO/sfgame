@@ -2,13 +2,13 @@ import { parse as parseYaml } from 'yaml'
 import { compileExpr, ExprError } from './expr'
 import type { LevelDef, LevelJson } from './types'
 
-/** 关卡协议版本：YAML 顶层必须为 1。 */
+// 关卡协议版本：YAML 顶层必须为 1
 export const LEVEL_SCHEMA = 1
 
 const isFin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const isInt = (v: unknown): v is number => isFin(v) && Number.isInteger(v)
 
-/** 只列事实、不猜意图：返回错误清单（空 = 合法）。 */
+// 返回错误清单（空 = 合法），只列事实不猜意图、不抛错
 export function validateLevelJson(raw: unknown): string[] {
   const errs: string[] = []
   const j = raw as LevelJson
@@ -116,7 +116,6 @@ export function validateLevelJson(raw: unknown): string[] {
   return errs
 }
 
-/** 关卡文本（YAML/JSON）→ 关卡对象；解析或校验失败抛错。 */
 export function parseLevelText(text: string): LevelJson {
   let raw: unknown
   try {
@@ -129,7 +128,6 @@ export function parseLevelText(text: string): LevelJson {
   return raw as LevelJson
 }
 
-/** JSON → 运行时关卡：ground.expr 编译为 height(x)，其余原样透传。 */
 export function levelFromJson(j: LevelJson): LevelDef {
   const errs = validateLevelJson(j)
   if (errs.length > 0) throw new Error(`关卡校验失败：${errs.join('；')}`)

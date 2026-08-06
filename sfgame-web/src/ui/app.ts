@@ -807,7 +807,7 @@ export class SfApp extends LitElement {
       display: flex;
       flex-direction: column;
       padding: 1.5rem;
-      background: rgba(61, 52, 39, 0.2);
+      background: var(--scrim);
       backdrop-filter: blur(0.19rem);
       -webkit-backdrop-filter: blur(0.19rem);
       animation: fade 260ms ease-out;
@@ -819,9 +819,7 @@ export class SfApp extends LitElement {
       margin: auto;
       padding: 1.875rem 1.875rem 1.625rem;
       text-align: center;
-      background: rgba(255, 252, 245, 0.82);
-      backdrop-filter: blur(0.5rem);
-      -webkit-backdrop-filter: blur(0.5rem);
+      background: var(--card);
       border: 1px solid rgba(255, 255, 255, 0.7);
       border-radius: 1.625rem;
       corner-shape: squircle;
@@ -852,7 +850,7 @@ export class SfApp extends LitElement {
       gap: 0.375rem;
       font-variant-numeric: tabular-nums;
       color: var(--ink);
-      background: rgba(255, 237, 209, 0.85);
+      background: var(--card-warm);
       border: 1px solid rgba(255, 255, 255, 0.55);
       border-radius: 0.875rem;
       corner-shape: squircle;
@@ -911,7 +909,7 @@ export class SfApp extends LitElement {
     }
 
     .win-card .ghost {
-      background: rgba(61, 52, 39, 0.07);
+      background: var(--ink-wash);
       color: var(--ink);
     }
 

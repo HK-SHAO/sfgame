@@ -140,8 +140,6 @@ export class Renderer {
       const bg = this.batch
       bg.reset()
       this.drawSky(bg, viewL, viewT, viewR, viewB, h)
-      this.drawGoalPoles(bg, sim)
-      this.drawSunHalo(bg)
       if (gl.bakeBg(bg, viewL, viewT, viewR, viewB)) {
         this.bgDirty = false
         gl.bgStale = false
@@ -151,6 +149,9 @@ export class Renderer {
     const b = this.batch
     b.reset()
     this.drawClouds(b, scene.clouds)
+    // 云是最背景层：光晕/旗杆在云前，但仍在地形后
+    this.drawSunHalo(b)
+    this.drawGoalPoles(b, sim)
     this.drawTerrain(b, sim, viewL, viewR, viewB)
     this.drawSun(b, now)
     this.drawGoal(b, sim)

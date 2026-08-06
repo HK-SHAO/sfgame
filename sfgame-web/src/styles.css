@@ -7,6 +7,9 @@
   --cold: #3d8bff;
   --goal: #2fbf71;
   --card: rgba(255, 252, 245, 0.82);
+  --card-warm: rgba(255, 237, 209, 0.6);
+  --scrim: rgba(61, 52, 39, 0.2);
+  --ink-wash: rgba(61, 52, 39, 0.07);
   font-family:
     -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
     'Noto Sans SC', 'Segoe UI', system-ui, sans-serif;

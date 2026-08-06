@@ -39,7 +39,6 @@ const PAPER = rgb(255, 253, 248)
 const FLAG_POLE = rgb(107, 91, 69)
 const CLOUD = rgb(255, 255, 254)
 const CLOUD_SOLID_FRAC = 0.75
-const CLOUD_STRETCH = 1.7
 const CLOUD_CORE_MIN = 0.15
 
 const SUN_POS = { x: 12, y: 9.5 }
@@ -156,14 +155,14 @@ export class Renderer {
 
     const b = this.batch
     b.reset()
-    // 遮挡契约：云/光晕最背景；气流粒子与轨迹在场景物体之后，被旗杆、旗面、太阳、地形遮挡；
-    // 飞机与飞机拖尾是主角层恒在最前
-    this.drawClouds(b, scene.clouds)
+    // 遮挡契约（远→近）：太阳光晕最背景 → 气流粒子与轨迹 → 太阳盘面 → 云（遮粒子与日芒，
+    // 但被地面/旗杆旗面遮挡）→ 旗杆 → 地形 → 旗面/抵达圆 → 源 → 飞机拖尾 → 飞机
     this.drawSunHalo(b)
     this.drawTracers(b, tracers)
+    this.drawSun(b, now)
+    this.drawClouds(b, scene.clouds)
     this.drawGoalPoles(b, sim)
     this.drawTerrain(b, sim, viewL, viewR, viewB)
-    this.drawSun(b, now)
     this.drawGoal(b, sim)
     this.drawSources(b, sim, press)
     this.drawPlaneTrail(b, sim, planeTrail)
@@ -241,11 +240,13 @@ export class Renderer {
       const y = clouds.y[i]
       const r = clouds.radius[i]
       const sf = CLOUD_SOLID_FRAC * (CLOUD_CORE_MIN + (1 - CLOUD_CORE_MIN) * a)
-      b.discGradCore(x, y, r, 18, sf, ...CLOUD, 1.0 * a, ...CLOUD, 0)
-      b.discGradCore(x - 0.62 * r * CLOUD_STRETCH, y + 0.1 * r, 0.66 * r, 14, sf, ...CLOUD, 0.9 * a, ...CLOUD, 0)
-      b.discGradCore(x + 0.62 * r * CLOUD_STRETCH, y + 0.08 * r, 0.66 * r, 14, sf, ...CLOUD, 0.9 * a, ...CLOUD, 0)
-      b.discGradCore(x, y - 0.42 * r, 0.5 * r, 14, sf, ...CLOUD, 0.78 * a, ...CLOUD, 0)
-      b.discGradCore(x, y + 0.3 * r, 0.46 * r, 14, sf, ...CLOUD, 0.6 * a, ...CLOUD, 0)
+      // 一体感：底盘铺满（中心不透明、仅边缘渐隐），凸起全在底盘内叠出轮廓——连接处由底盘兜底，不见接缝
+      b.discGradCore(x, y, r, 20, sf, ...CLOUD, a, ...CLOUD, 0)
+      b.discGradCore(x - 0.95 * r, y + 0.12 * r, 0.6 * r, 14, sf, ...CLOUD, a, ...CLOUD, 0)
+      b.discGradCore(x + 0.95 * r, y + 0.1 * r, 0.6 * r, 14, sf, ...CLOUD, a, ...CLOUD, 0)
+      b.discGradCore(x, y - 0.52 * r, 0.45 * r, 14, sf, ...CLOUD, a, ...CLOUD, 0)
+      b.discGradCore(x - 0.5 * r, y + 0.62 * r, 0.42 * r, 12, sf, ...CLOUD, a, ...CLOUD, 0)
+      b.discGradCore(x + 0.5 * r, y + 0.6 * r, 0.4 * r, 12, sf, ...CLOUD, a, ...CLOUD, 0)
     }
   }
 

@@ -16,6 +16,7 @@
 
 - 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`
 - `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = vitest
+- `bun run dev` = 初始编译 wasm 并监视 `assembly/` 变更自动重编（`scripts/dev.ts`，vite 检测到 wasm 变化整页刷新）+ vite；`bun run dev -- --port N` 透传 vite 参数
 - `bun run build:wasm` = asc 编译单引擎：`assembly/engine.ts`（重导出流体内核 `main.ts`/`core.ts` 与顶点批内核 `batch.ts`）→ `src/wasm/sfengine.wasm`（物理+渲染同一模块同一内存；dev/test/build 均已内置，改 assembly/ 后无需手动跑）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
 - 关卡工具：`bun run scripts/run-level.ts levels/level-N.yaml --verify … --solve … --sim N`（物理内核恒为 WASM·SIMD；详见 `skills/level-design/SKILL.md` §5-6）

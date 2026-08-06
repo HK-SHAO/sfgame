@@ -6,13 +6,13 @@
   "author": "烧风 (HK-SHAO)",
   "type": "module",
   "scripts": {
-    "dev": "bun run build:wasm && vite",
+    "dev": "bun run scripts/dev.ts",
     "build": "tsc -b && bun run build:wasm && vite build",
     "preview": "vite preview",
     "test": "bun run build:wasm && vitest run",
     "typecheck": "tsc -b",
     "build:wasm": "asc assembly/engine.ts -o src/wasm/sfengine.wasm -O3 --noAssert --runtime stub --enable simd",
-    "check": "bun run typecheck && bun run test && bun run build"
+    "check": "bun run typecheck && bun run test && vite build"
   },
   "dependencies": {
     "lit": "^3.3.3",

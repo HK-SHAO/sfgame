@@ -58,8 +58,8 @@ export class Tracers {
   private respawn(i: number, scatter = false) {
     const { w } = this.world
     for (let tries = 0; tries < RESPAWN_TRIES; tries++) {
-      // 满宽重生（含左缘）：风向右吹时左缘粒子一出现就被带走，旧 2 单位真空带让左缘看起来"没气流"
-      const x = 0.6 + Math.random() * (w - 1.2)
+      // 重生范围与边界严格镜像 [0.5, w-0.5]：左右空白带一致（右缘粒子被风顶在墙边显密，左缘须同宽出生）
+      const x = 0.5 + Math.random() * (w - 1)
       const ceil = this.groundY(x) - 1.5
       if (ceil < 3) continue
       const y = 2 + Math.random() * (ceil - 2)
@@ -68,6 +68,8 @@ export class Tracers {
       this.maxLife[i] = 2.5 + Math.random() * 4
       this.life[i] = scatter ? Math.random() * this.maxLife[i] : this.maxLife[i]
       this.resetTrail(i)
+      // 出生即记首段轨迹：左缘粒子出生即被风带走，首段轨迹延迟 0.45 单位会出现会让墙边留空
+      this.recordTrail(i)
       return
     }
     this.x[i] = -100
@@ -151,6 +153,7 @@ export class Tracers {
         this.maxLife[i] = PLUME_LIFE_MIN + Math.random() * PLUME_LIFE_SPAN
         this.life[i] = this.maxLife[i]
         this.resetTrail(i)
+        this.recordTrail(i)
       }
     }
   }

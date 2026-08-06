@@ -24,12 +24,15 @@ test('预算与放置规则：预算扣减/返还、间距、世界外拒绝、�
   const clamped = sim.placeSource(60, 55, 'hot')
   expect(clamped).not.toBeNull()
   expect(clamped!.y).toBeCloseTo(LEVEL_2.ground(60) - 0.7, 5)
-  expect(sim.placeSource(1.2, 20, 'hot')).toBeNull()
+  // 边界死区对齐 toWorld ±0.5：仅世界外拒绝
+  expect(sim.placeSource(0.4, 20, 'hot')).toBeNull()
+  expect(sim.placeSource(1.2, 20, 'hot')).not.toBeNull()
+  expect(sim.placeSource(LEVEL_2.world.w - 0.4, 20, 'hot')).toBeNull()
   expect(sim.placeSource(30, 40, 'cold')).not.toBeNull()
   expect(sim.coldLeft).toBe(1)
   const s = sim.sources[0]
   expect(sim.removeSource(s.id)).toBe(true)
-  expect(sim.hotLeft).toBe(3)
+  expect(sim.hotLeft).toBe(2)
 })
 
 test('restart 保留玩家已放置的源与预算，仅清场复位飞机', () => {

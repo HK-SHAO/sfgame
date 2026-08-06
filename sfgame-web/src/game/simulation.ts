@@ -119,7 +119,8 @@ export class LevelSimulation {
 
   canPlaceAt(x: number, y: number): boolean {
     const { w } = this.level.world
-    if (x < 2 || x > w - 2 || y < 3) return false
+    // 边界对齐 toWorld ±0.5 与粒子重生边界：整个可视世界皆可放置，无不可放置死角
+    if (x < 0.5 || x > w - 0.5 || y < 3) return false
     if (y > this.level.ground(x) - GROUND_PLACE_MARGIN) return false
     for (const s of this.sources) {
       if (Math.hypot(s.x - x, s.y - y) < MIN_SOURCE_GAP) return false

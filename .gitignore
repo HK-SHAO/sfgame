@@ -51,5 +51,5 @@ sfgame-web/src/wasm/*.wasm
 sfgame-web/bench/bundle.js
 sfgame-web/bench/sfengine.wasm
 sfgame-web/bench/results/
-# emcc 编译产物（bench/c/build.sh 生成）
-sfgame-web/bench/c/*.wasm
+# AI 会话导出文件（非项目内容）
+*-export-*.md

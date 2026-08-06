@@ -5,8 +5,6 @@ import { bootEngine } from '../src/wasm/engine'
 import { runBench } from './bench-core'
 
 const browser = new URLSearchParams(location.search).get('browser') ?? 'unknown'
-const engine = new URLSearchParams(location.search).get('engine') ?? 'asc'
-const wasmUrl = engine === 'c' ? 'c/sfengine-c.wasm' : 'sfengine.wasm'
 const out = document.getElementById('out') as HTMLPreElement
 
 function log(s: string) {
@@ -15,10 +13,10 @@ function log(s: string) {
 }
 
 async function main(): Promise<void> {
-  log(`引擎：${browser} · 内核：${engine} · ${navigator.userAgent}`)
+  log(`引擎：${browser} · ${navigator.userAgent}`)
   const ok = await bootEngine(async () => {
-    const res = await fetch(wasmUrl)
-    if (!res.ok) throw new Error(`${wasmUrl} ${res.status}`)
+    const res = await fetch('sfengine.wasm')
+    if (!res.ok) throw new Error(`sfengine.wasm ${res.status}`)
     return res.arrayBuffer()
   })
   if (!ok) {
@@ -29,11 +27,11 @@ async function main(): Promise<void> {
   const { rows, capacityRejected } = await runBench((r, i) => log(`  ${i + 1}/16 ${r.nx}×${r.ny} ${r.ground} → median ${r.median.toFixed(3)}ms`))
   log(`容量边界 161×121 拒绝：${capacityRejected ? '✓' : '✗'}`)
   const payload = {
-    meta: { engine: browser, kernel: engine, ua: navigator.userAgent, ts: new Date().toISOString() },
+    meta: { engine: browser, ua: navigator.userAgent, ts: new Date().toISOString() },
     rows,
     capacityRejected,
   }
-  const res = await fetch(`/collect?browser=${encodeURIComponent(browser)}&engine=${encodeURIComponent(engine)}`, {
+  const res = await fetch(`/collect?browser=${encodeURIComponent(browser)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

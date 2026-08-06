@@ -1,4 +1,4 @@
-// 欧拉稳定流体（Jos Stam）：浮力 → 涡度约束 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风。数值内核在 assembly/core.ts（WASM·SIMD，经 src/wasm/engine.ts 单实例加载），本模块只是门面与纯计算辅助
+// 欧拉稳定流体（Jos Stam）：浮力 → 涡度约束 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风。数值内核在 native/engine.c（WASM，emcc 编译，经 src/wasm/engine.ts 单实例加载），本模块只是门面与纯计算辅助
 import type { Vec2 } from './types'
 import { createEngine, type EngineHandle } from '../wasm/engine'
 
@@ -31,7 +31,7 @@ export interface FluidLike {
   step(dt: number): void
 }
 
-// 地面/边界固体掩码（几何与 assembly/core.ts 的 rebuildSolid 一致）
+// 地面/边界固体掩码（几何与 native/engine.c 的 rebuildSolid 一致）
 export function buildSolidMask(
   nx: number,
   ny: number,
@@ -50,7 +50,7 @@ export function buildSolidMask(
   return solid
 }
 
-// 渲染零拷贝采样：与 assembly/core.ts sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、速度叠 ambient）
+// 渲染零拷贝采样：与 native/engine.c sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、速度叠 ambient）
 export function bilinearSample(
   u: Float32Array,
   v: Float32Array,
@@ -181,7 +181,7 @@ export class WasmFluid implements FluidLike {
   }
 }
 
-// 唯一工厂：未加载 / 超容量（assembly 编译期 MAX_NX×MAX_NY）一律显式抛错——无声退化等于带病启动；
+// 唯一工厂：未加载 / 超容量（native 编译期 MAX_NX×MAX_NY）一律显式抛错——无声退化等于带病启动；
 // engine 可选：不传自建独立实例（测试/无头脚本隔离）
 export function createFluid(cfg: FluidConfig, engine?: EngineHandle): WasmFluid {
   const f = WasmFluid.create(cfg, engine)

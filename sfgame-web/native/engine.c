@@ -1,6 +1,6 @@
-// 流体内核 C 移植（bench 对比用，与 assembly/core.ts + main.ts 同算法）：
+// 流体内核（C，替代原 AssemblyScript assembly/core.ts + main.ts）：
 // 标量实现 + -O3 -msimd128 让 LLVM 自动向量化；-ffp-contract=off 保 IEEE 语义。
-// 静态全局数组 = 静态内存，零分配；导出面与 asc 版一致（fieldU/V/T/solidBuf 供零拷贝读）。
+// 静态全局数组 = 静态内存，零分配；导出面与旧版一致（fieldU/V/T/solidBuf 供渲染零拷贝读）。
 
 #include <math.h>
 #include <stdint.h>

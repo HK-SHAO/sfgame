@@ -1,4 +1,4 @@
-// WASM 引擎引导与实例化（assembly/engine.ts → sfengine.wasm）：流体内核 + 顶点批内核同一实例共享内存。
+// WASM 引擎引导与实例化（native/engine.c + batch.c → sfengine.wasm，emcc 编译）：流体内核 + 顶点批内核同一实例共享内存。
 // 内存静态定型（stub runtime 零运行期分配），视图生命周期内恒定，可安全缓存。
 // 门面在 sim/fluid.ts（物理）与 render/batch.ts（顶点批）；本模块不感知二者，只定义 wasm 导出面与单实例工厂
 

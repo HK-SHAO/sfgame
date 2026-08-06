@@ -1,4 +1,4 @@
-// 顶点批：数值内核在 assembly/batch.ts（WASM，经 src/wasm/engine.ts 单实例加载），此处仅包装。
+// 顶点批：数值内核在 native/batch.c（WASM，经 src/wasm/engine.ts 单实例加载），此处仅包装。
 // 顶点格式 x,y,r,g,b,a（0..1 非预乘）平铺；逐顶点颜色 → 整帧一次 draw call、精确逐图元透明度
 import { createEngine, type EngineHandle } from '../wasm/engine'
 

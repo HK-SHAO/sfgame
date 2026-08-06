@@ -1,20 +1,19 @@
 // 多浏览器流体内核基准驱动：bun run scripts/bench-server.ts [--port N] [--no-safari]
-// 流程：本地 bun 双内核基准（asc + emcc）→ 起静态服务 → 每浏览器串行两轮（?engine=asc 后 ?engine=c）
-// → 收齐后按浏览器打印「asc vs emcc」对比表并清理。结果落 bench/results/<browser>-<engine>.json（gitignore）。
+// 流程：本地 bun 基准 → 起静态服务（bench/ 目录）→ 驱动 Chrome/Firefox/Safari（页面自驱动 POST /collect）
+// → 收齐后打印「规模 × 浏览器」对比表并清理浏览器进程。结果 JSON 落 bench/results/<browser>.json（gitignore）。
 // 无头 ≠ 真机：本表为桌面引擎基线；iOS 真机验证按 #7 教训另做。
 
 import { createServer } from 'node:http'
 import { spawn, spawnSync, execFile } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync, copyFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { bootEngine, initEngine } from '../src/wasm/engine'
+import { bootEngine } from '../src/wasm/engine'
 import { runBench } from './bench-core'
 import type { BenchRow } from './bench-core'
 
 const root = join(import.meta.dir, '..')
 const benchDir = join(root, 'bench')
 const wasmPath = join(root, 'src/wasm/sfengine.wasm')
-const cWasmPath = join(benchDir, 'c', 'sfengine-c.wasm')
 const resultsDir = join(benchDir, 'results')
 const bundlePath = join(benchDir, 'bundle.js')
 const benchWasmPath = join(benchDir, 'sfengine.wasm')
@@ -28,7 +27,6 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const FIREFOX = '/Applications/Firefox.app/Contents/MacOS/firefox'
 
 type BrowserId = 'bun' | 'chrome' | 'firefox' | 'safari'
-type EngineId = 'asc' | 'c'
 const BROWSER_ORDER: BrowserId[] = ['bun', 'chrome', 'firefox', 'safari']
 
 const received = new Set<string>()
@@ -61,63 +59,39 @@ function buildBundle(): void {
   }
 }
 
-// emcc 产物缺失则自动编译（bench/c/build.sh，需本机 emsdk）
-function ensureCWasm(): void {
-  if (exists(cWasmPath)) return
-  log('emcc 产物缺失，运行 bench/c/build.sh…')
-  const r = spawnSync('sh', [join(benchDir, 'c', 'build.sh')], { cwd: benchDir })
-  if (r.status !== 0 || !exists(cWasmPath)) {
-    throw new Error(`emcc 产物构建失败：${r.stderr?.toString() ?? '未知'}`)
-  }
-}
-
-// ---------- 1. 本地 bun 双内核基准（同一测量核心） ----------
+// ---------- 1. 本地 bun 基准（同一测量核心） ----------
 buildBundle()
-ensureCWasm()
 log(`本地基准（bun ${Bun.version}，JSC ≈ Safari 引擎代理）…`)
 {
   const ascBytes = readFileSync(wasmPath)
   if (!(await bootEngine(() => Promise.resolve(ascBytes)))) throw new Error('WASM 引擎加载失败，请先 bun run build:wasm')
-  const asc = await runBench()
+  const res = await runBench()
   mkdirSync(resultsDir, { recursive: true })
-  writeFileSync(join(resultsDir, 'bun-asc.json'), JSON.stringify({ meta: { engine: 'bun', kernel: 'asc', bun: Bun.version, ua: `bun/${Bun.version} (JavaScriptCore)`, wasmMtime: statSync(wasmPath).mtime.toISOString(), ts: new Date().toISOString() }, ...asc }, null, 2))
-  received.add('bun-asc')
-  state.set('bun-asc', 'ok')
-  log(`bun asc 完成（容量边界 ${asc.capacityRejected ? '✓' : '✗'}）→ results/bun-asc.json`)
+  writeFileSync(join(resultsDir, 'bun.json'), JSON.stringify({ meta: { engine: 'bun', bun: Bun.version, ua: `bun/${Bun.version} (JavaScriptCore)`, wasmMtime: statSync(wasmPath).mtime.toISOString(), ts: new Date().toISOString() }, ...res }, null, 2))
+  received.add('bun')
+  state.set('bun', 'ok')
+  log(`bun 完成（容量边界 ${res.capacityRejected ? '✓' : '✗'}）→ results/bun.json`)
 }
-{
-  if (!initEngine(readFileSync(cWasmPath))) throw new Error('emcc wasm 加载失败')
-  const c = await runBench()
-  writeFileSync(join(resultsDir, 'bun-c.json'), JSON.stringify({ meta: { engine: 'bun', kernel: 'c', bun: Bun.version, ua: `bun/${Bun.version} (JavaScriptCore)`, wasmMtime: statSync(cWasmPath).mtime.toISOString(), ts: new Date().toISOString() }, ...c }, null, 2))
-  received.add('bun-c')
-  state.set('bun-c', 'ok')
-  log(`bun c 完成（容量边界 ${c.capacityRejected ? '✓' : '✗'}）→ results/bun-c.json`)
-}
-// 恢复 asc 模块（供其他脚本逻辑继续）
-initEngine(readFileSync(wasmPath))
 
 // ---------- 2. HTTP 静态服务 + /collect ----------
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1')
   if (url.pathname === '/collect' && req.method === 'POST') {
     let body = ''
-    req.on('data', (cc) => (body += cc))
+    req.on('data', (c) => (body += c))
     req.on('end', () => {
       const b = url.searchParams.get('browser')
-      const e = url.searchParams.get('engine')
-      if (!b || !e) {
-        res.writeHead(400, { 'Content-Type': 'text/plain' }).end('missing browser/engine')
+      if (!b) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' }).end('missing browser')
         return
       }
-      const key = `${b}-${e}`
       try {
         const j = JSON.parse(body)
-        writeFileSync(join(resultsDir, `${key}.json`), JSON.stringify(j, null, 2))
-        received.add(key)
-        state.set(key, 'ok')
-        log(`收到 ${key}（${j.rows?.length ?? 0} 行）→ results/${key}.json`)
+        writeFileSync(join(resultsDir, `${b}.json`), JSON.stringify(j, null, 2))
+        received.add(b)
+        state.set(b, 'ok')
+        log(`收到 ${b} 结果（${j.rows?.length ?? 0} 行）→ results/${b}.json`)
         res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok')
-        kick(b as BrowserId)
         checkDone()
       } catch (err) {
         if (!res.headersSent) res.writeHead(400, { 'Content-Type': 'text/plain' })
@@ -127,9 +101,8 @@ const server = createServer((req, res) => {
     return
   }
   if (res.headersSent) return
-  // 静态：/bench.html、/bundle.js、/sfengine.wasm（bench/）、/c/*（bench/c/）
   const name = url.pathname === '/' ? '/bench.html' : url.pathname
-  const file = name.startsWith('/c/') ? join(benchDir, name.slice(1)) : join(benchDir, name)
+  const file = join(benchDir, name)
   if (exists(file) && file.startsWith(benchDir)) {
     const ext = file.slice(file.lastIndexOf('.'))
     const ct = ext === '.wasm' ? 'application/wasm' : ext === '.js' ? 'text/javascript' : 'text/html'
@@ -139,55 +112,48 @@ const server = createServer((req, res) => {
   }
 })
 
-// ---------- 3. 浏览器检测与驱动（每浏览器串行 asc → c） ----------
-function spawnEngine(b: BrowserId, e: EngineId): void {
-  const key = `${b}-${e}`
-  if (spawned.has(key)) return
-  spawned.add(key)
-  const url = `http://127.0.0.1:${port}/bench.html?browser=${b}&engine=${e}`
+// ---------- 3. 浏览器检测与驱动 ----------
+function spawnBrowser(b: BrowserId): void {
+  if (spawned.has(b)) return
+  spawned.add(b)
+  const url = `http://127.0.0.1:${port}/bench.html?browser=${b}`
   if (b === 'chrome') {
-    const child = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', `--user-data-dir=/tmp/bench-chrome-${Date.now()}-${e}`, url], { stdio: 'ignore' })
+    const child = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', `--user-data-dir=/tmp/bench-chrome-${Date.now()}`, url], { stdio: 'ignore' })
     children.push(child)
   } else if (b === 'firefox') {
-    const child = spawn(FIREFOX, ['--headless', '--new-instance', '--no-remote', `--profile`, `/tmp/bench-firefox-${Date.now()}-${e}`, url], { stdio: 'ignore' })
+    const child = spawn(FIREFOX, ['--headless', '--new-instance', '--no-remote', '--profile', `/tmp/bench-firefox-${Date.now()}`, url], { stdio: 'ignore' })
     children.push(child)
   } else if (b === 'safari') {
     execFile('open', ['-a', 'Safari', url], (err) => {
       if (err) {
-        state.set(key, 'fail')
+        state.set(b, 'fail')
         log(`Safari 启动失败：${err.message}`)
       }
     })
   }
-  log(`驱动 ${b}（${e}）`)
-}
-
-function kick(b: BrowserId): void {
-  if (!expected.has(`${b}-asc`) && !expected.has(`${b}-c`)) return
-  if (received.has(`${b}-asc`)) spawnEngine(b, 'c')
-  else spawnEngine(b, 'asc')
+  log(`驱动 ${b}`)
 }
 
 function detect(): void {
   if (exists(CHROME)) {
-    expected.add('chrome-asc'); expected.add('chrome-c')
-    kick('chrome')
+    expected.add('chrome')
+    spawnBrowser('chrome')
   } else {
-    state.set('chrome-asc', 'skipped')
+    state.set('chrome', 'skipped')
     log('Chrome 未安装，跳过')
   }
   if (exists(FIREFOX)) {
-    expected.add('firefox-asc'); expected.add('firefox-c')
-    kick('firefox')
+    expected.add('firefox')
+    spawnBrowser('firefox')
   } else {
-    state.set('firefox-asc', 'skipped')
+    state.set('firefox', 'skipped')
     log('Firefox 未安装，跳过')
   }
   if (!noSafari) {
-    expected.add('safari-asc'); expected.add('safari-c')
-    kick('safari')
+    expected.add('safari')
+    spawnBrowser('safari')
   } else {
-    state.set('safari-asc', 'skipped')
+    state.set('safari', 'skipped')
   }
 }
 
@@ -242,9 +208,9 @@ function pollTimeout(): void {
   }
 }
 
-// ---------- 5. 汇总对比表（每浏览器 asc vs c） ----------
-function loadRows(b: BrowserId, e: EngineId): BenchRow[] | null {
-  const p = join(resultsDir, `${b}-${e}.json`)
+// ---------- 5. 汇总对比表 ----------
+function loadRows(b: BrowserId): BenchRow[] | null {
+  const p = join(resultsDir, `${b}.json`)
   if (!exists(p)) return null
   try {
     return (JSON.parse(readFileSync(p, 'utf8')) as { rows: BenchRow[] }).rows
@@ -254,30 +220,28 @@ function loadRows(b: BrowserId, e: EngineId): BenchRow[] | null {
 }
 
 function printSummary(): void {
-  const active = BROWSER_ORDER.filter((b) => loadRows(b, 'asc') && loadRows(b, 'c'))
+  const active = BROWSER_ORDER.filter((b) => loadRows(b) !== null)
   if (active.length === 0) return
+  const header = `规模×地面        `.padEnd(16) + active.map((b) => `${b}${state.get(b) === 'timeout' ? '!' : ''}`.padEnd(10)).join('')
+  console.log(`\n=== 规模 × 浏览器对比表（median ms/step） ===`)
+  console.log(header)
+  const ref = loadRows(active[0])!
+  for (const r of ref) {
+    const cells = active.map((b) => {
+      const row = loadRows(b)?.find((x) => x.nx === r.nx && x.ny === r.ny && x.ground === r.ground)
+      return row ? row.median.toFixed(3) : '—'
+    })
+    console.log(`${`${r.nx}×${r.ny} ${r.ground}`.padEnd(16)}` + cells.map((c) => c.padStart(9)).join(''))
+  }
+  const tp = active.map((b) => {
+    const rows = loadRows(b)
+    const avg = rows ? (rows.reduce((s, x) => s + x.perMs, 0) / rows.length).toFixed(0) : '—'
+    return avg.padStart(9)
+  })
+  console.log(`平均吞吐格/ms `.padEnd(16) + tp.join(''))
   for (const b of active) {
-    const asc = loadRows(b, 'asc')!
-    const c = loadRows(b, 'c')!
-    console.log(`\n=== ${b}：asc vs emcc（median ms/step） ===`)
-    console.log(`规模×地面        `.padEnd(16) + 'asc      emcc     diff')
-    for (const a of asc) {
-      const cw = c.find((x) => x.nx === a.nx && x.ny === a.ny && x.ground === a.ground)
-      if (!cw) continue
-      const diff = ((cw.median - a.median) / a.median) * 100
-      const mark = diff <= -3 ? '更快' : diff >= 3 ? '更慢' : '持平'
-      console.log(
-        `${`${a.nx}×${a.ny} ${a.ground}`.padEnd(16)}` +
-          ` ${a.median.toFixed(3).padStart(7)}  ${cw.median.toFixed(3).padStart(7)} ` +
-          `${(diff >= 0 ? '+' : '') + diff.toFixed(1).padStart(5)}% ${mark}`,
-      )
-    }
-    const aTp = asc.reduce((s, x) => s + x.perMs, 0) / asc.length
-    const cTp = c.reduce((s, x) => s + x.perMs, 0) / c.length
-    console.log(`平均吞吐格/ms     ${' '.padEnd(7)} asc ${aTp.toFixed(0).padStart(7)}  emcc ${cTp.toFixed(0).padStart(7)}  ${(((cTp - aTp) / aTp) * 100).toFixed(1)}%`)
-    const j = JSON.parse(readFileSync(join(resultsDir, `${b}-asc.json`), 'utf8'))
-    const jc = JSON.parse(readFileSync(join(resultsDir, `${b}-c.json`), 'utf8'))
-    console.log(`— ${b}: ${j.meta.ua ?? j.meta.engine} · asc wasm ${j.meta.wasmMtime} / emcc wasm ${jc.meta.wasmMtime} · 容量边界 ${j.capacityRejected && jc.capacityRejected ? '✓' : '✗'}`)
+    const j = JSON.parse(readFileSync(join(resultsDir, `${b}.json`), 'utf8'))
+    console.log(`— ${b}: ${j.meta.ua ?? j.meta.engine}${j.meta.wasmMtime ? ` · wasm ${j.meta.wasmMtime}` : ''} · 容量边界 ${j.capacityRejected ? '✓' : '✗'}`)
   }
 }
 

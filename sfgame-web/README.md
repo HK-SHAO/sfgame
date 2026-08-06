@@ -11,7 +11,7 @@ bun run test      # 单元测试（vitest，物理内核 + 无头通关验证）
 bun run check     # fail-fast：类型检查 + 测试 + 构建
 ```
 
-物理内核为 WASM 唯一实现（C 源码经 emcc 编译，-O3 -msimd128 自动向量化），不支持的环境启动时明示无法运行。编译依赖本机 emsdk（`native/build.sh` 自动 source，缺失时报错提示）。
+物理内核为 WASM·SIMD 唯一实现（AssemblyScript 编译），不支持的环境启动时明示无法运行。
 
 ## 结构
 
@@ -19,8 +19,8 @@ bun run check     # fail-fast：类型检查 + 测试 + 构建
 src/
   main.ts         入口：预热 WASM 流体内核后装配 UI（不支持 SIMD 时显示错误页）
   core/           框架无关基础设施（游戏循环、音效、性能治理、URL 状态）
-  sim/            物理内核：欧拉流体网格（WASM）、刚体、示踪粒子（无 DOM）；fluid.ts 为引导 + 接口 + 工厂
-  native/         C 源码：流体内核 engine.c + 渲染顶点批内核 batch.c（build.sh → emcc 编译）
+  sim/            物理内核：欧拉流体网格（WASM·SIMD）、刚体、示踪粒子（无 DOM）；fluid.ts 为引导 + 接口 + 工厂
+  assembly/       AssemblyScript 源码：流体内核 SIMD 入口 + 标量通路（build:wasm 编译）
   game/           无头关卡逻辑：模拟、关卡数据、类型（无 DOM）
   render/         WebGL 渲染层：场景顶点批组装、GL 薄层（batch 为纯计算可无头测试）
   ui/             玩家界面：Lit 组件、控制器、手势输入、图标

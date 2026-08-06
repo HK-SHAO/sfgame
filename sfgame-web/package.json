@@ -6,11 +6,12 @@
   "author": "烧风 (HK-SHAO)",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "bun run build:wasm && vite",
+    "build": "tsc -b && bun run build:wasm && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "bun run build:wasm && vitest run",
     "typecheck": "tsc -b",
+    "build:wasm": "asc assembly/main.ts -o src/sim/wasm/sfsim.wasm -O3 --noAssert --runtime stub --enable simd",
     "check": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "assemblyscript": "^0.28.20",
     "typescript": "~7.0.2",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"

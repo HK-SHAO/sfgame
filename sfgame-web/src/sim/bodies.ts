@@ -1,4 +1,4 @@
-import type { Fluid } from './fluid'
+import type { FluidLike } from './fluid'
 import type { WorldBounds } from './types'
 
 // 质点模型：重力 + 向空气速度收敛的气动阻力；与流体单向耦合（风推动物体，物体不反作用于风）
@@ -51,7 +51,7 @@ const GROUND_SLIDE_K = 3.0
 
 export function stepBody(
   body: Body,
-  fluid: Fluid,
+  fluid: FluidLike,
   dt: number,
   groundY: (x: number) => number,
   world: WorldBounds,

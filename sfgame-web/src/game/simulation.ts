@@ -1,4 +1,5 @@
-import { Fluid, type FluidConfig } from '../sim/fluid'
+import type { FluidConfig, FluidLike } from '../sim/fluid'
+import { createFluid } from '../sim/wasm-fluid'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import type { SourceKind } from '../sim/types'
 import { penaltySeconds } from './timer'
@@ -30,7 +31,7 @@ const URL_PRECISION_TOLERANCE = 0.06
 // 胜负语义：进入抵达圆（与渲染虚线圆一致）即算抵达，贴地滑入同样计数、顺序不限；过关瞬间与显式暂停都冻结物理与时钟
 export class LevelSimulation {
   readonly level: LevelDef
-  readonly fluid: Fluid
+  readonly fluid: FluidLike
   readonly plane: Body
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
@@ -50,7 +51,7 @@ export class LevelSimulation {
   constructor(level: LevelDef) {
     this.level = level
     const { w, h, cell } = level.world
-    this.fluid = new Fluid({
+    this.fluid = createFluid({
       nx: Math.round(w / cell),
       ny: Math.round(h / cell),
       cell,

@@ -2,10 +2,29 @@ import { readFileSync } from 'node:fs'
 import { levelFromJson, parseLevelText } from '../src/game/level-format'
 import { LevelSimulation } from '../src/game/simulation'
 import type { LevelDef } from '../src/game/types'
+import { bootWasm } from '../src/sim/wasm-boot'
+import { resolvedBackend, setBackendPref } from '../src/sim/wasm-fluid'
 
-// FINE_DT 与浏览器固定步长 SIM_DT 一致（无头 ↔ 真机逐位相同）；COARSE_DT 粗筛是"另一套物理"，胜点必须 FINE_DT 精验
+// FINE_DT 与浏览器固定步长 SIM_DT 一致（无头 ↔ 真机同语义）；COARSE_DT 粗筛是"另一套物理"，胜点必须 FINE_DT 精验
 export const FINE_DT = 1 / 60
 export const COARSE_DT = 1 / 30
+
+export type BackendOpt = 'auto' | 'js' | 'wasm'
+
+// 无头后端初始化：返回实际生效后端（wasm 缺失/不可用时静默落回 js）
+export async function initBackend(backend: BackendOpt): Promise<'js' | 'wasm'> {
+  setBackendPref(backend)
+  if (backend !== 'js') {
+    await bootWasm(() =>
+      Promise.resolve(readFileSync(`${import.meta.dir}/../src/sim/wasm/sfsim.wasm`)),
+    )
+  }
+  return resolvedBackend()
+}
+
+export function backendLabel(): string {
+  return resolvedBackend() === 'wasm' ? 'WASM·SIMD' : 'JS'
+}
 
 export type SourceTuple = [number, number, 'hot' | 'cold']
 

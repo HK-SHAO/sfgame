@@ -1,12 +1,14 @@
 // --solve 并行评估子进程：stdin/stdout 逐行 JSON（{"id","src"} → {"id","m"}），与主进程共用 solve-lib 评估；必须 FINE_DT 精筛步长（粗筛是"另一套物理"，会假阴性）
 import { createInterface } from 'node:readline'
-import { evalCandidate, FINE_DT, loadLevel, type CandidateMetric, type SourceTuple } from './solve-lib'
+import { evalCandidate, FINE_DT, initBackend, loadLevel, type BackendOpt, type CandidateMetric, type SourceTuple } from './solve-lib'
 
 const file = process.argv[2]
 if (!file) {
   console.error('solve-worker：缺少关卡文件参数')
   process.exit(1)
 }
+// 后端与主进程保持一致（argv[3]），缺省 auto
+await initBackend((process.argv[3] ?? 'auto') as BackendOpt)
 const level = loadLevel(file)
 
 interface Job {

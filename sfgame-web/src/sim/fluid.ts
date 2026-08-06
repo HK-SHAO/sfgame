@@ -15,7 +15,41 @@ export interface FluidConfig {
   vorticity: number
 }
 
-export class Fluid {
+// 流体后端的公共面（JS Fluid 与 WASM WasmFluid 同构），供刚体/粒子/云/渲染按接口消费
+export interface FluidLike {
+  readonly nx: number
+  readonly ny: number
+  readonly cell: number
+  readonly tMax: number
+  clear(): void
+  setAmbient(x: number, y: number): void
+  setGroundMask(groundY: (x: number) => number): void
+  addHeat(wx: number, wy: number, amount: number): void
+  sampleVelocity(wx: number, wy: number, out: Vec2): void
+  sampleTemp(wx: number, wy: number): number
+  step(dt: number): void
+}
+
+// 地面/边界固体掩码：JS 与 WASM 后端共用同一生成逻辑，保证两后端几何一致
+export function buildSolidMask(
+  nx: number,
+  ny: number,
+  cell: number,
+  groundY: (x: number) => number,
+): Uint8Array {
+  const solid = new Uint8Array(nx * ny)
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const cx = (i + 0.5) * cell
+      const cy = (j + 0.5) * cell
+      const edge = i === 0 || j === 0 || i === nx - 1 || j === ny - 1
+      solid[i + j * nx] = edge || cy >= groundY(cx) ? 1 : 0
+    }
+  }
+  return solid
+}
+
+export class Fluid implements FluidLike {
   readonly nx: number
   readonly ny: number
   readonly cell: number
@@ -77,16 +111,7 @@ export class Fluid {
   }
 
   setGroundMask(groundY: (x: number) => number) {
-    const { nx, ny, cell } = this
-    this.solid.fill(0)
-    for (let j = 0; j < ny; j++) {
-      for (let i = 0; i < nx; i++) {
-        const cx = (i + 0.5) * cell
-        const cy = (j + 0.5) * cell
-        const edge = i === 0 || j === 0 || i === nx - 1 || j === ny - 1
-        this.solid[i + j * nx] = edge || cy >= groundY(cx) ? 1 : 0
-      }
-    }
+    this.solid.set(buildSolidMask(this.nx, this.ny, this.cell, groundY))
     let n = 0
     for (let i = 0; i < this.solid.length; i++) {
       if (this.solid[i]) n++

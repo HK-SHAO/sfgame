@@ -1,4 +1,4 @@
-import type { Fluid } from './fluid'
+import type { FluidLike } from './fluid'
 import type { WorldBounds } from './types'
 
 const CLOUD_COUNT = 3
@@ -84,7 +84,7 @@ export class Clouds {
     this.alpha[i] = 0
   }
 
-  step(dt: number, fluid: Fluid) {
+  step(dt: number, fluid: FluidLike) {
     const { w } = this.world
     const air = this.tmpAir
     for (let i = 0; i < this.count; i++) {

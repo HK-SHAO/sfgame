@@ -1,4 +1,4 @@
-import type { Fluid } from './fluid'
+import type { FluidLike } from './fluid'
 import type { SourceKind, WorldBounds } from './types'
 
 interface SourcePoint {
@@ -107,7 +107,7 @@ export class Tracers {
     return env < 0 ? 0 : env
   }
 
-  step(dt: number, fluid: Fluid, sources: ReadonlyArray<SourcePoint>) {
+  step(dt: number, fluid: FluidLike, sources: ReadonlyArray<SourcePoint>) {
     this.time += dt
     const air = this.air
     for (let i = 0; i < this.count; i++) {

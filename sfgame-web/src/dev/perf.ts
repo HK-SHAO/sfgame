@@ -114,7 +114,7 @@ export class SfPerf extends LitElement {
         ${this.cell('up', this.up)}
         ${this.cell('tracers', this.tracers)}
         ${this.cell('dpr', this.dpr)}
-        ${this.cell('状态', this.paused ? '暂停' : '运行')}
+        ${this.cell('状态', this.paused ? '已暂停' : '运行中')}
       </div>
       <div class="divider"></div>
     `

@@ -1,7 +1,10 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
-import { DEV_OVERRIDE_EVENT, getDevOverrideText, setDevOverride } from '../game/session'
+import { stringify as yamlStringify } from 'yaml'
+import { DEV_OVERRIDE_EVENT } from '../game/session'
+import { parseLevelText } from '../game/level-format'
 import { levelSource } from '../game/levels'
+import { urlState } from '../game/state'
 import { iconChevron } from '../ui/icons'
 
 @customElement('sf-level-editor')
@@ -146,8 +149,21 @@ export class SfLevelEditor extends LitElement {
     this.expanded = !this.expanded
     if (this.expanded) {
       this.error = ''
-      this.editorText = getDevOverrideText() ?? levelSource(1) ?? ''
+      this.editorText = this.currentText() ?? ''
     }
+  }
+
+  // 当前关卡源文本：内联关卡由 URL JSON 重建 YAML（无注释），内置关卡取仓库 YAML
+  private currentText(): string | undefined {
+    const lv = urlState.get('lv')
+    if (typeof lv === 'string') {
+      try {
+        return yamlStringify(JSON.parse(lv))
+      } catch {
+        return undefined
+      }
+    }
+    return lv === null ? undefined : levelSource(lv)
   }
 
   private collapse() {
@@ -161,8 +177,9 @@ export class SfLevelEditor extends LitElement {
 
   private confirm() {
     try {
-      setDevOverride(this.editorText)
-      window.dispatchEvent(new CustomEvent(DEV_OVERRIDE_EVENT))
+      // parseLevelText 已校验+返回 LevelJson，直接序列化压 URL
+      const json = JSON.stringify(parseLevelText(this.editorText))
+      window.dispatchEvent(new CustomEvent(DEV_OVERRIDE_EVENT, { detail: json }))
       this.error = ''
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e)

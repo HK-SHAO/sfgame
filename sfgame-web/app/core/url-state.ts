@@ -102,6 +102,11 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
     return this.values.get(key) as ReturnType<D[K]['decode']>
   }
 
+  // URL 中是否存在该参数（与解码值无关：decode 失败回落 def 后仍能区分"无参数"与"非法值"）
+  has(key: KeyOf<D>): boolean {
+    return this.source.getParams().has(key)
+  }
+
   set<K extends KeyOf<D>>(key: K, value: ReturnType<D[K]['decode']>, opts?: UrlStateWriteOptions): void {
     const codec = this.def[key]
     const cur = this.values.get(key)
@@ -119,7 +124,9 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
     const codec = this.def[key]
     const cur = this.values.get(key)
     const fallback = codec.decode(null)
-    if (cur !== undefined && codec.encode(cur as never) === codec.encode(fallback as never)) return
+    // C3 短路的前提是"URL 已无该参数"：值=fallback 也可能只是解码失败回落，URL 里仍残留脏参数
+    const encodedSame = cur !== undefined && codec.encode(cur as never) === codec.encode(fallback as never)
+    if (encodedSame && !this.source.getParams().has(key)) return
     this.values.set(key, fallback)
     this.removed.add(key)
     this.dirty.delete(key)

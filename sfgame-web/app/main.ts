@@ -12,7 +12,8 @@ const ready = await bootEngine(() => fetchBytes(engineUrl))
 
 if (ready) {
   await import('./ui/app')
+  document.body.replaceChildren(document.createElement('sf-app'))
 } else {
-  const { mountUnsupported } = await import('./ui/unsupported')
-  mountUnsupported()
+  await import('./ui/unsupported')
+  document.body.replaceChildren(document.createElement('sf-unsupported'))
 }

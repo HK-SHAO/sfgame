@@ -121,6 +121,20 @@ test('批模式：一次 flush 即一次 history 操作，模式由批内最后�
   expect(rep.fake.replaces).toEqual(['level=1&count=3'])
 })
 
+test('clear 移除 URL 中解码失败的脏参数；URL 干净时仍早退', async () => {
+  const dirty = make('level=abc')
+  expect(dirty.state.get('level')).toBeNull()
+  dirty.state.clear('level')
+  await flush()
+  expect(dirty.fake.pushes).toEqual([''])
+
+  const clean = make('')
+  clean.state.clear('level')
+  await flush()
+  expect(clean.fake.pushes).toHaveLength(0)
+  expect(clean.fake.replaces).toHaveLength(0)
+})
+
 test('写读分离：set 不通知订阅者，外部 URL 变化才同步并通知；退订生效', async () => {
   const { state, fake } = make('level=1')
   let writes = 0

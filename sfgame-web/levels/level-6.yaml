@@ -18,7 +18,7 @@ goals:
 ambient: { x: 0.8, y: 0 }
 fixed:
   # 高原1上的篝火：助玩家翻过第一道悬崖；挂机飞机被墙挡在谷底，够不着火柱
-  - { x: 46, y: 26, kind: hot }
+  - { x: 46, y: 27, kind: hot }
 solutions:
   - name: 双热接力翻双崖
     sources:

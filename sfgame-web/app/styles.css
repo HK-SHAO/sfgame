@@ -37,3 +37,37 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* noscript 终端页：JS 禁用时由 index.html 的 <noscript> 引用；本表是静态 link，无脚本环境同样加载 */
+.noscript {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+}
+
+.noscript-card {
+  margin: auto;
+  max-width: 21rem;
+  padding: 1.75rem 1.5rem;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 1.75rem;
+  corner-shape: squircle;
+  box-shadow: 0 1.125rem 2.75rem rgba(61, 52, 39, 0.1);
+}
+
+.noscript-card h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.noscript-card p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}

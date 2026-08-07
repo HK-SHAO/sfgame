@@ -4,7 +4,7 @@ import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
 import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS } from '../game/levels'
 import { solutionsFor } from '../game/solutions'
-import { DEV_OVERRIDE_EVENT, DEV_SLOT, resolveLevel } from '../game/session'
+import { DEV_OVERRIDE_EVENT } from '../game/session'
 import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
 import { DevTools } from '../dev/devtools'
@@ -93,10 +93,10 @@ export class SfApp extends LitElement {
     }
   }
 
-  // dev 覆写生效：切 lv=0 编辑槽并清 src（浏览器返回即复原）
-  private onDevOverride = () => {
-    if (!resolveLevel(DEV_SLOT)) return
-    urlState.set('lv', DEV_SLOT)
+  // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验），清 src（浏览器返回即复原）
+  private onDevOverride = (e: Event) => {
+    const text = (e as CustomEvent<string>).detail
+    urlState.set('lv', text)
     urlState.clear('src')
     this.applyScreen(screenFromUrl())
   }

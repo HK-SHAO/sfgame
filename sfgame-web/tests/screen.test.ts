@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 import { deriveScreen } from '../app/game/screen'
-import { LEVEL_1, LEVELS } from '../app/game/levels'
+import { LEVEL_1, LEVELS, levelSource } from '../app/game/levels'
 import type { SourcePlacement } from '../app/game/types'
 
 const sources: SourcePlacement[] = [{ x: 20, y: 44, kind: 'hot' }]
@@ -27,8 +28,14 @@ test('v=title + 无 lv / 无效 lv → title', () => {
   expect(deriveScreen('title', max + 1, sources).screen).toBe('title')
 })
 
-test('lv=0 开发槽：无覆写时回落第 1 关', () => {
-  const s = deriveScreen('title', 0, [])
+test('lv=0 不再有效（旧开发槽已移除）→ title', () => {
+  expect(deriveScreen('title', 0, sources).screen).toBe('title')
+})
+
+test('内联关卡 JSON → game 屏', () => {
+  const json = JSON.stringify({ ...parseYaml(levelSource(1)!), tagline: '内联版' })
+  const s = deriveScreen('title', json, sources)
   expect(s.screen).toBe('game')
-  expect(s.level?.id).toBe(LEVEL_1.id)
+  expect(s.level?.tagline).toBe('内联版')
+  expect(s.sources).toEqual(sources)
 })

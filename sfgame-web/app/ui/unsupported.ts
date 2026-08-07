@@ -9,8 +9,10 @@ export class SfUnsupported extends LitElement {
     return html`
       <main class="page">
         <div class="card">
-          <h1>此设备无法运行烧风</h1>
-          <p>物理模拟需要 WebAssembly·SIMD（Chrome 91+、Safari 16.4+、Firefox 89+）。请升级浏览器或更换设备后重试。</p>
+          <h1>此设备无法运行</h1>
+          <p>物理模拟需要 WebAssembly · SIMD</p>
+          <p>(Chrome 91+、Safari 16.4+、Firefox 89+)</p>
+          <p>请升级浏览器或更换设备后重试。</p>
         </div>
       </main>
     `
@@ -39,7 +41,6 @@ export class SfUnsupported extends LitElement {
     .card {
       /* 居中 + 溢出兜底：margin auto 而非 place-items（溢出双向裁切） */
       margin: auto;
-      max-width: 20rem;
       padding: 1.75rem 1.5rem;
       text-align: center;
       background: var(--card);
@@ -63,10 +64,6 @@ export class SfUnsupported extends LitElement {
     }
   `,
   ]
-}
-
-export function mountUnsupported() {
-  document.body.replaceChildren(document.createElement('sf-unsupported'))
 }
 
 declare global {

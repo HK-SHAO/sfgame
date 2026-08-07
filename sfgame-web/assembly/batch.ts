@@ -1,4 +1,4 @@
-// 渲染顶点批数值内核（src/render/batch.ts 的 WASM 实现）：x,y,r,g,b,a 平铺，f64 中间量 → f32 存储。
+// 渲染顶点批数值内核（app/render/batch.ts 的 WASM 实现）：x,y,r,g,b,a 平铺，f64 中间量 → f32 存储。
 // 静态容量 + stub runtime：实例化时定型、运行期零分配、memory.buffer 视图恒定；
 // 容量溢出整体丢弃图元（最坏场景 ~10 万顶点，容量留 ~2 倍余量）。
 

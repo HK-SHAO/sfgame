@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { createBody, stepBody } from '../src/sim/bodies'
-import { createFluid } from '../src/sim/fluid'
+import { createBody, stepBody } from '../app/sim/bodies'
+import { createFluid } from '../app/sim/fluid'
 
 function makeCalmFluid() {
   return createFluid({

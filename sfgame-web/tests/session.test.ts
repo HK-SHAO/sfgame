@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { LEVEL_1, LEVELS, levelSource } from '../src/game/levels'
-import { DEV_SLOT, getDevOverrideText, resolveLevel, setDevOverride } from '../src/game/session'
+import { LEVEL_1, LEVELS, levelSource } from '../app/game/levels'
+import { DEV_SLOT, getDevOverrideText, resolveLevel, setDevOverride } from '../app/game/session'
 
 test('dev 覆写：lv=0 槽生效并可预填，非法 YAML 拒绝且不覆盖，普通关卡不受影响', () => {
   expect(levelSource(1)).toContain('schema: 1')

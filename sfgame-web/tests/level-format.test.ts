@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { compileExpr, ExprError } from '../src/game/expr'
-import { parseLevelText, validateLevelJson } from '../src/game/level-format'
-import { LEVEL_ERRORS, LEVELS } from '../src/game/levels'
+import { compileExpr, ExprError } from '../app/game/expr'
+import { parseLevelText, validateLevelJson } from '../app/game/level-format'
+import { LEVEL_ERRORS, LEVELS } from '../app/game/levels'
 
 test('表达式求值：四则/幂/函数/x 变量，语法错误抛 ExprError', () => {
   expect(compileExpr('x + 2')(3)).toBe(5)

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { LEVELS } from '../src/game/levels'
-import { LevelSimulation } from '../src/game/simulation'
+import { LEVELS } from '../app/game/levels'
+import { LevelSimulation } from '../app/game/simulation'
 
 const LEVEL_4 = LEVELS.find((l) => l.id === 4)!
 const DT = 1 / 60

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { PlayerProgress, PROGRESS_TOP_N, type ProgressStorage } from '../src/game/progress'
-import type { SourcePlacement } from '../src/game/types'
+import { PlayerProgress, PROGRESS_TOP_N, type ProgressStorage } from '../app/game/progress'
+import type { SourcePlacement } from '../app/game/types'
 
 function memStorage(): { storage: ProgressStorage; raw(): string | null } {
   let raw: string | null = null

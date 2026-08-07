@@ -46,6 +46,6 @@ coverage
 *.sln
 *.sw?
 # wasm 编译产物（bun run build:wasm 生成）
-sfgame-web/src/wasm/*.wasm
+sfgame-web/app/wasm/*.wasm
 # AI 会话导出文件（非项目内容）
 *-export-*.md

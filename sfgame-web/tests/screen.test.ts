@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { deriveScreen } from '../src/game/screen'
-import { LEVEL_1, LEVELS } from '../src/game/levels'
-import type { SourcePlacement } from '../src/game/types'
+import { deriveScreen } from '../app/game/screen'
+import { LEVEL_1, LEVELS } from '../app/game/levels'
+import type { SourcePlacement } from '../app/game/types'
 
 const sources: SourcePlacement[] = [{ x: 20, y: 44, kind: 'hot' }]
 

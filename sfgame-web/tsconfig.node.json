@@ -4,5 +4,5 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "types": ["vite/client", "bun"]
   },
-  "include": ["tests", "scripts", "vite.config.ts", "src"]
+  "include": ["tests", "scripts", "vite.config.ts", "app"]
 }

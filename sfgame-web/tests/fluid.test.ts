@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { bilinearSample, createFluid, type FluidConfig } from '../src/sim/fluid'
+import { bilinearSample, createFluid, type FluidConfig } from '../app/sim/fluid'
 
 const CFG: FluidConfig = {
   nx: 48,

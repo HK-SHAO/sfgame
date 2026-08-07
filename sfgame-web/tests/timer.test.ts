@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { SOURCE_PENALTY, formatPenalty, formatTime, penaltySeconds } from '../src/game/timer'
+import { SOURCE_PENALTY, formatPenalty, formatTime, penaltySeconds } from '../app/game/timer'
 
 test('罚时按场上源数线性计费，时间 1 位小数、罚时带 + 号', () => {
   expect(SOURCE_PENALTY).toBe(4)

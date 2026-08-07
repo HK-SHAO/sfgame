@@ -1,4 +1,4 @@
-// AssemblyScript 流体内核（与 src/sim/fluid.ts 同算法）。游戏级精度：f32 存储，
+// AssemblyScript 流体内核（与 app/sim/fluid.ts 同算法）。游戏级精度：f32 存储，
 // 场运算以 f32x4 SIMD 为主；压强/散度/梯度是耗散算子，f32 舍入不会危害玩法；
 // 平流误差补偿是混沌放大环节，入口侧刻意用 f64x2 保持与 JS 后端一致的轨迹品质。
 // 静态容量 + stub runtime：实例化时一次性分配，运行期零分配、无 GC、memory.buffer 视图恒定。

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { GameLoop, SIM_DT } from '../src/core/loop'
+import { GameLoop, SIM_DT } from '../app/core/loop'
 
 let rafCb: FrameRequestCallback | null = null
 let nowMs = 0

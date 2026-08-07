@@ -9,7 +9,7 @@ import { join } from 'node:path'
 export const ASC_FLAGS = [
   'assembly/engine.ts',
   '-o',
-  'src/wasm/sfengine.wasm',
+  'app/wasm/sfengine.wasm',
   '-O3',
   '--noAssert',
   '--runtime',
@@ -19,7 +19,7 @@ export const ASC_FLAGS = [
 ]
 
 const root = import.meta.dir + '/..'
-const outPath = join(root, 'src/wasm/sfengine.wasm')
+const outPath = join(root, 'app/wasm/sfengine.wasm')
 const srcDir = join(root, 'assembly')
 
 // assembly/ 下所有 .ts 的最晚 mtime；目录缺失返回 null

@@ -1,10 +1,10 @@
 import { expect, test } from 'vitest'
-import { codecs } from '../src/core/url-state'
-import { LEVELS } from '../src/game/levels'
-import { LevelSimulation } from '../src/game/simulation'
-import { SOLUTIONS, solutionUrl, solutionsFor } from '../src/game/solutions'
-import { sourceItem } from '../src/game/state'
-import type { LevelDef, SourcePlacement } from '../src/game/types'
+import { codecs } from '../app/core/url-state'
+import { LEVELS } from '../app/game/levels'
+import { LevelSimulation } from '../app/game/simulation'
+import { SOLUTIONS, solutionUrl, solutionsFor } from '../app/game/solutions'
+import { sourceItem } from '../app/game/state'
+import type { LevelDef, SourcePlacement } from '../app/game/types'
 
 const DT = 1 / 60
 // 留足余量：实测参考解最长约 24s

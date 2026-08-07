@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { PerformanceGovernor, DPR_TIERS } from '../src/core/governor'
+import { PerformanceGovernor, DPR_TIERS } from '../app/core/governor'
 
 const DPR = [2, 1.5, 1.0]
 

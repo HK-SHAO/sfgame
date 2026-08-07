@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { LEVEL_2 } from '../src/game/levels'
-import { LevelSimulation } from '../src/game/simulation'
-import { WasmFluid } from '../src/sim/fluid'
+import { LEVEL_2 } from '../app/game/levels'
+import { LevelSimulation } from '../app/game/simulation'
+import { WasmFluid } from '../app/sim/fluid'
 
 const DT = 1 / 60
 

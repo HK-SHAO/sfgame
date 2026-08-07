@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { LEVEL_1 } from '../src/game/levels'
-import { LevelSimulation } from '../src/game/simulation'
+import { LEVEL_1 } from '../app/game/levels'
+import { LevelSimulation } from '../app/game/simulation'
 
 const DT = 1 / 60
 

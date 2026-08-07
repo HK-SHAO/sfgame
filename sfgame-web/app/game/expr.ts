@@ -7,15 +7,41 @@ type Node =
   | { k: 'bin'; op: string; a: Node; b: Node }
   | { k: 'call'; fn: string; args: Node[] }
 
-const FUNCS: Record<string, (args: number[]) => number> = {
+const smoothstepCurve = (t: number) => {
+  const c = Math.min(1, Math.max(0, t))
+  return c * c * (3 - 2 * c)
+}
+
+const FUNCS: Record<string, (args: number[], x: number) => number> = {
   abs: ([v]) => Math.abs(v),
   min: ([a, b]) => Math.min(a, b),
   max: ([a, b]) => Math.max(a, b),
   clamp: ([v, lo, hi]) => Math.min(hi, Math.max(lo, v)),
-  step: ([x, edge]) => (x >= edge ? 1 : 0),
-  smoothstep: ([t]) => {
-    const c = Math.min(1, Math.max(0, t))
-    return c * c * (3 - 2 * c)
+  step: ([t, edge]) => (t >= edge ? 1 : 0),
+  // 1 参 = smoothstep(t)；3 参 = GLSL smoothstep(e0,e1,x)（GLSL 规定 e0≥e1 未定义，这里拒绝）
+  smoothstep: (args) => {
+    if (args.length === 1) return smoothstepCurve(args[0])
+    if (args.length === 3) {
+      const [e0, e1, x] = args
+      if (e0 >= e1) throw new ExprError('smoothstep(e0,e1,x) 要求 e0 < e1')
+      return smoothstepCurve((x - e0) / (e1 - e0))
+    }
+    throw new ExprError('smoothstep 需 1 参 smoothstep(t) 或 3 参 smoothstep(e0,e1,x)')
+  },
+  // 单峰山丘：跨 [c-w, c+w] 峰高 h，两端斜率 0，与平原 C1 相接
+  bump: (args, x) => {
+    const [c, w, h] = args
+    if (args.length !== 3) throw new ExprError('bump(c,w,h) 需 3 参：中心/半宽/峰高')
+    if (w <= 0) throw new ExprError('bump 半宽 w 必须 > 0')
+    return h * smoothstepCurve((x - (c - w)) / w) * smoothstepCurve((c + w - x) / w)
+  },
+  // 高斯圆丘：C∞ 圆顶，永不归零（3w 处残量 ~1e-4，视觉无感）
+  gauss: (args, x) => {
+    const [c, w, h] = args
+    if (args.length !== 3) throw new ExprError('gauss(c,w,h) 需 3 参：中心/宽度/峰高')
+    if (w <= 0) throw new ExprError('gauss 宽度 w 必须 > 0')
+    const t = (x - c) / w
+    return h * Math.exp(-t * t)
   },
   sin: ([v]) => Math.sin(v),
   cos: ([v]) => Math.cos(v),
@@ -176,7 +202,7 @@ function evalNode(n: Node, x: number): number {
     case 'call': {
       const f = FUNCS[n.fn]
       if (!f) throw new ExprError(`未知函数 ${n.fn}`)
-      return f(n.args.map((a) => evalNode(a, x)))
+      return f(n.args.map((a) => evalNode(a, x)), x)
     }
   }
 }

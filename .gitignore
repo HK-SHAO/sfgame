@@ -45,6 +45,8 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+# AI 工具本地配置（settings.local 等）
+.claude/
 # wasm 编译产物（bun run build:wasm 生成）
 sfgame-web/app/wasm/*.wasm
 # AI 会话导出文件（非项目内容）

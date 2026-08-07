@@ -32,7 +32,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 - `app/wasm/` — WASM 引擎引导与实例化（单实例 = 单内存；产物 `app/wasm/sfengine.wasm`，gitignore）。流体内核与顶点批内核同模块，渲染零拷贝直读流体场（`bilinearSample` 与 wasm 采样逐位同构）
 - `app/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子、云）。流体内核为 WASM·SIMD 唯一实现：`fluid.ts`（FluidLike 接口 + WasmFluid 门面 + createFluid 工厂，可注入引擎实例），`assembly/` 为 AssemblyScript 源码；内核加载失败在 main.ts 明示无法运行，绝不静默回退
-- `app/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`state.ts`（URL 状态 schema 单例：level/sources/view）、`solutions.ts`（解法注册表，dev 模式首页关卡项直达摆法）、`session.ts`（会话级关卡覆写：dev 面板 YAML 编辑，不落盘）
+- `app/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`state.ts`（URL 状态 schema 单例：level/sources/view）、`levels.ts`（关卡加载/分组/解锁 + lv 双形态解析 + 参考解读取）、`progress.ts`（通关记录）
 - `app/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）
 - `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面/旗杆旗面遮挡，旗/源/飞机层最前）、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `assembly/batch.ts`，静态容量零分配，可无头测试）
 - `app/dev/` — ?dev=1 开发者工具：面板 + 性能块 + 关卡 YAML 编辑器（默认折叠）+ 开发者页面，由 app 持有跨关卡重建延续
@@ -40,7 +40,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 ## 拖尾约定（2026-08 起）
 
-所有轨迹/拖尾——纸飞机拖尾（`sim/trail.ts`）与示踪粒子短轨迹（`sim/particles.ts`）——一律**随时间淡出**（存留 = 1 − 距写入时刻 / fadeTime），不随路程。飞机 `PLANE_TRAIL_FADE=6s`、粒子 `TRAIL_FADE_T=5s`；采样仍按路程等距。物体停住时旧轨迹同样老化消失。
+所有轨迹/拖尾——纸飞机拖尾（`sim/trail.ts`）与示踪粒子短轨迹（`sim/particles.ts`）——一律**随时间淡出**（存留 = 1 − 距写入时刻 / fadeTime），不随路程。淡出公式与常数（`PLANE_TRAIL_FADE=6s`、`TRAIL_FADE_T=5s`）统一定义在 `sim/trail.ts`；采样仍按路程等距。物体停住时旧轨迹同样老化消失。
 
 ## 样式约定（本仓库特有，别写 px）
 

@@ -1,6 +1,6 @@
 ---
 name: level-design
-description: 为「烧风」（sfgame-web，Lit 3 + Canvas 2D 物理益智）设计新关卡：按协议 v1（YAML 序列化 + 表达式地形 + 六个原子字段）搭建关卡，用无头仿真验证可玩性，并注册参考答案。适用于新增关卡、DIY 关卡传播、教学关设计。
+description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计新关卡：按协议 v1（YAML 序列化 + 表达式地形 + 六个原子字段）搭建关卡，用无头仿真验证可玩性，并注册参考答案。适用于新增关卡、DIY 关卡传播、教学关设计。
 ---
 
 # 烧风关卡搭建指南（协议 v1）
@@ -34,7 +34,7 @@ solutions:
     sources:
       - { x: 20, y: 29.3, kind: hot }
       - { x: 50, y: 21.3, kind: hot }
-    winTime: 16.8   # 无头实测值，solutions.test.ts 守护 ±2s
+    winTime: 16.8   # 展示用数据（win 结算展示最快成绩），由玩家实测，#27 起不设自动守护
 ```
 
 序列化选型：**YAML**（易读、可写注释、锚点 `&a`/`*a` 复用重复值）；地形只用**表达式字符串**（精准、高密度、可移植到任意数学工具），刻意不用采样折线（不精准）也不引 path（与表达式重叠、求值复杂——堆积功能）。
@@ -51,7 +51,7 @@ solutions:
 | 环境风 | `ambient` | 常风 `{x,y}` + 可选潮汐 `tide{period,phase,ampX,ampY}` | L1/L2 常风、L4 潮汐 |
 | 固定源 | `fixed[]` | 关卡自带的 `{x, y, kind:'hot'\|'cold'}`，玩家不可移除/撤销、不占预算（渲染为篝火/空调） | L6 营火、L7 冰窖、L10 焚风 |
 | 风扇 | `fans[]` | 定向气流 `{x, y, dir(弧度), power(注入风速)}`；可选 `swing`（摆幅 ±弧度）+ `period`（周期）= 摇头风扇 | L8 鼓风、L9 钟摆、L10 焚风 |
-| 关卡组 | `group` | 主页选项卡分组：**字符串即组名**（如 `长风`/`焚风`），必填；同名字符串自动同组，组内按 id 线性解锁 | 第 1 组「长风」、第 2 组「焚风」 |
+| 关卡组 | `LEVEL_GROUPS` | 主页选项卡分组：**YAML 不声明归属，分组在 `app/game/levels.ts` 的 `LEVEL_GROUPS` 常量声明**（组名 + 组内 ids 顺序，组内按 id 线性解锁） | 第 1 组「长风」、第 2 组「焚风」 |
 
 参考解法（`solutions[]`）不是新原子，而是 dev 模式首页关卡项「参考解」按钮的直达摆法数据（源一次性放置）。
 
@@ -139,8 +139,7 @@ bun run scripts/run-level.ts levels/level-N.yaml --verify 20-29.3-h,50-21.3-h
 - **坐标一律 1 位小数**：直达 URL 只保留 1 位小数，评估器对所有候选
   源做 1 位小数舍入后再模拟——3 位小数的刀刃解（实测 L2 有个 y=26.832
   的解，舍入成 26.8 就不通关）玩家无法复现，搜索阶段直接淘汰。
-- **搜索 cap 35s + 贴地早退**：贴地 8s 无进展判死局提前终止（G8 物理下
-  贴地飞机几乎不会自己起飞）；教学关参考解应 ≤25s，35s 留足余量。
+- **搜索 cap 35s**：教学关参考解应 ≤25s，35s 留足余量；新物理（#25）下贴地飞机可被风重新带飞，不再设贴地早退。
 - 候选源网格：x 每 2 单位一列，贴地/中空/高空三档高度，热冷各一；
   `--kinds h` 可只搜热源（教学主题约束，如 L1「上升风」只放热源）。
 - **种子注入**：种群首代包含 YAML 里已登记的参考解——搜索至少保住现状，
@@ -163,9 +162,9 @@ bun run scripts/run-level.ts levels/level-N.yaml --verify 20-29.3-h,50-21.3-h
 
 ## 8. 登记新关卡
 
-1. 新建 `sfgame-web/levels/level-N.yaml`（含 `solutions` 与实测 `winTime`；新关卡组加 `group: 组名`）
+1. 新建 `sfgame-web/levels/level-N.yaml`（含 `solutions` 与实测 `winTime`；新关卡组先在 `levels.ts` 声明 `LEVEL_GROUPS` 条目）
 2. 在 `app/game/levels.ts` 顶部 `import levelN from '../../levels/level-N.yaml?raw'`
    并加入 `LEVEL_TEXTS` 数组一行（YAML 以纯文本经 `?raw` 直读，随文件变更
-   触发 vite HMR，无需构建插件）；`LEVEL_GROUPS` 按 group 自动分组，选项卡自动出现
+   触发 vite HMR，无需构建插件）；按关卡分组把 id 加进 `LEVEL_GROUPS` 对应组，选项卡自动出现
 3. 走完第 5 节设计工作流
 4. 选关页、dev 模式参考解按钮、URL 直达（`?lv=N&src=…`）自动生效，无需额外 UI 改动

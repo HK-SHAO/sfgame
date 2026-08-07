@@ -17,10 +17,6 @@ export class DevTools {
     this.perfEl.record(sample)
   }
 
-  syncPause(paused: boolean) {
-    this.perfEl.paused = paused
-  }
-
   destroy() {
     this.panel.remove()
   }

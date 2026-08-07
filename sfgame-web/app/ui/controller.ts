@@ -150,13 +150,11 @@ export class GameController {
     this.press = null
     this.lastPhase = 'playing'
     this.pushHud()
-    this.devTools?.syncPause(this.sim.paused)
   }
 
   togglePause() {
     this.sim.setPaused(!this.sim.paused)
     if (this.sim.paused) sfx.fadeOutWind()
-    this.devTools?.syncPause(this.sim.paused)
     this.pushHud()
   }
 

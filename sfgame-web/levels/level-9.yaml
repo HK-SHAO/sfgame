@@ -1,0 +1,27 @@
+# 第 9 关 · 钟摆 —— 新原子：摇头风扇（气流方向周期性摆动，风有节奏）
+schema: 1
+id: 9
+group: 焚风
+name: 钟摆
+tagline: 风有节奏
+win:
+  title: 趁风而动
+  text: 摆动有周期，出手看时机——就像潮汐，就像钟摆。
+world: { w: 76, h: 56, cell: 0.75 }
+# 左岸高原 y=30 → 悬崖（x∈[32,36]）→ 沟壑底 y=44 → 右岸陡坡（x∈[40,44]）→ 右高原 y=30
+ground:
+  expr: 30 + 14*smoothstep((x-32)/4) - 14*smoothstep((x-40)/4)
+budget: { hot: 2, cold: 1 }
+spawn: { x: -5, y: 18, vx: 26 }
+goals:
+  - { x: 54, r: 7 }
+ambient: { x: 1.8, y: 0 }
+fans:
+  # 摆幅 0.4 始终朝右下方（0.2~1.0 rad）：永不上扬，挂机滚下悬崖的慢落轨迹够不着射流
+  - { x: 24, y: 22, dir: 0.6, power: 5, swing: 0.4, period: 8 }
+solutions:
+  - name: 趁摆风入流
+    sources:
+      # 热源放在射流上游：飞机带速滑入射流核心，随摆风渡壑（未验证，待玩家实测）
+      - { x: 16, y: 28, kind: hot }
+    winTime: 33.3

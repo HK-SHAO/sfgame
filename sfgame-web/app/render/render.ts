@@ -9,6 +9,7 @@ import type { Trail } from '../sim/trail'
 import type { Vec2 } from '../sim/types'
 import type { LevelSimulation } from '../game/simulation'
 import { GOAL_LIFT } from '../game/simulation'
+import { fanDirection } from '../game/simulation'
 import type { PressVisual } from '../game/types'
 import { LONG_PRESS_MS } from '../ui/input'
 
@@ -27,6 +28,8 @@ const rgb = (r: number, g: number, b: number): RGB => [r / 255, g / 255, b / 255
 
 const HOT = rgb(255, 90, 60)
 const COLD = rgb(61, 139, 255)
+const FLAME_OUTER = rgb(255, 138, 62)
+const FLAME_INNER = rgb(255, 215, 130)
 const TRAIL_INK = rgb(64, 74, 106)
 const INK_DARK = rgb(61, 52, 39)
 const GOAL = rgb(47, 191, 113)
@@ -66,6 +69,11 @@ const VISIBLE_ALPHA = 0.02
 const SOURCE_POP_RATE = 9
 const SOURCE_GLOW_RADIUS = 4.8
 const SOURCE_CORE_RADIUS = 1.15
+const FAN_HOUSING_RADIUS = 1.5
+const FAN_FACE_RADIUS = 1.05
+const FAN_BLADE_LEN = 0.95
+const FAN_BLADE_WIDTH = 0.3
+const FAN_SPIN_RATE = 8
 const FLAG_RESPONSE_BASE = 1.2
 const FLAG_RESPONSE_WIND = 3
 const POLE_HEIGHT = 5.7
@@ -174,7 +182,9 @@ export class Renderer {
     this.drawClouds(b, scene.clouds)
     this.drawGoalPoles(b, sim)
     this.drawGoal(b, sim)
+    this.drawFixedSources(b, sim)
     this.drawSources(b, sim, press)
+    this.drawFans(b, sim)
     this.drawPlaneTrail(b, sim, planeTrail)
     this.drawPlane(b, sim)
     if (press && press.kind === 'place') this.drawPress(b, press, now)
@@ -321,6 +331,42 @@ export class Renderer {
     this.flagT.fill(-Infinity)
   }
 
+  // 固定源形象化（#29）：热源 = 篝火（圆润泪滴火苗 + 底座），冷源 = 空调（圆角机身 + 圆环出风口）——封闭圆润、简约优雅，不复用玩家源圆盘样式
+  private drawFixedSources(b: MeshBatch, sim: LevelSimulation) {
+    for (const s of sim.fixedSources) {
+      if (s.kind === 'hot') this.drawCampfire(b, sim, s.x, s.y)
+      else this.drawAC(b, s.x, s.y)
+    }
+  }
+
+  private drawCampfire(b: MeshBatch, sim: LevelSimulation, x: number, y: number) {
+    // 光晕（含蓄）
+    b.discGrad(x, y, 2.2, 16, ...HOT, 0.16, ...HOT, 0)
+    // 底座：一块圆润坐垫
+    b.disc(x, y + 0.1, 1.3, 0.45, 0, 16, ...INK_DARK, 0.28)
+    // 火苗：圆头圆尾的泪滴（外橙内黄），摇曳轻微缩放
+    const flicker = 1 + 0.12 * Math.sin(sim.time * 9) + 0.06 * Math.sin(sim.time * 15.7 + 1.3)
+    b.stroke(x, y - 0.2 * flicker, x, y - 1.2 * flicker, 0.9 * flicker, ...FLAME_OUTER, 0.95, true)
+    b.stroke(x, y - 0.2 * flicker, x, y - 0.85 * flicker, 0.5 * flicker, ...FLAME_INNER, 1, true)
+  }
+
+  private drawAC(b: MeshBatch, x: number, y: number) {
+    const hw = 1.5
+    const hh = 0.8
+    // 冷光（含蓄）
+    b.discGrad(x, y, 2.4, 16, ...COLD, 0.14, ...COLD, 0)
+    // 圆角机身：白底 + 四角圆盘（角半径 = hh，全圆角）
+    b.rect(x - hw, y - hh, x + hw, y + hh, ...PAPER, 1)
+    for (const [cx, cy] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]] as const) {
+      b.disc(x + cx, y + cy, hh, hh, 0, 16, ...PAPER, 1)
+    }
+    // 圆形出风口：同心圆环
+    b.ring(x, y, 0.85, 0.85, 0, 20, 0.18, ...INK_DARK, 0.38)
+    b.ring(x, y, 0.55, 0.55, 0, 20, 0.15, ...INK_DARK, 0.28)
+    // 指示灯
+    b.disc(x, y, 0.2, 0.2, 0, 10, ...COLD, 0.9)
+  }
+
   private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null) {
     for (const s of sim.sources) {
       const grabbed = press?.kind === 'remove' && press.sourceId === s.id
@@ -338,6 +384,32 @@ export class Renderer {
       b.disc(s.x, s.y, 0.42 * pop, 0.42 * pop, 0, 16, ...c, 0.95)
 
       if (grabbed) b.dashRing(s.x, s.y, 2.2, 0.9, 1.1, 0.24, ...INK_DARK, 0.55)
+    }
+  }
+
+  private drawFans(b: MeshBatch, sim: LevelSimulation) {
+    for (const f of sim.fans) {
+      const dir = fanDirection(f, sim.time)
+      // 机身 + 面盘 + 旋转叶片 + 朝向箭头（气流方向即箭头指向，摇头风扇整体随朝向摆动）
+      b.disc(f.x, f.y, FAN_HOUSING_RADIUS, FAN_HOUSING_RADIUS, 0, 24, ...INK_DARK, 0.18)
+      b.disc(f.x, f.y, FAN_FACE_RADIUS, FAN_FACE_RADIUS, 0, 20, ...PAPER, 1)
+      for (let k = 0; k < 3; k++) {
+        const a = sim.time * FAN_SPIN_RATE + (k * Math.PI * 2) / 3
+        const cx = f.x + Math.cos(a) * FAN_BLADE_LEN
+        const cy = f.y + Math.sin(a) * FAN_BLADE_LEN
+        b.stroke(f.x, f.y, cx, cy, FAN_BLADE_WIDTH, ...INK_DARK, 0.72, true)
+      }
+      b.ring(f.x, f.y, FAN_FACE_RADIUS, FAN_FACE_RADIUS, 0, 20, 0.3, ...INK_DARK, 0.5)
+      const nx = Math.cos(dir) * (FAN_HOUSING_RADIUS + 0.35)
+      const ny = Math.sin(dir) * (FAN_HOUSING_RADIUS + 0.35)
+      const px = -Math.sin(dir)
+      const py = Math.cos(dir)
+      b.tri(
+        f.x + nx + px * 0.28, f.y + ny + py * 0.28,
+        f.x + nx - px * 0.28, f.y + ny - py * 0.28,
+        f.x + nx * 1.55, f.y + ny * 1.55,
+        ...INK_DARK, 0.55,
+      )
     }
   }
 

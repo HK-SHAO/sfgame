@@ -1,7 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { version, author, description } from '../../package.json'
-import { iconBack, iconDatabase, iconGear, iconRoute } from '../ui/icons'
+import { iconBack, iconDatabase, iconGear } from '../ui/icons'
 import { boxReset, card, pageShell } from '../ui/shared-styles'
 
 @customElement('sf-dev-menu')
@@ -9,7 +9,6 @@ export class SfDevMenu extends LitElement {
   @property({ attribute: false }) dev = false
 
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))
-  private openSolutions = () => this.dispatchEvent(new CustomEvent('open-solutions'))
   private openStorage = () => this.dispatchEvent(new CustomEvent('open-storage'))
   private onToggleDev = () => this.dispatchEvent(new CustomEvent('toggle-dev', { detail: !this.dev }))
 
@@ -35,13 +34,6 @@ export class SfDevMenu extends LitElement {
             <input type="checkbox" class="switch-input" .checked=${this.dev} @change=${this.onToggleDev} />
             <span class="switch" aria-hidden="true"><span class="knob"></span></span>
           </label>
-          <button class="row" @click=${this.openSolutions}>
-            <span class="ico">${iconRoute}</span>
-            <span class="txt">
-              <b>解法参考</b>
-              <small>各关参考解链接</small>
-            </span>
-          </button>
           <button class="row" @click=${this.openStorage}>
             <span class="ico">${iconDatabase}</span>
             <span class="txt">
@@ -54,7 +46,7 @@ export class SfDevMenu extends LitElement {
         <section class="card about">
           <h2>关于</h2>
           <p class="line">${description}</p>
-          <p class="line">作者：${author}</p>
+          <p class="line">作者：${author.name}</p>
           <p class="line">版本：v${version}</p>
         </section>
       </main>

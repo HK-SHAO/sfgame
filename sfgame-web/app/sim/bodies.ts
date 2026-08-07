@@ -38,16 +38,23 @@ export function createBody(x: number, y: number, opts: BodyOptions): Body {
 
 const tmpAir = { x: 0, y: 0 }
 
-// 可贴地滑行的最大坡度：超过（如崖壁）禁止 snap 抬升——飞机不能凭水平风"瞬移爬墙"
-const MAX_SLIDE_SLOPE = 1.0
+// 光滑地面（#25）：贴地不"粘"——低摩擦可顺坡滑行，风速足够即可重新带飞。
+// 坡度过陡（如崖壁）仍禁止 snap 抬升——防止水平风"瞬移爬墙"
+const MAX_SLIDE_SLOPE = 2.0
 const WALL_RESTITUTION = 0.35
-// 贴地接触后水平速度的保留比例（防被微风吹离托举位置）
-const GROUND_FRICTION = 0.3
+// 贴地接触后水平速度的保留比例（光滑地面：近无摩擦滑行）
+const GROUND_FRICTION = 0.99
 
-// 贴地区（地面边界层）：离地低于 GROUND_EFFECT_H 风耦合按贴地度衰减至 GROUND_AERO_MIN（贴地难起飞：悬停需风 ≈1.7 倍，靠源正下方持续垂直风 ≥2.2 撬起）；GROUND_SLIDE_K 使贴地越紧水平速度越快归零
-const GROUND_EFFECT_H = 2.0
-const GROUND_AERO_MIN = 0.6
-const GROUND_SLIDE_K = 3.0
+// 贴地区（地面边界层）：离地低于 GROUND_EFFECT_H 风耦合按贴地度衰减至 GROUND_AERO_MIN（轻微衰减：贴地悬停需风 ≈1.25 倍，正下方持续垂直风 ≥1.4 即可重新带飞）；GROUND_SLIDE_K 只作轻微阻尼防贴地滑行失控
+const GROUND_EFFECT_H = 1.5
+const GROUND_AERO_MIN = 0.8
+const GROUND_SLIDE_K = 0.4
+// 坡面重力切向分量用中心差分坡度（tanθ），切向加速度 = g·sinθcosθ = g·slope/(1+slope²)
+const SLOPE_EPS = 0.5
+// 贴地基准高度：≈ 机身视觉半高（#28）——飞机落在地面上而非机头/下半身插进土里
+const REST_OFFSET = 1.1
+// 贴地时角度向坡面收敛的速率
+const GROUND_ALIGN_K = 9
 
 export function stepBody(
   body: Body,
@@ -59,7 +66,7 @@ export function stepBody(
   const px = body.x
   fluid.sampleVelocity(body.x, body.y, tmpAir)
   const r = body.radius
-  const hAbove = Math.max(0, groundY(px) - body.y - r * 0.5)
+  const hAbove = Math.max(0, groundY(px) - body.y - REST_OFFSET)
   const eff = Math.min(1, hAbove / GROUND_EFFECT_H)
   const airK = 1 - (1 - eff) * (1 - GROUND_AERO_MIN)
   const k = Math.min(1, body.dragK * dt) * airK
@@ -88,8 +95,9 @@ export function stepBody(
     }
   }
 
-  const pground = groundY(px) - r * 0.5
-  const ground = groundY(body.x) - r * 0.5
+  const pground = groundY(px) - REST_OFFSET
+  const ground = groundY(body.x) - REST_OFFSET
+  let grounded = false
   if (body.y > ground) {
     const dx = body.x - px
     if (Math.abs(dx) > 1e-6 && pground - ground > MAX_SLIDE_SLOPE * Math.abs(dx)) {
@@ -102,15 +110,23 @@ export function stepBody(
       if (body.vy > 0) body.vy = -body.vy * 0.1
       body.vx *= GROUND_FRICTION
     }
+    grounded = true
+  }
+  // 坡面滑行（#25）：贴地或边界层内时重力沿坡面的切向分量持续驱动下滑（仅接触帧会因逐帧微弹跳而断续）
+  const slope = (groundY(body.x + SLOPE_EPS) - groundY(body.x - SLOPE_EPS)) / (2 * SLOPE_EPS)
+  if (eff < 1) {
+    body.vx += body.gravity * (slope / (1 + slope * slope)) * dt
   }
 
   const speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy)
   body.clock += dt * (1.5 + speed * 0.4)
-  if (speed > 1.2) {
-    const target = Math.atan2(body.vy, body.vx)
+  // #28 空气动力学手感：贴地或下降中近地时顺着地面（角度对齐坡面，机头不插地）；飞行时随速度姿态
+  const target =
+    grounded || (eff < 1 && body.vy > 0) ? Math.atan(slope) : speed > 1.2 ? Math.atan2(body.vy, body.vx) : null
+  if (target !== null) {
     let diff = target - body.angle
     while (diff > Math.PI) diff -= Math.PI * 2
     while (diff < -Math.PI) diff += Math.PI * 2
-    body.angle += diff * Math.min(1, 9 * dt)
+    body.angle += diff * Math.min(1, GROUND_ALIGN_K * dt)
   }
 }

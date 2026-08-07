@@ -22,6 +22,7 @@ function stubFluid(vx: number, vy: number): FluidLike {
     setAmbient() {},
     setGroundMask() {},
     addHeat() {},
+    addForce() {},
     sampleVelocity(_x: number, _y: number, out: Vec2) {
       out.x = vx
       out.y = vy

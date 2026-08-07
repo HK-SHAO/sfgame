@@ -30,6 +30,23 @@ export interface GoalDef {
   r: number
 }
 
+// 关卡自带、玩家不可移除/撤销的热冷源（不占预算）；kind 枚举同玩家源
+export interface FixedSourceDef {
+  x: number
+  y: number
+  kind: SourceKind
+}
+
+// 风扇：持续向 dir（弧度，0 = +x，y 向下）吹出气流；swing/period 可选 = 摇头风扇
+export interface FanDef {
+  x: number
+  y: number
+  dir: number
+  power: number
+  swing?: number
+  period?: number
+}
+
 // 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.yaml）；solutions 可选（DIY 关卡可不带，解法参考页自动跳过）
 export interface LevelJson {
   schema: 1
@@ -44,6 +61,10 @@ export interface LevelJson {
   spawn: { x: number; y?: number; vx?: number; vy?: number }
   goals: GoalDef[]
   ambient?: AmbientDef
+  // 关卡组（主页选项卡）：字符串即组名（如 长风/焚风），必填
+  group: string
+  fixed?: FixedSourceDef[]
+  fans?: FanDef[]
   solutions?: SolutionDef[]
 }
 
@@ -68,6 +89,9 @@ export interface LevelDef {
   spawn: { x: number; y?: number; vx?: number; vy?: number }
   goals: GoalDef[]
   ambient?: AmbientDef
+  group: string
+  fixed: FixedSourceDef[]
+  fans: FanDef[]
   json: LevelJson
 }
 

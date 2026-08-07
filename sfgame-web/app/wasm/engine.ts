@@ -20,6 +20,7 @@ export interface FluidExports {
   setAmbient(x: number, y: number): void
   rebuildSolid(): void
   addHeat(wx: number, wy: number, amount: number): void
+  addForce(wx: number, wy: number, fx: number, fy: number, amount: number, radius: number): void
   step(dt: number): void
   sampleVelocity(wx: number, wy: number): void
   outX(): number

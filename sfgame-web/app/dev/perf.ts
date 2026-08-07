@@ -1,5 +1,6 @@
 import { LitElement, css, html } from 'lit'
-import { customElement, state } from 'lit/decorators.js'
+import { customElement } from 'lit/decorators.js'
+import { author, version } from '../../package.json'
 
 export interface PerfSample {
   tickMs: number
@@ -37,7 +38,6 @@ export class SfPerf extends LitElement {
   private up = '—'
   private tracers = '—'
   private dpr = '—'
-  @state() paused = false
 
   static styles = css`
     :host {
@@ -114,7 +114,8 @@ export class SfPerf extends LitElement {
         ${this.cell('up', this.up)}
         ${this.cell('tracers', this.tracers)}
         ${this.cell('dpr', this.dpr)}
-        ${this.cell('状态', this.paused ? '已暂停' : '运行中')}
+        ${this.cell('author', author.name)}
+        ${this.cell('version', version)}
       </div>
       <div class="divider"></div>
     `

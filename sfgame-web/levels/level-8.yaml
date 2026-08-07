@@ -1,0 +1,27 @@
+# 第 8 关 · 鼓风 —— 新原子：风扇（定向气流，持续不断）
+schema: 1
+id: 8
+group: 焚风
+name: 鼓风
+tagline: 借风渡河
+win:
+  title: 御风而行
+  text: 风可以自己来，也可以被造出来——学会站进风口，让它替你渡河。
+world: { w: 76, h: 56, cell: 0.75 }
+# 左岸高原 y=30 → 悬崖（x∈[32,36]）→ 沟壑底 y=44 → 右岸陡坡（x∈[40,44]）→ 右高原 y=34
+ground:
+  expr: 30 + 14*smoothstep((x-32)/4) - 10*smoothstep((x-40)/4)
+budget: { hot: 2, cold: 1 }
+# 出生低飞落在左岸高原：挂机飞机顺着高原滚进沟壑被右岸墙挡住；射流在 y=26（高原上方），挂机够不着
+spawn: { x: -5, y: 18, vx: 26 }
+goals:
+  - { x: 54, r: 7 }
+ambient: { x: 1.8, y: 0 }
+fans:
+  - { x: 24, y: 26, dir: 0, power: 5 }
+solutions:
+  - name: 热托入风渡沟壑
+    sources:
+      # 在飞机滚过的路上放热源，把它托进风扇射流，借风渡壑落到右岸
+      - { x: 30, y: 28, kind: hot }
+    winTime: 44.0

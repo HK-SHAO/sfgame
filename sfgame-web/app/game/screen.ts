@@ -3,7 +3,7 @@ import type { AppView } from './state'
 import { urlState } from './state'
 import type { LevelDef, SourcePlacement } from './types'
 
-export type Screen = 'title' | 'game' | 'solutions' | 'dev' | 'storage'
+export type Screen = 'title' | 'game' | 'dev' | 'storage'
 
 export interface ScreenState {
   screen: Screen

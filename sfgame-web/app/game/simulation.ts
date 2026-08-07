@@ -4,7 +4,7 @@ import type { EngineHandle } from '../wasm/engine'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import type { SourceKind } from '../sim/types'
 import { penaltySeconds } from './timer'
-import type { HudState, LevelDef, Source, SourcePlacement } from './types'
+import type { FanDef, HudState, LevelDef, Source, SourcePlacement } from './types'
 
 const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
   buoyancy: 2.0,
@@ -20,6 +20,9 @@ const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
 // 悬停阈值 = gravity/dragK ≈ 1.0（上升风需超过它才能抬升）
 const PLANE_PHYSICS = { radius: 1.0, dragK: 3.0, gravity: 3.0 }
 
+// 风扇注入半径（世界单位）：与源半径同量级，圆域内速度以 falloff 注入
+const FAN_RADIUS = 3.0
+
 const MIN_SOURCE_GAP = 3.2
 const SOURCE_HIT_RADIUS = 3.0
 const GROUND_PLACE_MARGIN = 0.6
@@ -34,6 +37,9 @@ export class LevelSimulation {
   readonly level: LevelDef
   readonly fluid: FluidLike
   readonly plane: Body
+  // 关卡自带的固定源：玩家不可移除、不计预算（独立数组，hitSource 天然不命中）
+  readonly fixedSources: Source[]
+  readonly fans: FanDef[]
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
   time = 0
@@ -65,6 +71,9 @@ export class LevelSimulation {
     this.fluid.setGroundMask(level.ground)
     this.applyAmbient(0)
     this.visited = level.goals.map(() => false)
+    // 负 id 区段：与玩家源 id 空间隔离；born=-1 免生长动画（渲染 pop 恒为 1）
+    this.fixedSources = level.fixed.map((f, i) => ({ id: -i - 1, kind: f.kind, x: f.x, y: f.y, born: -1 }))
+    this.fans = level.fans
     this.spawnY = level.spawn.y ?? level.ground(level.spawn.x) - 1.4
     this.spawnVx = level.spawn.vx ?? 0
     this.spawnVy = level.spawn.vy ?? 0
@@ -189,6 +198,13 @@ export class LevelSimulation {
     for (const s of this.sources) {
       this.fluid.addHeat(s.x, s.y, s.kind === 'hot' ? rate : -rate)
     }
+    for (const s of this.fixedSources) {
+      this.fluid.addHeat(s.x, s.y, s.kind === 'hot' ? rate : -rate)
+    }
+    for (const f of this.fans) {
+      const dir = fanDirection(f, this.time)
+      this.fluid.addForce(f.x, f.y, Math.cos(dir), Math.sin(dir), f.power * dt, FAN_RADIUS)
+    }
     this.fluid.step(dt)
     stepBody(this.plane, this.fluid, dt, this.level.ground, this.level.world)
     this.checkGoals()
@@ -221,4 +237,10 @@ export class LevelSimulation {
     }
     if (changed && this.visitedCount >= this.level.goals.length) this.phase = 'won'
   }
+}
+
+// 摇头风扇当前朝向：dir 为基线，swing 摆幅按 period 正弦摆动（纯函数，模拟与渲染共用）
+export function fanDirection(f: FanDef, t: number): number {
+  if (f.swing === undefined || f.period === undefined || f.swing <= 0) return f.dir
+  return f.dir + f.swing * Math.sin((Math.PI * 2 * t) / f.period)
 }

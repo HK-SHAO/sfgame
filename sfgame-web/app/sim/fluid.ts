@@ -26,6 +26,8 @@ export interface FluidLike {
   setAmbient(x: number, y: number): void
   setGroundMask(groundY: (x: number) => number): void
   addHeat(wx: number, wy: number, amount: number): void
+  // 动量注入：以 (fx,fy) 方向在 radius 圆域内给速度场加 amount（调用方负责 dt 缩放）
+  addForce(wx: number, wy: number, fx: number, fy: number, amount: number, radius: number): void
   sampleVelocity(wx: number, wy: number, out: Vec2): void
   sampleTemp(wx: number, wy: number): number
   step(dt: number): void
@@ -153,6 +155,10 @@ export class WasmFluid implements FluidLike {
 
   addHeat(wx: number, wy: number, amount: number) {
     this.ex.addHeat(wx, wy, amount)
+  }
+
+  addForce(wx: number, wy: number, fx: number, fy: number, amount: number, radius: number) {
+    this.ex.addForce(wx, wy, fx, fy, amount, radius)
   }
 
   sampleVelocity(wx: number, wy: number, out: Vec2) {

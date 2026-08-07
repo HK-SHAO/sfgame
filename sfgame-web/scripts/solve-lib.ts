@@ -33,7 +33,6 @@ export function loadLevel(file: string): LevelDef {
 export interface EvalOptions {
   dt?: number
   cap?: number
-  earlyExitGround?: boolean
 }
 
 export function evalCandidate(
@@ -55,9 +54,6 @@ export function evalCandidate(
   let groundTime = 0
   let px = sim.plane.x
   let py = sim.plane.y
-  let groundedFor = 0
-  let groundStartX = sim.plane.x
-  let groundVisited = 0
   for (let t = 0; t < cap; t += dt) {
     const stepStart = sim.time
     sim.step(dt)
@@ -68,29 +64,7 @@ export function evalCandidate(
     }
     pathLen += Math.hypot(p.x - px, p.y - py)
     const alt = level.ground(p.x) - p.y
-    if (alt < 1) {
-      groundTime += dt
-      groundedFor += dt
-      if (groundedFor === dt) {
-        groundStartX = p.x
-        groundVisited = sim.visitedCount
-      } else if (
-        opts.earlyExitGround &&
-        groundedFor > 8 &&
-        sim.visitedCount === groundVisited &&
-        Math.abs(p.x - groundStartX) < 5
-      ) {
-        return {
-          won: false,
-          time: -1,
-          pathLen,
-          groundTime,
-          progress: sim.visitedCount * 1000 + Math.min(p.x, level.world.w),
-        }
-      }
-    } else {
-      groundedFor = 0
-    }
+    if (alt < 1) groundTime += dt
     px = p.x
     py = p.y
     if (sim.phase === 'won') {

@@ -2,13 +2,13 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
-import { LEVEL_ERRORS, LEVELS } from '../game/levels'
+import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS } from '../game/levels'
+import { solutionsFor } from '../game/solutions'
 import { DEV_OVERRIDE_EVENT, DEV_SLOT, resolveLevel } from '../game/session'
 import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
 import { DevTools } from '../dev/devtools'
 import '../dev/dev-menu'
-import './solutions-view'
 import './storage-view'
 import './win-overlay'
 import { urlState } from '../game/state'
@@ -25,6 +25,7 @@ import {
   iconPause,
   iconPlay,
   iconReset,
+  iconRoute,
   iconSnow,
   iconSoundOff,
   iconSoundOn,
@@ -36,6 +37,8 @@ const FIRST_LEVEL = LEVELS[0]
 export class SfApp extends LitElement {
   @state() private screen: Screen = 'title'
   @state() private activeLevel: LevelDef = FIRST_LEVEL
+  // 主页选项卡：纯本地 UI 态，不进 URL
+  @state() private activeGroup = LEVEL_GROUPS[0]?.name ?? ''
   @state() private initialSources: SourcePlacement[] = []
   @state() private hud: HudState = {
     phase: 'playing',
@@ -139,13 +142,21 @@ export class SfApp extends LitElement {
   }
 
   private playNext() {
-    const next = resolveLevel(this.activeLevel.id + 1)
+    const next = this.nextInGroup(this.activeLevel)
     if (!next) return
     sfx.uiEnter()
     // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
     urlState.set('lv', next.id)
     urlState.clear('src')
     this.applyScreen(screenFromUrl())
+  }
+
+  // 组内下一关：关卡组是主页组织单位，组尾无下一关
+  private nextInGroup(level: LevelDef): LevelDef | undefined {
+    const g = LEVEL_GROUPS.find((x) => x.name === level.group)
+    if (!g) return undefined
+    const i = g.levels.findIndex((l) => l.id === level.id)
+    return i >= 0 ? g.levels[i + 1] : undefined
   }
 
   private goBack() {
@@ -163,9 +174,9 @@ export class SfApp extends LitElement {
     this.applyScreen(screenFromUrl())
   }
 
-  private openSolutions() {
+  private openStorage() {
     sfx.uiEnter()
-    urlState.set('v', 'solutions')
+    urlState.set('v', 'storage')
     this.applyScreen(screenFromUrl())
   }
 
@@ -175,9 +186,14 @@ export class SfApp extends LitElement {
     this.applyScreen(screenFromUrl())
   }
 
-  private openStorage() {
+  // dev 模式：关卡项上的参考解按钮——直达该关第一个注册解的摆法（省掉解法参考页）
+  private openSolution(level: LevelDef) {
+    const sol = solutionsFor(level.id)[0]
+    if (!sol) return
     sfx.uiEnter()
-    urlState.set('v', 'storage')
+    urlState.set('lv', level.id)
+    urlState.set('src', sol.sources)
+    urlState.clear('v')
     this.applyScreen(screenFromUrl())
   }
 
@@ -255,16 +271,12 @@ export class SfApp extends LitElement {
       return html`<sf-dev-menu
         .dev=${this.dev}
         @back=${this.goBack}
-        @open-solutions=${this.openSolutions}
         @open-storage=${this.openStorage}
         @toggle-dev=${this.toggleDev}
       ></sf-dev-menu>`
     }
     if (this.screen === 'storage') {
       return html`<sf-storage @back=${this.goBack}></sf-storage>`
-    }
-    if (this.screen === 'solutions') {
-      return html`<sf-solutions @back=${this.goBack}></sf-solutions>`
     }
     return this.renderTitle()
   }
@@ -277,9 +289,25 @@ export class SfApp extends LitElement {
           <h1>烧风</h1>
           <p class="tagline">太阳精灵 · 用温度创造风</p>
 
+          <nav class="groups" aria-label="关卡组">
+            ${LEVEL_GROUPS.map((g) =>
+              html`
+                <button
+                  class="group-tab ${g.name === this.activeGroup ? 'active' : ''}"
+                  aria-pressed=${g.name === this.activeGroup}
+                  @click=${() => (this.activeGroup = g.name)}
+                >
+                  <span class="gname">${g.name}</span>
+                </button>
+              `,
+            )}
+          </nav>
+
           <nav class="levels" aria-label="关卡列表">
-            ${LEVELS.map((l) => {
-              const locked = !progress.isUnlocked(l.id)
+            ${LEVELS.filter((l) => l.group === this.activeGroup).map((l) => {
+              // dev 模式全关卡可玩（含未解锁），参考解按钮嵌在卡片内
+              const locked = !this.dev && !progress.isUnlocked(l.id)
+              const hasSol = this.dev && solutionsFor(l.id).length > 0
               return html`
                 <button
                   class="level play ${locked ? 'locked' : ''}"
@@ -292,7 +320,28 @@ export class SfApp extends LitElement {
                     <span class="name">${l.name}</span>
                     <span class="concept">${l.tagline}</span>
                   </span>
-                  <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
+                  ${hasSol
+                    ? html`<span
+                        class="sol-chip"
+                        role="button"
+                        tabindex="0"
+                        aria-label="第 ${l.id} 关参考解"
+                        title="参考解"
+                        @click=${(e: Event) => {
+                          e.stopPropagation()
+                          this.openSolution(l)
+                        }}
+                        @keydown=${(e: KeyboardEvent) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            this.openSolution(l)
+                          }
+                        }}
+                      >
+                        ${iconRoute}
+                      </span>`
+                    : html`<span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>`}
                 </button>
               `
             })}
@@ -323,7 +372,7 @@ export class SfApp extends LitElement {
   private renderGame() {
     const won = this.hud.phase === 'won'
     const bestTotal = won ? progress.best(this.activeLevel.id)[0]?.total : undefined
-    const hasNext = LEVELS.some((l) => l.id === this.activeLevel.id + 1)
+    const hasNext = this.nextInGroup(this.activeLevel) !== undefined
     return html`
       <main class="game">
         ${keyed(
@@ -492,6 +541,74 @@ export class SfApp extends LitElement {
       flex-direction: column;
       gap: 0.375rem;
       text-align: left;
+    }
+
+    /* dev 模式参考解：嵌在关卡卡片内、与卡片同族的圆钮（替换右侧 › 箭头位） */
+    .sol-chip {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.125rem;
+      height: 2.125rem;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 0.125rem 0.5rem rgba(61, 52, 39, 0.07);
+      color: var(--ink-soft);
+      cursor: pointer;
+      transition: color 120ms ease-out, background 120ms ease-out, transform 100ms ease-out;
+    }
+
+    .sol-chip:hover {
+      color: var(--ink);
+      background: #fff;
+    }
+
+    .sol-chip:active {
+      transform: scale(0.94);
+    }
+
+    .sol-chip svg {
+      width: 1.06rem;
+      height: 1.06rem;
+    }
+
+    .groups {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 0 0 0.75rem;
+    }
+
+    .group-tab {
+      flex: none;
+    }
+
+    .group-tab {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      padding: 0.375rem 1.125rem;
+      border-radius: 0.875rem;
+      corner-shape: squircle;
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      color: var(--ink-soft);
+      transition: background 140ms ease-out, color 140ms ease-out, box-shadow 140ms ease-out;
+    }
+
+    .group-tab .gname {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .group-tab.active {
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.09);
     }
 
     .no-levels {

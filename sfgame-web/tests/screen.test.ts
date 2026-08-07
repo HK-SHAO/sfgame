@@ -6,10 +6,9 @@ import type { SourcePlacement } from '../app/game/types'
 const sources: SourcePlacement[] = [{ x: 20, y: 44, kind: 'hot' }]
 
 test('v 优先于 lv：页面键与关卡共存时以页面为准', () => {
-  expect(deriveScreen('solutions', 1, sources).screen).toBe('solutions')
   expect(deriveScreen('dev', 1, sources).screen).toBe('dev')
   expect(deriveScreen('storage', 1, sources).screen).toBe('storage')
-  for (const v of ['solutions', 'dev', 'storage'] as const) {
+  for (const v of ['dev', 'storage'] as const) {
     expect(deriveScreen(v, 1, sources).level).toBeUndefined()
   }
 })

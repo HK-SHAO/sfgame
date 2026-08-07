@@ -89,6 +89,52 @@ export function validateLevelJson(raw: unknown): string[] {
     }
   }
 
+  if (typeof j.group !== 'string' || j.group.trim().length === 0) errs.push(`${id} group 必须为非空字符串（即组名）`)
+
+  if (j.fixed !== undefined) {
+    if (!Array.isArray(j.fixed) || j.fixed.length > 8) errs.push(`${id} fixed 必须为数组且 ≤8 个`)
+    else {
+      for (let i = 0; i < j.fixed.length; i++) {
+        const f = j.fixed[i]
+        if (!f || !isFin(f.x) || f.x < 0 || f.x > wMax || !isFin(f.y) || f.y <= 0 || f.y > hMax) {
+          errs.push(`${id} fixed[${i}] 需满足 0≤x≤w、0<y≤h`)
+          continue
+        }
+        if (f.kind !== 'hot' && f.kind !== 'cold') errs.push(`${id} fixed[${i}] kind 必须为 hot|cold`)
+      }
+    }
+  }
+
+  if (j.fans !== undefined) {
+    if (!Array.isArray(j.fans) || j.fans.length > 8) errs.push(`${id} fans 必须为数组且 ≤8 个`)
+    else {
+      for (let i = 0; i < j.fans.length; i++) {
+        const f = j.fans[i]
+        if (
+          !f ||
+          !isFin(f.x) ||
+          f.x < 0 ||
+          f.x > wMax ||
+          !isFin(f.y) ||
+          f.y <= 0 ||
+          f.y > hMax ||
+          !isFin(f.dir) ||
+          !isFin(f.power) ||
+          f.power <= 0
+        ) {
+          errs.push(`${id} fans[${i}] 需含数值 x/y/dir 与正数 power`)
+          continue
+        }
+        if (f.swing !== undefined && (!isFin(f.swing) || f.swing < 0 || f.swing > Math.PI)) {
+          errs.push(`${id} fans[${i}] swing 需在 [0, π]`)
+        }
+        if (f.period !== undefined && (!isFin(f.period) || f.period <= 0)) {
+          errs.push(`${id} fans[${i}] period 必须为正数`)
+        }
+      }
+    }
+  }
+
   if (j.solutions !== undefined) {
     if (!Array.isArray(j.solutions)) errs.push(`${id} solutions 必须为数组`)
     else {
@@ -132,5 +178,5 @@ export function levelFromJson(j: LevelJson): LevelDef {
   const errs = validateLevelJson(j)
   if (errs.length > 0) throw new Error(`关卡校验失败：${errs.join('；')}`)
   const f = compileExpr(j.ground.expr)
-  return { ...j, ground: f, json: j }
+  return { ...j, ground: f, fixed: j.fixed ?? [], fans: j.fans ?? [], json: j }
 }

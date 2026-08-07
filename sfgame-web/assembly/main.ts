@@ -7,6 +7,7 @@ export {
   setAmbient,
   rebuildSolid,
   addHeat,
+  addForce,
   sampleVelocity,
   outX,
   outY,

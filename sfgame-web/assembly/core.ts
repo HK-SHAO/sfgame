@@ -142,8 +142,48 @@ export function rebuildSolid(): void {
   solidCount = c
 }
 
-export function addHeat(wx: f64, wy: f64, amount: f64): void {
-  const gr = sourceRadius / cell
+// 动量注入（风扇等）：以 (fx,fy) 方向为单位，在 radius 圆域内按 falloff 给 u/v 加 amount（JS 侧已含 dt 缩放）；
+// 随后的平流/压强投影会把注入量塑造成带卷吸的射流（散度分量被投影抽走）
+export function addForce(
+  wx: f64,
+  wy: f64,
+  fx: f64,
+  fy: f64,
+  amount: f64,
+  radius: f64,
+): void {
+  let len = Math.sqrt(fx * fx + fy * fy)
+  if (len < 1e-6) return
+  const dxu = fx / len
+  const dyv = fy / len
+  const gr = radius / cell
+  const gx = wx / cell - 0.5
+  const gy = wy / cell - 0.5
+  let x0 = <i32>Math.floor(gx - gr)
+  if (x0 < 1) x0 = 1
+  let x1 = <i32>Math.ceil(gx + gr)
+  if (x1 > nx - 2) x1 = nx - 2
+  let y0 = <i32>Math.floor(gy - gr)
+  if (y0 < 1) y0 = 1
+  let y1 = <i32>Math.ceil(gy + gr)
+  if (y1 > ny - 2) y1 = ny - 2
+  for (let j = y0; j <= y1; j++) {
+    const row = j * nx
+    for (let i = x0; i <= x1; i++) {
+      const idx = i + row
+      if (solid[idx]) continue
+      const dx = <f64>i - gx
+      const dy = <f64>j - gy
+      const d = Math.sqrt(dx * dx + dy * dy)
+      if (d >= gr) continue
+      const falloff = 1 - d / gr
+      u[idx] = <f32>(<f64>u[idx] + amount * dxu * falloff)
+      v[idx] = <f32>(<f64>v[idx] + amount * dyv * falloff)
+    }
+  }
+}
+
+export function addHeat(wx: f64, wy: f64, amount: f64): void {  const gr = sourceRadius / cell
   const gx = wx / cell - 0.5
   const gy = wy / cell - 0.5
   let x0 = <i32>Math.floor(gx - gr)

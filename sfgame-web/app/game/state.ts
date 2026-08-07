@@ -22,12 +22,12 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
   },
 }
 
-export type AppView = 'title' | 'solutions' | 'dev' | 'storage'
+export type AppView = 'title' | 'dev' | 'storage'
 
 export const urlState = new UrlState({
   // lv=0 为 dev 面板编辑槽（默认内容 = 第 1 关，见 session.ts）
   lv: codecs.int(null, 0, 99),
   src: codecs.list<SourcePlacement>([], sourceItem, '_'),
-  v: codecs.enum<AppView>('title', ['solutions', 'dev', 'storage']),
+  v: codecs.enum<AppView>('title', ['dev', 'storage']),
   dev: codecs.bool(false),
 })

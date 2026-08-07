@@ -74,6 +74,8 @@ const FAN_FACE_RADIUS = 1.05
 const FAN_BLADE_LEN = 0.95
 const FAN_BLADE_WIDTH = 0.3
 const FAN_SPIN_RATE = 8
+// 叶盘 3D 圆投影的短轴/长轴比（长轴 ⊥ dir）：玩家视角 ≈ 进气侧，圆盘投影为椭圆
+const FAN_ELLIPSE_K = 0.5
 const FLAG_RESPONSE_BASE = 1.2
 const FLAG_RESPONSE_WIND = 3
 const POLE_HEIGHT = 5.7
@@ -163,8 +165,6 @@ export class Renderer {
       const bg = this.batch
       bg.reset()
       this.drawSky(bg, viewL, viewT, viewR, viewB, h)
-      // 地形静态，每帧重细分是纯浪费；旗杆留在动态层（须挡在云前，见 draw 顶部遮挡契约注释）
-      this.drawTerrain(bg, sim, viewL, viewR, viewB)
       if (gl.bakeBg(bg, viewL, viewT, viewR, viewB)) {
         this.bgDirty = false
         gl.bgStale = false
@@ -173,13 +173,14 @@ export class Renderer {
 
     const b = this.batch
     b.reset()
-    // 遮挡契约（远→近）：天空/地形烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
-    // 太阳盘面 → 云（遮粒子与日芒；低垂贴山的云叠画在烘焙地形上，不再被山体盖住——换取地形免每帧细分的取舍）→
+    // 遮挡契约（远→近）：天空烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
+    // 太阳盘面 → 云（遮粒子与日芒）→ 地形填充（盖掉云的山体内部分，云被山体精确遮挡）→
     // 旗杆 → 旗面/套筒/抵达圆 → 源 → 飞机拖尾 → 飞机
     this.drawSunHalo(b)
     this.drawTracers(b, tracers)
     this.drawSun(b, now)
     this.drawClouds(b, scene.clouds)
+    this.drawTerrain(b, sim, viewL, viewR, viewB)
     this.drawGoalPoles(b, sim)
     this.drawGoal(b, sim)
     this.drawFixedSources(b, sim)
@@ -273,7 +274,7 @@ export class Renderer {
   private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {
     for (const g of sim.level.goals) {
       const gy = sim.level.ground(g.x)
-      // 底端从 gy - POLE_W/2 起画：圆头帽尖正好落在地面线上（地形已烘在背景，杆身不得埋入地内）
+      // 底端从 gy - POLE_W/2 起画：圆头帽尖正好落在地面线上（地形填充画在其后，杆身不埋地）
       b.stroke(g.x, gy - POLE_W / 2, g.x, gy - POLE_HEIGHT, POLE_W, ...FLAG_POLE, 1, true)
     }
   }
@@ -334,37 +335,40 @@ export class Renderer {
   // 固定源形象化（#29）：热源 = 篝火（圆润泪滴火苗 + 底座），冷源 = 空调（圆角机身 + 圆环出风口）——封闭圆润、简约优雅，不复用玩家源圆盘样式
   private drawFixedSources(b: MeshBatch, sim: LevelSimulation) {
     for (const s of sim.fixedSources) {
-      if (s.kind === 'hot') this.drawCampfire(b, sim, s.x, s.y)
-      else this.drawAC(b, s.x, s.y)
+      const power = s.power ?? 1
+      if (s.kind === 'hot') this.drawCampfire(b, sim, s.x, s.y, power)
+      else this.drawAC(b, s.x, s.y, power)
     }
   }
 
-  private drawCampfire(b: MeshBatch, sim: LevelSimulation, x: number, y: number) {
-    // 光晕（含蓄）
-    b.discGrad(x, y, 2.2, 16, ...HOT, 0.16, ...HOT, 0)
+  private drawCampfire(b: MeshBatch, sim: LevelSimulation, x: number, y: number, power: number) {
+    // 光晕与火焰按 sqrt(power) 缩放（面积感）；底座固定，功率只影响输出
+    const sc = Math.sqrt(power)
+    b.discGrad(x, y, 2.2 * sc, 16, ...HOT, 0.16, ...HOT, 0)
     // 底座：一块圆润坐垫
     b.disc(x, y + 0.1, 1.3, 0.45, 0, 16, ...INK_DARK, 0.28)
     // 火苗：圆头圆尾的泪滴（外橙内黄），摇曳轻微缩放
     const flicker = 1 + 0.12 * Math.sin(sim.time * 9) + 0.06 * Math.sin(sim.time * 15.7 + 1.3)
-    b.stroke(x, y - 0.2 * flicker, x, y - 1.2 * flicker, 0.9 * flicker, ...FLAME_OUTER, 0.95, true)
-    b.stroke(x, y - 0.2 * flicker, x, y - 0.85 * flicker, 0.5 * flicker, ...FLAME_INNER, 1, true)
+    b.stroke(x, y - 0.2 * flicker * sc, x, y - 1.2 * flicker * sc, 0.9 * flicker, ...FLAME_OUTER, 0.95, true)
+    b.stroke(x, y - 0.2 * flicker * sc, x, y - 0.85 * flicker * sc, 0.5 * flicker, ...FLAME_INNER, 1, true)
   }
 
-  private drawAC(b: MeshBatch, x: number, y: number) {
-    const hw = 1.5
-    const hh = 0.8
+  private drawAC(b: MeshBatch, x: number, y: number, power: number) {
+    const sc = Math.sqrt(power)
+    const hw = 1.5 * sc
+    const hh = 0.8 * sc
     // 冷光（含蓄）
-    b.discGrad(x, y, 2.4, 16, ...COLD, 0.14, ...COLD, 0)
+    b.discGrad(x, y, 2.4 * sc, 16, ...COLD, 0.14, ...COLD, 0)
     // 圆角机身：白底 + 四角圆盘（角半径 = hh，全圆角）
     b.rect(x - hw, y - hh, x + hw, y + hh, ...PAPER, 1)
     for (const [cx, cy] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]] as const) {
       b.disc(x + cx, y + cy, hh, hh, 0, 16, ...PAPER, 1)
     }
     // 圆形出风口：同心圆环
-    b.ring(x, y, 0.85, 0.85, 0, 20, 0.18, ...INK_DARK, 0.38)
-    b.ring(x, y, 0.55, 0.55, 0, 20, 0.15, ...INK_DARK, 0.28)
+    b.ring(x, y, 0.85 * sc, 0.85 * sc, 0, 20, 0.18, ...INK_DARK, 0.38)
+    b.ring(x, y, 0.55 * sc, 0.55 * sc, 0, 20, 0.15, ...INK_DARK, 0.28)
     // 指示灯
-    b.disc(x, y, 0.2, 0.2, 0, 10, ...COLD, 0.9)
+    b.disc(x, y, 0.2 * sc, 0.2 * sc, 0, 10, ...COLD, 0.9)
   }
 
   private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null) {
@@ -390,20 +394,28 @@ export class Renderer {
   private drawFans(b: MeshBatch, sim: LevelSimulation) {
     for (const f of sim.fans) {
       const dir = fanDirection(f, sim.time)
-      // 机身 + 面盘 + 旋转叶片 + 朝向箭头（气流方向即箭头指向，摇头风扇整体随朝向摆动）
-      b.disc(f.x, f.y, FAN_HOUSING_RADIUS, FAN_HOUSING_RADIUS, 0, 24, ...INK_DARK, 0.18)
-      b.disc(f.x, f.y, FAN_FACE_RADIUS, FAN_FACE_RADIUS, 0, 20, ...PAPER, 1)
+      const cd = Math.cos(dir)
+      const sd = Math.sin(dir)
+      // 叶盘 3D 圆投影为椭圆：长轴 ⊥ dir、短轴沿 dir（短/长 = FAN_ELLIPSE_K）。
+      // 玩家视角 ≈ 进气侧（-dir），φ 递增 = 画布顺时针（真实风扇进气面旋转方向）
+      const rot = dir + Math.PI / 2
+      b.disc(f.x, f.y, FAN_HOUSING_RADIUS, FAN_HOUSING_RADIUS * FAN_ELLIPSE_K, rot, 24, ...INK_DARK, 0.18)
+      b.disc(f.x, f.y, FAN_FACE_RADIUS, FAN_FACE_RADIUS * FAN_ELLIPSE_K, rot, 20, ...PAPER, 1)
+      // 三片扇叶：中心对称 120° 等分，叶端沿椭圆轨迹（长轴单位 ⊥dir = (-sd, cd)）
+      const ax = -sd
+      const ay = cd
       for (let k = 0; k < 3; k++) {
         const a = sim.time * FAN_SPIN_RATE + (k * Math.PI * 2) / 3
-        const cx = f.x + Math.cos(a) * FAN_BLADE_LEN
-        const cy = f.y + Math.sin(a) * FAN_BLADE_LEN
-        b.stroke(f.x, f.y, cx, cy, FAN_BLADE_WIDTH, ...INK_DARK, 0.72, true)
+        const tx = f.x + FAN_BLADE_LEN * (Math.cos(a) * ax - FAN_ELLIPSE_K * Math.sin(a) * cd)
+        const ty = f.y + FAN_BLADE_LEN * (Math.cos(a) * ay - FAN_ELLIPSE_K * Math.sin(a) * sd)
+        b.stroke(f.x, f.y, tx, ty, FAN_BLADE_WIDTH, ...INK_DARK, 0.72, true)
       }
-      b.ring(f.x, f.y, FAN_FACE_RADIUS, FAN_FACE_RADIUS, 0, 20, 0.3, ...INK_DARK, 0.5)
-      const nx = Math.cos(dir) * (FAN_HOUSING_RADIUS + 0.35)
-      const ny = Math.sin(dir) * (FAN_HOUSING_RADIUS + 0.35)
-      const px = -Math.sin(dir)
-      const py = Math.cos(dir)
+      b.ring(f.x, f.y, FAN_FACE_RADIUS, FAN_FACE_RADIUS * FAN_ELLIPSE_K, rot, 20, 0.3, ...INK_DARK, 0.5)
+      // 朝向箭头：沿 dir 伸出椭圆短轴端（气流方向即箭头指向，摇头风扇整体随朝向摆动）
+      const nx = cd * (FAN_HOUSING_RADIUS * FAN_ELLIPSE_K + 0.35)
+      const ny = sd * (FAN_HOUSING_RADIUS * FAN_ELLIPSE_K + 0.35)
+      const px = -sd
+      const py = cd
       b.tri(
         f.x + nx + px * 0.28, f.y + ny + py * 0.28,
         f.x + nx - px * 0.28, f.y + ny - py * 0.28,

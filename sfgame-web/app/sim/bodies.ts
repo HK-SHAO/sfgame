@@ -42,13 +42,14 @@ const tmpAir = { x: 0, y: 0 }
 // 坡度过陡（如崖壁）仍禁止 snap 抬升——防止水平风"瞬移爬墙"
 const MAX_SLIDE_SLOPE = 2.0
 const WALL_RESTITUTION = 0.35
-// 贴地接触后水平速度的保留比例（光滑地面：近无摩擦滑行）
-const GROUND_FRICTION = 0.99
+// 纸面滑动摩擦系数 μ：接触帧以恒定减速度 μ·g 线性减速到停（现实滑动摩擦，
+// 纸面 μ≈0.3——可丝滑长滑；缓坡净驱动力不足时自然停住）
+const GROUND_FRICTION_MU = 0.3
 
-// 贴地区（地面边界层）：离地低于 GROUND_EFFECT_H 风耦合按贴地度衰减至 GROUND_AERO_MIN（轻微衰减：贴地悬停需风 ≈1.25 倍，正下方持续垂直风 ≥1.4 即可重新带飞）；GROUND_SLIDE_K 只作轻微阻尼防贴地滑行失控
+// 贴地区（地面边界层）：离地低于 GROUND_EFFECT_H 风耦合按贴地度衰减至 GROUND_AERO_MIN——
+// 唯一非现实护栏（地效反直觉：现实地效增强升力）：防贴地悬停成为最优策略（贴地悬停需风 ≈1.25 倍）
 const GROUND_EFFECT_H = 1.5
 const GROUND_AERO_MIN = 0.8
-const GROUND_SLIDE_K = 0.4
 // 坡面重力切向分量用中心差分坡度（tanθ），切向加速度 = g·sinθcosθ = g·slope/(1+slope²)
 const SLOPE_EPS = 0.5
 // 贴地基准高度：≈ 机身视觉半高（#28）——飞机落在地面上而非机头/下半身插进土里
@@ -72,7 +73,6 @@ export function stepBody(
   const k = Math.min(1, body.dragK * dt) * airK
   body.vx += (tmpAir.x - body.vx) * k
   body.vy += body.gravity * dt + (tmpAir.y - body.vy) * k
-  body.vx -= body.vx * Math.min(1, GROUND_SLIDE_K * (1 - eff) * dt)
   body.x += body.vx * dt
   body.y += body.vy * dt
 
@@ -108,7 +108,11 @@ export function stepBody(
     } else {
       body.y = ground
       if (body.vy > 0) body.vy = -body.vy * 0.1
-      body.vx *= GROUND_FRICTION
+      // 库仑滑动摩擦：恒定减速度 μ·g，线性减速到停（而非指数衰减——永不归零的旧实现）
+      const fric = GROUND_FRICTION_MU * body.gravity * dt
+      if (body.vx > fric) body.vx -= fric
+      else if (body.vx < -fric) body.vx += fric
+      else body.vx = 0
     }
     grounded = true
   }

@@ -99,7 +99,7 @@ test('贴地姿态：机身悬浮在地面上方、角度对齐坡面', () => {
   const body = createBody(10, 30.5, { radius: 1, dragK: 3, gravity: 3 })
   body.vx = 10
   for (let i = 0; i < 240; i++) stepBody(body, fluid, DT, ground, WORLD)
-  // 滑行有 ±0.3 的逐帧微弹跳容差
-  expect(body.y).toBeGreaterThanOrEqual(ground(body.x) - 1.1 - 0.3)
+  // 滑行有 ±0.3 的逐帧微弹跳容差；上坡减速停住时停点贴地余量再放宽 0.2
+  expect(body.y).toBeGreaterThanOrEqual(ground(body.x) - 1.1 - 0.5)
   expect(Math.abs(body.angle - Math.PI / 4)).toBeLessThan(0.2)
 })

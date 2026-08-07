@@ -1,7 +1,6 @@
 # 第 6 关 · 营火 —— 新原子：固定热源（关卡自带、不可移除）
 schema: 1
 id: 6
-group: 焚风
 name: 营火
 tagline: 篝火为伴
 win:

@@ -72,7 +72,14 @@ export class LevelSimulation {
     this.applyAmbient(0)
     this.visited = level.goals.map(() => false)
     // 负 id 区段：与玩家源 id 空间隔离；born=-1 免生长动画（渲染 pop 恒为 1）
-    this.fixedSources = level.fixed.map((f, i) => ({ id: -i - 1, kind: f.kind, x: f.x, y: f.y, born: -1 }))
+    this.fixedSources = level.fixed.map((f, i) => ({
+      id: -i - 1,
+      kind: f.kind,
+      x: f.x,
+      y: f.y,
+      born: -1,
+      power: f.power,
+    }))
     this.fans = level.fans
     this.spawnY = level.spawn.y ?? level.ground(level.spawn.x) - 1.4
     this.spawnVx = level.spawn.vx ?? 0
@@ -199,7 +206,7 @@ export class LevelSimulation {
       this.fluid.addHeat(s.x, s.y, s.kind === 'hot' ? rate : -rate)
     }
     for (const s of this.fixedSources) {
-      this.fluid.addHeat(s.x, s.y, s.kind === 'hot' ? rate : -rate)
+      this.fluid.addHeat(s.x, s.y, (s.kind === 'hot' ? rate : -rate) * (s.power ?? 1))
     }
     for (const f of this.fans) {
       const dir = fanDirection(f, this.time)

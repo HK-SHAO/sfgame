@@ -7,7 +7,6 @@ import type { LevelJson } from '../app/game/types'
 const BASE: LevelJson = {
   schema: 1,
   id: 99,
-  group: '测试',
   name: 't',
   tagline: 't',
   win: { title: 't', text: 't' },
@@ -28,6 +27,18 @@ test('固定源：持续加热流体、玩家不可移除、不占预算', () =>
   expect(sim.hitSource(30, 20)).toBeNull()
   expect(sim.fixedSources.length).toBe(1)
   expect(sim.hotLeft).toBe(2)
+})
+
+test('固定源功率：power=2 注入翻倍（同位置温度显著更高）', () => {
+  const run = (power?: number) => {
+    const sim = new LevelSimulation(
+      levelFromJson({ ...BASE, fixed: [{ x: 30, y: 20, kind: 'hot', power }] }),
+    )
+    for (let t = 0; t < 60; t++) sim.step(1 / 60)
+    return sim.fluid.sampleTemp(30, 20)
+  }
+  expect(run()).toBeGreaterThan(1)
+  expect(run(2)).toBeGreaterThan(run() * 1.5)
 })
 
 test('风扇：定向注入产生下风方向气流', () => {

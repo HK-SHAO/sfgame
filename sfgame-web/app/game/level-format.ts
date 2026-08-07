@@ -45,9 +45,14 @@ export function validateLevelJson(raw: unknown): string[] {
     }
     if (f) {
       let outOfWorld = 0
-      for (let x = 0; x <= w.w + 1e-9; x += 0.5) {
-        const y = f(x)
-        if (!Number.isFinite(y) || y <= 0.5 || y >= w.h - 0.5) outOfWorld++
+      try {
+        for (let x = 0; x <= w.w + 1e-9; x += 0.5) {
+          const y = f(x)
+          if (!Number.isFinite(y) || y <= 0.5 || y >= w.h - 0.5) outOfWorld++
+        }
+      } catch (e) {
+        outOfWorld = -1
+        errs.push(`${id} ground.expr 求值错误：${e instanceof ExprError ? e.message : String(e)}`)
       }
       if (outOfWorld > 0) errs.push(`${id} ground.expr 在 ${outOfWorld} 个采样点超出世界高度 (0.5, h-0.5)`)
     }
@@ -89,8 +94,6 @@ export function validateLevelJson(raw: unknown): string[] {
     }
   }
 
-  if (typeof j.group !== 'string' || j.group.trim().length === 0) errs.push(`${id} group 必须为非空字符串（即组名）`)
-
   if (j.fixed !== undefined) {
     if (!Array.isArray(j.fixed) || j.fixed.length > 8) errs.push(`${id} fixed 必须为数组且 ≤8 个`)
     else {
@@ -101,6 +104,9 @@ export function validateLevelJson(raw: unknown): string[] {
           continue
         }
         if (f.kind !== 'hot' && f.kind !== 'cold') errs.push(`${id} fixed[${i}] kind 必须为 hot|cold`)
+        if (f.power !== undefined && (!isFin(f.power) || f.power <= 0)) {
+          errs.push(`${id} fixed[${i}] power 必须为正数`)
+        }
       }
     }
   }

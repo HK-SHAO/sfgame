@@ -118,10 +118,6 @@ export class PlayerProgress {
   completed(levelId: number): boolean {
     return this.best(levelId).length > 0
   }
-
-  isUnlocked(levelId: number): boolean {
-    return levelId === 1 || this.completed(levelId - 1)
-  }
 }
 
 export const progress = new PlayerProgress(createBrowserStorage())

@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
-import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS } from '../game/levels'
+import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, nextInGroup } from '../game/levels'
 import { solutionsFor } from '../game/solutions'
 import { DEV_OVERRIDE_EVENT } from '../game/session'
 import { progress } from '../game/progress'
@@ -142,21 +142,13 @@ export class SfApp extends LitElement {
   }
 
   private playNext() {
-    const next = this.nextInGroup(this.activeLevel)
-    if (!next) return
+    const next = nextInGroup(this.activeLevel.id)
+    if (next === undefined) return
     sfx.uiEnter()
     // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
-    urlState.set('lv', next.id)
+    urlState.set('lv', next)
     urlState.clear('src')
     this.applyScreen(screenFromUrl())
-  }
-
-  // 组内下一关：关卡组是主页组织单位，组尾无下一关
-  private nextInGroup(level: LevelDef): LevelDef | undefined {
-    const g = LEVEL_GROUPS.find((x) => x.name === level.group)
-    if (!g) return undefined
-    const i = g.levels.findIndex((l) => l.id === level.id)
-    return i >= 0 ? g.levels[i + 1] : undefined
   }
 
   private goBack() {
@@ -304,10 +296,13 @@ export class SfApp extends LitElement {
           </nav>
 
           <nav class="levels" aria-label="关卡列表">
-            ${LEVELS.filter((l) => l.group === this.activeGroup).map((l) => {
-              // dev 模式全关卡可玩（含未解锁），参考解按钮嵌在卡片内
-              const locked = !this.dev && !progress.isUnlocked(l.id)
-              const hasSol = this.dev && solutionsFor(l.id).length > 0
+            ${(LEVEL_GROUPS.find((g) => g.name === this.activeGroup)?.ids ?? [])
+              .map((id) => LEVELS_BY_ID.get(id))
+              .filter((l): l is LevelDef => l !== undefined)
+              .map((l) => {
+                // dev 模式全关卡可玩（含未解锁），参考解按钮嵌在卡片内
+                const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(id))
+                const hasSol = this.dev && solutionsFor(l.id).length > 0
               return html`
                 <button
                   class="level play ${locked ? 'locked' : ''}"
@@ -372,7 +367,7 @@ export class SfApp extends LitElement {
   private renderGame() {
     const won = this.hud.phase === 'won'
     const bestTotal = won ? progress.best(this.activeLevel.id)[0]?.total : undefined
-    const hasNext = this.nextInGroup(this.activeLevel) !== undefined
+    const hasNext = nextInGroup(this.activeLevel.id) !== undefined
     return html`
       <main class="game">
         ${keyed(

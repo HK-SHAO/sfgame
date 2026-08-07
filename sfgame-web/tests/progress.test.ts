@@ -15,7 +15,7 @@ function memStorage(): { storage: ProgressStorage; raw(): string | null } {
   }
 }
 
-test('记录排名与解锁：TOP_N 升序留榜、返回名次、上一关通关解锁下一关', () => {
+test('记录排名：TOP_N 升序留榜、返回名次、completed 反映有无记录', () => {
   const { storage } = memStorage()
   const p = new PlayerProgress(storage)
   const entry = (time: number, extra = 0, at: number) => ({ time, extra, sources: [] as SourcePlacement[], at })
@@ -30,11 +30,9 @@ test('记录排名与解锁：TOP_N 升序留榜、返回名次、上一关通�
   expect(p.best(1)).toHaveLength(PROGRESS_TOP_N)
 
   const q = new PlayerProgress(memStorage().storage)
-  expect(q.isUnlocked(1)).toBe(true)
-  expect(q.isUnlocked(2)).toBe(false)
+  expect(q.completed(1)).toBe(false)
   q.record(1, { time: 9, extra: 0, sources: [] })
-  expect(q.isUnlocked(2)).toBe(true)
-  expect(q.isUnlocked(4)).toBe(false)
+  expect(q.completed(1)).toBe(true)
 })
 
 test('损坏数据容错：非法 JSON/未知版本/非法条目安全回落', () => {

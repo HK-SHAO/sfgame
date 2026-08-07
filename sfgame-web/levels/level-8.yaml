@@ -1,7 +1,6 @@
 # 第 8 关 · 鼓风 —— 新原子：风扇（定向气流，持续不断）
 schema: 1
 id: 8
-group: 焚风
 name: 鼓风
 tagline: 借风渡河
 win:

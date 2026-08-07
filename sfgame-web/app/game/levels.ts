@@ -14,9 +14,21 @@ import level10 from '../../levels/level-10.yaml?raw'
 
 const LEVEL_TEXTS = [level1, level2, level3, level4, level5, level6, level7, level8, level9, level10]
 
+// 关卡图（主页选项卡 + 解锁/导航的单一事实来源）：组内顺序 = ids 数组顺序，
+// YAML 只承载关卡内容，不再声明归属
+export interface LevelGroup {
+  name: string
+  ids: readonly number[]
+}
+
+export const LEVEL_GROUPS: LevelGroup[] = [
+  { name: '长风', ids: [1, 2, 3, 4, 5] },
+  { name: '焚风', ids: [6, 7, 8, 9, 10] },
+]
+
 // 逐关容错加载：坏关卡只进 LEVEL_ERRORS 清单，绝不抛错——模块加载抛错会让整个 bundle 求值失败 → 应用白屏
-export const LEVELS: LevelDef[] = []
 export const LEVEL_ERRORS: string[] = []
+export const LEVELS_BY_ID = new Map<number, LevelDef>()
 export const LEVEL_SOURCES = new Map<number, string>()
 export function levelSource(id: number): string | undefined {
   return LEVEL_SOURCES.get(id)
@@ -24,30 +36,34 @@ export function levelSource(id: number): string | undefined {
 for (const text of LEVEL_TEXTS) {
   try {
     const level = levelFromJson(parseLevelText(text))
-    LEVELS.push(level)
+    LEVELS_BY_ID.set(level.id, level)
     LEVEL_SOURCES.set(level.id, text)
   } catch (e) {
     LEVEL_ERRORS.push(e instanceof Error ? e.message : String(e))
   }
 }
 
-// 命名导出兼容：老测试/基准脚本按名字引用前两关
-export const LEVEL_1 = LEVELS[0]
-export const LEVEL_2 = LEVELS[1]
+// 按图序展开：组序 + 组内序（缺关卡跳过），与解锁/导航顺序一致
+export const LEVELS: LevelDef[] = LEVEL_GROUPS.flatMap((g) =>
+  g.ids.map((id) => LEVELS_BY_ID.get(id)).filter((l): l is LevelDef => l !== undefined),
+)
 
-// 关卡组（主页选项卡）：组名即字符串 group，按 YAML 聚合，组内按 id 升序
-export interface LevelGroup {
-  name: string
-  levels: LevelDef[]
+export function groupOf(id: number): LevelGroup | undefined {
+  return LEVEL_GROUPS.find((g) => g.ids.includes(id))
 }
 
-export const LEVEL_GROUPS: LevelGroup[] = []
-for (const l of LEVELS) {
-  let g = LEVEL_GROUPS.find((x) => x.name === l.group)
-  if (!g) {
-    g = { name: l.group, levels: [] }
-    LEVEL_GROUPS.push(g)
-  }
-  g.levels.push(l)
+// 组内下一关（组尾无下一关）
+export function nextInGroup(id: number): number | undefined {
+  const g = groupOf(id)
+  if (!g) return undefined
+  const i = g.ids.indexOf(id)
+  return i >= 0 ? g.ids[i + 1] : undefined
 }
-for (const g of LEVEL_GROUPS) g.levels.sort((a, b) => a.id - b.id)
+
+// 解锁语义：每组第一关初始解锁，其余 = 完成组内前驱；跨组独立
+export function isUnlocked(id: number, completed: (id: number) => boolean): boolean {
+  const g = groupOf(id)
+  if (!g) return false
+  const i = g.ids.indexOf(id)
+  return i <= 0 ? i === 0 : completed(g.ids[i - 1])
+}

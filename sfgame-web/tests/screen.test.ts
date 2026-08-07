@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { deriveScreen } from '../app/game/screen'
-import { LEVEL_1, LEVELS, levelSource } from '../app/game/levels'
+import { LEVELS, LEVELS_BY_ID, levelSource } from '../app/game/levels'
 import type { SourcePlacement } from '../app/game/types'
 
 const sources: SourcePlacement[] = [{ x: 20, y: 44, kind: 'hot' }]
@@ -17,7 +17,7 @@ test('v 优先于 lv：页面键与关卡共存时以页面为准', () => {
 test('v=title + 有效 lv → game，关卡与来源透传', () => {
   const s = deriveScreen('title', 1, sources)
   expect(s.screen).toBe('game')
-  expect(s.level).toBe(LEVEL_1)
+  expect(s.level).toBe(LEVELS_BY_ID.get(1))
   expect(s.sources).toEqual(sources)
 })
 

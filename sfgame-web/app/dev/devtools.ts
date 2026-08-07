@@ -2,14 +2,26 @@ import { SfDevPanel } from './dev-panel'
 import { SfPerf, type PerfSample } from './perf'
 import { SfLevelEditor } from './level-editor'
 
-export class DevTools {
+// controller/sf-game 依赖的性能记录面：dev 面板的独立实现，游戏循环不依赖 dev 具体类
+export interface PerfRecorder {
+  record(sample: PerfSample): void
+}
+
+export interface DevToolsOptions {
+  // 关卡编辑器「生效」回调：内联关卡 JSON 由 app 压 URL（读在编辑器、写收敛到 app）
+  onApply: (json: string) => void
+}
+
+export class DevTools implements PerfRecorder {
   private panel: SfDevPanel
   private perfEl: SfPerf
 
-  constructor() {
+  constructor(opts: DevToolsOptions) {
     this.panel = new SfDevPanel()
     this.perfEl = new SfPerf()
-    this.panel.append(this.perfEl, new SfLevelEditor())
+    const editor = new SfLevelEditor()
+    editor.onApply = opts.onApply
+    this.panel.append(this.perfEl, editor)
     document.body.appendChild(this.panel)
   }
 

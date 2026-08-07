@@ -9,7 +9,6 @@ interface SourcePoint {
 
 export const TRAIL_LEN = 24
 const TRAIL_SAMPLE = 0.45
-export const TRAIL_FADE_T = 5
 const FADE_IN = 0.5
 const FADE_OUT = 0.7
 const RESPAWN_TRIES = 8

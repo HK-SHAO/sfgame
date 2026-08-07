@@ -1,6 +1,6 @@
 import { LitElement, css, html } from 'lit'
 import { customElement } from 'lit/decorators.js'
-import { boxReset } from './shared-styles'
+import { boxReset, warmBg } from './shared-styles'
 
 // 终端页：WASM·SIMD 不可用时由 main.ts 挂载（无游戏可玩，不提供任何入口）
 @customElement('sf-unsupported')
@@ -33,9 +33,7 @@ export class SfUnsupported extends LitElement {
       flex-direction: column;
       overflow: auto;
       padding: 1.5rem;
-      background:
-        radial-gradient(circle at 18% 12%, rgba(255, 196, 83, 0.32), transparent 42%),
-        linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
+      ${warmBg}
     }
 
     .card {

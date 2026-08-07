@@ -21,7 +21,6 @@ export interface FluidLike {
   readonly nx: number
   readonly ny: number
   readonly cell: number
-  readonly tMax: number
   clear(): void
   setAmbient(x: number, y: number): void
   setGroundMask(groundY: (x: number) => number): void
@@ -99,7 +98,6 @@ export class WasmFluid implements FluidLike {
   readonly nx: number
   readonly ny: number
   readonly cell: number
-  readonly tMax: number
   private ex: EngineHandle['ex']
   private engine: EngineHandle
   private solidView: Uint8Array
@@ -131,7 +129,6 @@ export class WasmFluid implements FluidLike {
     this.nx = cfg.nx
     this.ny = cfg.ny
     this.cell = cfg.cell
-    this.tMax = cfg.tMax
     this.engine = engine
     this.ex = engine.ex
     this.solidView = new Uint8Array(engine.memory.buffer, engine.ex.solidBuf(), cfg.nx * cfg.ny)

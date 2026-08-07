@@ -17,7 +17,6 @@ function stubFluid(vx: number, vy: number): FluidLike {
     nx: 10,
     ny: 10,
     cell: 1,
-    tMax: 9,
     clear() {},
     setAmbient() {},
     setGroundMask() {},

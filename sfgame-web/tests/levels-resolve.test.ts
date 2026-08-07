@@ -1,8 +1,7 @@
 import { expect, test } from 'vitest'
 import { parse as parseYaml, stringify as yamlStringify } from 'yaml'
-import { LEVELS, levelSource } from '../app/game/levels'
+import { LEVELS, levelSource, resolveLevel } from '../app/game/levels'
 import { parseLevelText } from '../app/game/level-format'
-import { resolveLevel } from '../app/game/session'
 import { lvCodec } from '../app/game/state'
 
 const levelJson = (id: number) => JSON.stringify(parseYaml(levelSource(id)!))

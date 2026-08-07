@@ -1,7 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { stringify as yamlStringify } from 'yaml'
-import { DEV_OVERRIDE_EVENT } from '../game/session'
 import { parseLevelText } from '../game/level-format'
 import { levelSource } from '../game/levels'
 import { urlState } from '../game/state'
@@ -9,6 +8,8 @@ import { iconChevron } from '../ui/icons'
 
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {
+  // 生效回调（DevTools 注入）：内联关卡 JSON 交 app 压 URL——读（urlState/levelSource）在本组件、写收敛到 app
+  onApply?: (json: string) => void
   @state() private expanded = false
   @state() private editorText = ''
   @state() private error = ''
@@ -177,9 +178,9 @@ export class SfLevelEditor extends LitElement {
 
   private confirm() {
     try {
-      // parseLevelText 已校验+返回 LevelJson，直接序列化压 URL
+      // parseLevelText 已校验+返回 LevelJson，直接序列化交 app 压 URL（回调由 DevTools 注入，读/写收敛到 app 一处）
       const json = JSON.stringify(parseLevelText(this.editorText))
-      window.dispatchEvent(new CustomEvent(DEV_OVERRIDE_EVENT, { detail: json }))
+      this.onApply?.(json)
       this.error = ''
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e)

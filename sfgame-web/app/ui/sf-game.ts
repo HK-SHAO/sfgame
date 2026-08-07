@@ -1,11 +1,13 @@
 import { LitElement, css, html, type PropertyValues } from 'lit'
-import { customElement, property } from 'lit/decorators.js'
+import { customElement, property, query, state } from 'lit/decorators.js'
 import type { SourceKind } from '../sim/types'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
-import type { DevTools } from '../dev/devtools'
+import type { PerfRecorder } from '../dev/devtools'
 import { GameController } from './controller'
+import './status-bar'
 import { boxReset } from './shared-styles'
 
+// 事件协议名：app.ts 模板与 dispatch 共用同一来源（跨组件协议名单一事实）
 export const HUD_CHANGE = 'hudchange'
 export const DENY = 'deny'
 export const SRC_CHANGE = 'sourceschange'
@@ -16,20 +18,28 @@ export class SfGame extends LitElement {
   @property({ attribute: false }) level: LevelDef | null = null
   @property({ attribute: false }) initialSources: SourcePlacement[] = []
   @property({ attribute: false }) rate = 1
-  @property({ attribute: false }) devTools: DevTools | null = null
+  @property({ attribute: false }) devTools: PerfRecorder | null = null
+
+  // 状态条数据：controller 每帧经 onStatus 回调直推（rAF 内、更新周期外，无 change-in-update）
+  @state() private statusTime = 0
+  @state() private statusPenalty = 0
+
+  @query('canvas') private canvas!: HTMLCanvasElement
 
   private controller: GameController | null = null
 
   protected override firstUpdated() {
     if (!this.isConnected || !this.level) return
-    const canvas = this.renderRoot.querySelector('canvas')
-    if (!canvas) return
     // canvas 是 shadow root 直接子节点，parentElement 恒为 null，须显式传宿主
-    this.controller = new GameController(canvas, this.level, {
+    this.controller = new GameController(this.canvas, this.level, {
       onHud: (s) => this.dispatchEvent(new CustomEvent<HudState>(HUD_CHANGE, { detail: s })),
       onDeny: (kind) => this.dispatchEvent(new CustomEvent<SourceKind>(DENY, { detail: kind })),
       onSources: (s) =>
         this.dispatchEvent(new CustomEvent<SourcePlacement[]>(SRC_CHANGE, { detail: s })),
+      onStatus: (time, extra) => {
+        this.statusTime = time
+        this.statusPenalty = extra
+      },
     }, this, this.devTools)
     this.controller.applySources(this.initialSources, true)
     this.controller.start()
@@ -60,6 +70,12 @@ export class SfGame extends LitElement {
   protected override render() {
     return html`
       <canvas role="img" aria-label="烧风：放置热源与冷源，用风把纸飞机送达目标"></canvas>
+      <sf-status
+        .levelId=${this.level?.id ?? 0}
+        .levelName=${this.level?.name ?? ''}
+        .time=${this.statusTime}
+        .penalty=${this.statusPenalty}
+      ></sf-status>
     `
   }
 

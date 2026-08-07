@@ -1,3 +1,14 @@
+// 拖尾淡出约定（2026-08 起）：存留 = 1 − 距写入时刻 / 淡出时长，随时间淡出不随路程。
+// 飞机拖尾与示踪粒子轨迹共用本函数（时间基均为 sim 时间）
+export const fadeRetention = (t0: number, ts: number, fadeT: number): number => {
+  const r = 1 - (t0 - ts) / fadeT
+  return r < 0 ? 0 : r > 1 ? 1 : r
+}
+
+// 淡出时长：示踪粒子短轨迹 5s / 纸飞机拖尾 6s（视觉校准值）
+export const TRAIL_FADE_T = 5
+export const PLANE_TRAIL_FADE = 6
+
 export class Trail {
   readonly maxPoints: number
   readonly sampleDist: number
@@ -81,8 +92,7 @@ export class Trail {
   }
 
   retentionAt(k: number): number {
-    const r = 1 - (this.time - this.tAt(k)) / this.fadeTime
-    return r < 0 ? 0 : r > 1 ? 1 : r
+    return fadeRetention(this.time, this.tAt(k), this.fadeTime)
   }
 
   clear() {

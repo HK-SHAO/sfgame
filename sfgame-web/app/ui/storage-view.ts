@@ -4,7 +4,7 @@ import { name } from '../../package.json'
 import { iconBack, iconDatabase } from './icons'
 import { boxReset, card, pageShell } from './shared-styles'
 
-const KEY_PREFIXES = [`${name}.`]
+const KEY_PREFIX = `${name}.`
 
 interface StorageEntry {
   key: string
@@ -16,7 +16,7 @@ function listEntries(): StorageEntry[] {
   const out: StorageEntry[] = []
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
-    if (!key || !KEY_PREFIXES.some((p) => key.startsWith(p))) continue
+    if (!key || !key.startsWith(KEY_PREFIX)) continue
     const raw = localStorage.getItem(key) ?? ''
     out.push({ key, bytes: new TextEncoder().encode(raw).length, raw })
   }

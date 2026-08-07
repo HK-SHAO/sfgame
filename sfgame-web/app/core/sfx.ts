@@ -1,7 +1,6 @@
 import { name } from '../../package.json'
 
-export const MUTED_KEY = `${name}.muted`
-const STORAGE_KEY = MUTED_KEY
+const STORAGE_KEY = `${name}.muted`
 const MASTER_GAIN = 0.5
 
 // Paul Kellet 粉红噪声近似：白噪声经一阶 IIR 组逼近 1/f 谱——自然风湍流的能量分布

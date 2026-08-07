@@ -12,6 +12,11 @@ const smoothstepCurve = (t: number) => {
   return c * c * (3 - 2 * c)
 }
 
+// 参数个数守卫（bump/gauss/smoothstep 等固定 arity 函数共用）
+const expectArgs = (args: unknown[], n: number, name: string) => {
+  if (args.length !== n) throw new ExprError(`${name} 需 ${n} 参`)
+}
+
 const FUNCS: Record<string, (args: number[], x: number) => number> = {
   abs: ([v]) => Math.abs(v),
   min: ([a, b]) => Math.min(a, b),
@@ -31,14 +36,14 @@ const FUNCS: Record<string, (args: number[], x: number) => number> = {
   // 单峰山丘：跨 [c-w, c+w] 峰高 h，两端斜率 0，与平原 C1 相接
   bump: (args, x) => {
     const [c, w, h] = args
-    if (args.length !== 3) throw new ExprError('bump(c,w,h) 需 3 参：中心/半宽/峰高')
+    expectArgs(args, 3, 'bump(c,w,h) 中心/半宽/峰高')
     if (w <= 0) throw new ExprError('bump 半宽 w 必须 > 0')
     return h * smoothstepCurve((x - (c - w)) / w) * smoothstepCurve((c + w - x) / w)
   },
   // 高斯圆丘：C∞ 圆顶，永不归零（3w 处残量 ~1e-4，视觉无感）
   gauss: (args, x) => {
     const [c, w, h] = args
-    if (args.length !== 3) throw new ExprError('gauss(c,w,h) 需 3 参：中心/宽度/峰高')
+    expectArgs(args, 3, 'gauss(c,w,h) 中心/宽度/峰高')
     if (w <= 0) throw new ExprError('gauss 宽度 w 必须 > 0')
     const t = (x - c) / w
     return h * Math.exp(-t * t)
@@ -110,40 +115,44 @@ class Parser {
   private primary(): Node {
     this.skipWs()
     const c = this.src[this.i]
-    if (c === '(') {
-      this.i++
-      const n = this.expr()
-      this.skipWs()
-      if (this.src[this.i] !== ')') throw new ExprError('缺少右括号')
-      this.i++
-      return n
-    }
+    if (c === '(') return this.paren()
     if (/[0-9.]/.test(c ?? '')) return this.number()
     const word = this.word()
     if (word === 'x') return { k: 'x' }
     if (word === 'PI') return { k: 'num', v: Math.PI }
     if (word === 'E') return { k: 'num', v: Math.E }
-    if (word && FUNCS[word]) {
-      this.skipWs()
-      if (this.src[this.i] !== '(') throw new ExprError(`函数 ${word} 需要括号`)
-      this.i++
-      const args: Node[] = []
-      if (this.src[this.i] !== ')') {
-        for (;;) {
-          args.push(this.expr())
-          this.skipWs()
-          if (this.src[this.i] === ',') {
-            this.i++
-            continue
-          }
-          break
-        }
-      }
-      if (this.src[this.i] !== ')') throw new ExprError(`函数 ${word} 缺少右括号`)
-      this.i++
-      return { k: 'call', fn: word, args }
-    }
+    if (word && FUNCS[word]) return this.call(word)
     throw new ExprError(`无法解析 "${word || (c ?? '')}"（位置 ${this.i}）`)
+  }
+
+  private paren(): Node {
+    this.i++
+    const n = this.expr()
+    this.skipWs()
+    if (this.src[this.i] !== ')') throw new ExprError('缺少右括号')
+    this.i++
+    return n
+  }
+
+  private call(word: string): Node {
+    this.skipWs()
+    if (this.src[this.i] !== '(') throw new ExprError(`函数 ${word} 需要括号`)
+    this.i++
+    const args: Node[] = []
+    if (this.src[this.i] !== ')') {
+      for (;;) {
+        args.push(this.expr())
+        this.skipWs()
+        if (this.src[this.i] === ',') {
+          this.i++
+          continue
+        }
+        break
+      }
+    }
+    if (this.src[this.i] !== ')') throw new ExprError(`函数 ${word} 缺少右括号`)
+    this.i++
+    return { k: 'call', fn: word, args }
   }
 
   private number(): Node {

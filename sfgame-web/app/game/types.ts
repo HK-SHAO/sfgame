@@ -48,7 +48,7 @@ export interface FanDef {
   period?: number
 }
 
-// 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.yaml）；solutions 可选（DIY 关卡可不带，解法参考页自动跳过）
+// 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.yaml）；solutions 可选（DIY 关卡可不带，dev 参考解按钮自动跳过）
 export interface LevelJson {
   schema: 1
   id: number
@@ -99,17 +99,8 @@ export interface HudState {
   phase: 'playing' | 'won'
   hotLeft: number
   coldLeft: number
-  placed: number
   time: number
   extra: number
   sources: number
   paused: boolean
-}
-
-export interface PressVisual {
-  kind: 'place' | 'remove'
-  x: number
-  y: number
-  start: number
-  sourceId?: number
 }

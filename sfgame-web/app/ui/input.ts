@@ -1,7 +1,5 @@
-import type { Vec2 } from '../sim/types'
+import { LONG_PRESS_MS, type Vec2 } from '../sim/types'
 import type { Source } from '../game/types'
-
-export const LONG_PRESS_MS = 380
 
 const MOVE_SLOP_PX = 14
 

@@ -2,7 +2,7 @@ import type { FluidConfig, FluidLike } from '../sim/fluid'
 import { createFluid } from '../sim/fluid'
 import type { EngineHandle } from '../wasm/engine'
 import { createBody, stepBody, type Body } from '../sim/bodies'
-import type { SourceKind } from '../sim/types'
+import { GOAL_LIFT, type SourceKind } from '../sim/types'
 import { penaltySeconds } from './timer'
 import type { FanDef, HudState, LevelDef, Source, SourcePlacement } from './types'
 
@@ -27,8 +27,6 @@ const MIN_SOURCE_GAP = 3.2
 const SOURCE_HIT_RADIUS = 3.0
 const GROUND_PLACE_MARGIN = 0.6
 const GROUND_SNAP_LIFT = 0.7
-// 目标区圆心在地面上的抬升高度（虚线圆渲染与检测共用，见 render.ts）
-export const GOAL_LIFT = 2
 // URL 位置匹配容差：对齐 URL 的 1 位小数精度（舍入误差 ≤0.05）
 const URL_PRECISION_TOLERANCE = 0.06
 
@@ -40,6 +38,8 @@ export class LevelSimulation {
   // 关卡自带的固定源：玩家不可移除、不计预算（独立数组，hitSource 天然不命中）
   readonly fixedSources: Source[]
   readonly fans: FanDef[]
+  // 道具不限量：仅 dev 模式注入（controller 传 opts.unlimited），产品路径恒 false
+  readonly unlimited: boolean
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
   time = 0
@@ -50,14 +50,14 @@ export class LevelSimulation {
   private nextId = 1
   private usedHot = 0
   private usedCold = 0
-  private placed = 0
   private spawnY: number
   private spawnVx: number
   private spawnVy: number
 
   // engine 可选：浏览器由 controller 注入（流体与渲染共享同一 wasm 实例/内存）；无头脚本/测试不传则自建独立实例
-  constructor(level: LevelDef, engine?: EngineHandle) {
+  constructor(level: LevelDef, engine?: EngineHandle, opts: { unlimited?: boolean } = {}) {
     this.level = level
+    this.unlimited = opts.unlimited ?? false
     const { w, h, cell } = level.world
     this.fluid = createFluid(
       {
@@ -85,8 +85,7 @@ export class LevelSimulation {
     this.spawnVx = level.spawn.vx ?? 0
     this.spawnVy = level.spawn.vy ?? 0
     this.plane = createBody(level.spawn.x, this.spawnY, PLANE_PHYSICS)
-    this.plane.vx = this.spawnVx
-    this.plane.vy = this.spawnVy
+    this.resetPlane()
   }
 
   get hotLeft() {
@@ -97,20 +96,31 @@ export class LevelSimulation {
     return this.unlimited ? Infinity : this.level.budget.cold - this.usedCold
   }
 
-  // 道具不限量：仅 dev 模式（?dev=1）由 controller 注入，产品路径恒 false
-  unlimited = false
+  // 源计数增减（热/冷双分支，place 与 remove 共用的唯一落点）
+  private charge(kind: SourceKind, delta: number) {
+    if (kind === 'hot') this.usedHot += delta
+    else this.usedCold += delta
+  }
 
   hudState(): HudState {
     return {
       phase: this.phase,
       hotLeft: this.hotLeft,
       coldLeft: this.coldLeft,
-      placed: this.placed,
       time: this.time,
       extra: penaltySeconds(this.sources.length),
       sources: this.sources.length,
       paused: this.paused,
     }
+  }
+
+  // 出生姿态复位：构造与 restart 共用（spawn 状态不变量落一处）
+  private resetPlane() {
+    this.plane.x = this.level.spawn.x
+    this.plane.y = this.spawnY
+    this.plane.vx = this.spawnVx
+    this.plane.vy = this.spawnVy
+    this.plane.angle = 0
   }
 
   restart() {
@@ -122,11 +132,7 @@ export class LevelSimulation {
     this.paused = false
     // 源在新的一局重放生长动画：born 归零（否则 time < born，渲染 pop 为负 → 源隐形）
     for (const s of this.sources) s.born = 0
-    this.plane.x = this.level.spawn.x
-    this.plane.y = this.spawnY
-    this.plane.vx = this.spawnVx
-    this.plane.vy = this.spawnVy
-    this.plane.angle = 0
+    this.resetPlane()
   }
 
   setPaused(paused: boolean) {
@@ -166,9 +172,7 @@ export class LevelSimulation {
     if (!this.canPlaceAt(x, cy)) return null
     const source: Source = { id: this.nextId++, kind, x, y: cy, born: this.time }
     this.sources.push(source)
-    if (kind === 'hot') this.usedHot++
-    else this.usedCold++
-    this.placed++
+    this.charge(kind, 1)
     return source
   }
 
@@ -177,8 +181,7 @@ export class LevelSimulation {
     if (i < 0) return false
     const s = this.sources[i]
     this.sources.splice(i, 1)
-    if (s.kind === 'hot') this.usedHot--
-    else this.usedCold--
+    this.charge(s.kind, -1)
     return true
   }
 

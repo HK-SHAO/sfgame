@@ -3,15 +3,12 @@ import { GlRenderer } from './gl'
 import { bilinearSample } from '../sim/fluid'
 import type { EngineHandle } from '../wasm/engine'
 import type { Tracers } from '../sim/particles'
-import { TRAIL_FADE_T } from '../sim/particles'
 import type { Clouds } from '../sim/clouds'
-import type { Trail } from '../sim/trail'
+import { fadeRetention, TRAIL_FADE_T, type Trail } from '../sim/trail'
 import type { Vec2 } from '../sim/types'
 import type { LevelSimulation } from '../game/simulation'
-import { GOAL_LIFT } from '../game/simulation'
 import { fanDirection } from '../game/simulation'
-import type { PressVisual } from '../game/types'
-import { LONG_PRESS_MS } from '../ui/input'
+import { GOAL_LIFT, LONG_PRESS_MS, type PressVisual } from '../sim/types'
 
 export interface SceneState {
   sim: LevelSimulation
@@ -23,6 +20,21 @@ export interface SceneState {
 }
 
 type RGB = readonly [number, number, number]
+
+// 轨迹尾段渐变：靠近起点的采样点线性减淡（头实尾虚）
+const tailFade = (k: number, segs: number) => (k < segs ? k / segs : 1)
+
+// 颜色线性插值（drawTracers 5 处 lerp 共用；模块级无闭包，每帧零开销）
+const mix = (a: number, b: number, t: number) => a + (b - a) * t
+
+// 云的单个凸起盘（底盘外的装饰凸起；与底盘同色渐变，交叠处无缝）
+const cloudPuff = (
+  b: MeshBatch, x: number, y: number, r: number,
+  fx: number, fy: number, fr: number, segs: number, sf: number, a: number,
+) => b.discGradCore(x + fx * r, y + fy * r, fr * r, segs, sf, ...CLOUD, a, ...CLOUD, 0)
+
+// 飞机轮廓遍历序（每帧复用，避免数组分配）
+const PLANE_OUTLINE = [0, 1, 2, 3, 0] as const
 
 const rgb = (r: number, g: number, b: number): RGB => [r / 255, g / 255, b / 255]
 
@@ -263,11 +275,11 @@ export class Renderer {
       const sf = CLOUD_SOLID_FRAC * (CLOUD_CORE_MIN + (1 - CLOUD_CORE_MIN) * a)
       // 一体感：底盘铺满（中心不透明、仅边缘渐隐），凸起全在底盘内叠出轮廓——连接处由底盘兜底，不见接缝
       b.discGradCore(x, y, r, 20, sf, ...CLOUD, a, ...CLOUD, 0)
-      b.discGradCore(x - 0.95 * r, y + 0.12 * r, 0.6 * r, 14, sf, ...CLOUD, a, ...CLOUD, 0)
-      b.discGradCore(x + 0.95 * r, y + 0.1 * r, 0.6 * r, 14, sf, ...CLOUD, a, ...CLOUD, 0)
-      b.discGradCore(x, y - 0.52 * r, 0.45 * r, 14, sf, ...CLOUD, a, ...CLOUD, 0)
-      b.discGradCore(x - 0.5 * r, y + 0.62 * r, 0.42 * r, 12, sf, ...CLOUD, a, ...CLOUD, 0)
-      b.discGradCore(x + 0.5 * r, y + 0.6 * r, 0.4 * r, 12, sf, ...CLOUD, a, ...CLOUD, 0)
+      cloudPuff(b, x, y, r, -0.95, 0.12, 0.6, 14, sf, a)
+      cloudPuff(b, x, y, r, 0.95, 0.1, 0.6, 14, sf, a)
+      cloudPuff(b, x, y, r, 0, -0.52, 0.45, 14, sf, a)
+      cloudPuff(b, x, y, r, -0.5, 0.62, 0.42, 12, sf, a)
+      cloudPuff(b, x, y, r, 0.5, 0.6, 0.4, 12, sf, a)
     }
   }
 
@@ -406,19 +418,19 @@ export class Renderer {
       const ay = cd
       for (let k = 0; k < 3; k++) {
         const a = sim.time * FAN_SPIN_RATE + (k * Math.PI * 2) / 3
-        const tx = f.x + FAN_BLADE_LEN * (Math.cos(a) * ax - FAN_ELLIPSE_K * Math.sin(a) * cd)
-        const ty = f.y + FAN_BLADE_LEN * (Math.cos(a) * ay - FAN_ELLIPSE_K * Math.sin(a) * sd)
+        const ca = Math.cos(a)
+        const sa = Math.sin(a)
+        const tx = f.x + FAN_BLADE_LEN * (ca * ax - FAN_ELLIPSE_K * sa * cd)
+        const ty = f.y + FAN_BLADE_LEN * (ca * ay - FAN_ELLIPSE_K * sa * sd)
         b.stroke(f.x, f.y, tx, ty, FAN_BLADE_WIDTH, ...INK_DARK, 0.72, true)
       }
       b.ring(f.x, f.y, FAN_FACE_RADIUS, FAN_FACE_RADIUS * FAN_ELLIPSE_K, rot, 20, 0.3, ...INK_DARK, 0.5)
-      // 朝向箭头：沿 dir 伸出椭圆短轴端（气流方向即箭头指向，摇头风扇整体随朝向摆动）
+      // 朝向箭头：沿 dir 伸出椭圆短轴端（气流方向即箭头指向，摇头风扇整体随朝向摆动）；垂直于 dir 的单位 = (ax, ay)
       const nx = cd * (FAN_HOUSING_RADIUS * FAN_ELLIPSE_K + 0.35)
       const ny = sd * (FAN_HOUSING_RADIUS * FAN_ELLIPSE_K + 0.35)
-      const px = -sd
-      const py = cd
       b.tri(
-        f.x + nx + px * 0.28, f.y + ny + py * 0.28,
-        f.x + nx - px * 0.28, f.y + ny - py * 0.28,
+        f.x + nx + ax * 0.28, f.y + ny + ay * 0.28,
+        f.x + nx - ax * 0.28, f.y + ny - ay * 0.28,
         f.x + nx * 1.55, f.y + ny * 1.55,
         ...INK_DARK, 0.55,
       )
@@ -468,11 +480,11 @@ export class Renderer {
       const u = Math.tanh(Math.abs(temp) / AIR_SOFT)
       const to = temp >= 0 ? HOT : COLD
       const c0 = i * 5
-      colors[c0] = AIR_AMBIENT[0] + (to[0] - AIR_AMBIENT[0]) * u
-      colors[c0 + 1] = AIR_AMBIENT[1] + (to[1] - AIR_AMBIENT[1]) * u
-      colors[c0 + 2] = AIR_AMBIENT[2] + (to[2] - AIR_AMBIENT[2]) * u
-      colors[c0 + 3] = HEAD_ALPHA_AMBIENT + (HEAD_ALPHA_STRONG - HEAD_ALPHA_AMBIENT) * u
-      colors[c0 + 4] = LINE_ALPHA_AMBIENT + (LINE_ALPHA_COLORED - LINE_ALPHA_AMBIENT) * u
+      colors[c0] = mix(AIR_AMBIENT[0], to[0], u)
+      colors[c0 + 1] = mix(AIR_AMBIENT[1], to[1], u)
+      colors[c0 + 2] = mix(AIR_AMBIENT[2], to[2], u)
+      colors[c0 + 3] = mix(HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, u)
+      colors[c0 + 4] = mix(LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED, u)
 
       const n = trailN[i]
       if (n === 0) continue
@@ -489,8 +501,9 @@ export class Renderer {
       for (let k = 0; k < n; k++) {
         pts[k * 2] = trailX[base + k]
         pts[k * 2 + 1] = trailY[base + k]
-        const a = (1 - (now - trailT[base + k]) / TRAIL_FADE_T) * env * gust
-        const tail = k < TRACER_TAIL_SEGS ? k / TRACER_TAIL_SEGS : 1
+        // trailT 以 tracers.time（sim 时间）写入，淡出用同钟读，避免倍速下与 wall clock 漂移
+        const a = fadeRetention(now, trailT[base + k], TRAIL_FADE_T) * env * gust
+        const tail = tailFade(k, TRACER_TAIL_SEGS)
         fade[k] = a > 0 ? Math.min(1, a) * colors[c0 + 4] * tail : 0
       }
       pts[n * 2] = tracers.x[i]
@@ -520,7 +533,7 @@ export class Renderer {
     for (let k = 0; k < n; k++) {
       const nx = k + 1 < n ? trail.xAt(k + 1) : p.x
       const ny = k + 1 < n ? trail.yAt(k + 1) : p.y
-      const f = Math.min(trail.retentionAt(k), k < PLANE_TRAIL_TAIL_SEGS ? k / PLANE_TRAIL_TAIL_SEGS : 1)
+      const f = Math.min(trail.retentionAt(k), tailFade(k, PLANE_TRAIL_TAIL_SEGS))
       if (f > VISIBLE_ALPHA) {
         b.stroke(px, py, nx, ny, PLANE_TRAIL_WIDTH, TRAIL_INK[0], TRAIL_INK[1], TRAIL_INK[2], 0.5 * f)
       }
@@ -559,10 +572,9 @@ export class Renderer {
     }
     b.tri(w[0], w[1], w[2], w[3], w[4], w[5], ...PAPER, 1)
     b.tri(w[0], w[1], w[4], w[5], w[6], w[7], ...PAPER, 1)
-    const outline = [0, 1, 2, 3, 0]
     for (let i = 0; i < 4; i++) {
-      const a = outline[i] * 2
-      const c = outline[i + 1] * 2
+      const a = PLANE_OUTLINE[i] * 2
+      const c = PLANE_OUTLINE[i + 1] * 2
       b.stroke(w[a], w[a + 1], w[c], w[c + 1], 0.16, ...INK_DARK, 0.5, true)
     }
     b.stroke(w[0], w[1], w[4], w[5], 0.12, ...INK_DARK, 0.26)

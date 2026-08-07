@@ -2,36 +2,34 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { sfx } from '../core/sfx'
-import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, nextInGroup } from '../game/levels'
-import { solutionsFor } from '../game/solutions'
-import { DEV_OVERRIDE_EVENT } from '../game/session'
+import { LEVELS, LEVEL_GROUPS, nextInGroup, solutionsFor } from '../game/levels'
 import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
+import type { SfHud } from './hud'
 import { DevTools } from '../dev/devtools'
 import '../dev/dev-menu'
 import './storage-view'
 import './win-overlay'
+import './title-screen'
+import './hud'
 import { urlState } from '../game/state'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import type { SourceKind } from '../sim/types'
 import { boxReset } from './shared-styles'
-import {
-  iconFlame,
-  iconGear,
-  iconHome,
-  iconLock,
-  iconLogo,
-  iconPause,
-  iconPlay,
-  iconReset,
-  iconRoute,
-  iconSnow,
-  iconSoundOff,
-  iconSoundOn,
-} from './icons'
 
 const FIRST_LEVEL = LEVELS[0]
+
+// HUD 初始态（初始化与换关重置共用；容错：LEVELS 全挂时预算以 0 兜底，不得再抛）
+const defaultHud = (level: LevelDef | undefined): HudState => ({
+  phase: 'playing',
+  hotLeft: level?.budget.hot ?? 0,
+  coldLeft: level?.budget.cold ?? 0,
+  time: 0,
+  extra: 0,
+  sources: 0,
+  paused: false,
+})
 
 @customElement('sf-app')
 export class SfApp extends LitElement {
@@ -40,17 +38,7 @@ export class SfApp extends LitElement {
   // 主页选项卡：纯本地 UI 态，不进 URL
   @state() private activeGroup = LEVEL_GROUPS[0]?.name ?? ''
   @state() private initialSources: SourcePlacement[] = []
-  @state() private hud: HudState = {
-    phase: 'playing',
-    // 容错：LEVELS 全挂时初始化不得再抛
-    hotLeft: FIRST_LEVEL?.budget.hot ?? 0,
-    coldLeft: FIRST_LEVEL?.budget.cold ?? 0,
-    placed: 0,
-    time: 0,
-    extra: 0,
-    sources: 0,
-    paused: false,
-  }
+  @state() private hud: HudState = defaultHud(FIRST_LEVEL)
   @state() private muted = sfx.muted
   private winRank = -1
   @state() private rate = 1
@@ -62,14 +50,15 @@ export class SfApp extends LitElement {
   }
 
   @query('sf-game') private gameEl!: SfGame
+  @query('sf-hud') private hudEl!: SfHud
 
   constructor() {
     super()
     sfx.unlock()
-    this.applyScreen(screenFromUrl())
-    window.addEventListener(DEV_OVERRIDE_EVENT, this.onDevOverride)
-    urlState.onChange('lv', () => this.applyScreen(screenFromUrl()))
-    urlState.onChange('v', () => this.applyScreen(screenFromUrl()))
+    // 初始加载与外部变化允许脏 lv 净化；本地写路径不净化（见 screen.ts cleanup 注释）
+    this.applyScreen(screenFromUrl(true))
+    urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true)))
+    urlState.onChange('v', () => this.applyScreen(screenFromUrl(true)))
     urlState.onChange('src', (v) => {
       this.gameEl?.applySources(v)
       sfx.uiClick()
@@ -77,7 +66,6 @@ export class SfApp extends LitElement {
   }
 
   override disconnectedCallback() {
-    window.removeEventListener(DEV_OVERRIDE_EVENT, this.onDevOverride)
     this.devTools?.destroy()
     this.devTools = null
     super.disconnectedCallback()
@@ -86,7 +74,7 @@ export class SfApp extends LitElement {
   // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续，便于连续迭代
   private syncDevTools() {
     if (this.screen === 'game' && this.dev) {
-      if (!this.devTools) this.devTools = new DevTools()
+      if (!this.devTools) this.devTools = new DevTools({ onApply: this.onDevOverride })
     } else if (this.devTools) {
       this.devTools.destroy()
       this.devTools = null
@@ -94,8 +82,7 @@ export class SfApp extends LitElement {
   }
 
   // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验），清 src（浏览器返回即复原）
-  private onDevOverride = (e: Event) => {
-    const text = (e as CustomEvent<string>).detail
+  private onDevOverride = (text: string) => {
     urlState.set('lv', text)
     urlState.clear('src')
     this.applyScreen(screenFromUrl())
@@ -110,16 +97,7 @@ export class SfApp extends LitElement {
   }
 
   private resetHud(level: LevelDef) {
-    this.hud = {
-      phase: 'playing',
-      hotLeft: level.budget.hot,
-      coldLeft: level.budget.cold,
-      placed: 0,
-      time: 0,
-      extra: 0,
-      sources: 0,
-      paused: false,
-    }
+    this.hud = defaultHud(level)
     this.winRank = -1
   }
 
@@ -212,10 +190,6 @@ export class SfApp extends LitElement {
     sfx.uiClick()
   }
 
-  private speedLabel(): string {
-    return this.rate < 1 ? '0.5×' : `${this.rate}×`
-  }
-
   private onHudChange(e: CustomEvent<HudState>) {
     const next = e.detail
     const wasWon = this.hud.phase === 'won'
@@ -232,29 +206,12 @@ export class SfApp extends LitElement {
   }
 
   private onDeny(e: CustomEvent<SourceKind>) {
-    this.denyChip(e.detail)
+    this.hudEl?.deny(e.detail)
   }
 
   private onSourcesChange(e: CustomEvent<SourcePlacement[]>) {
     if (e.detail.length === 0) urlState.clear('src')
     else urlState.set('src', e.detail)
-  }
-
-  private denyChip(kind: SourceKind) {
-    void this.updateComplete.then(() => {
-      const el = this.renderRoot.querySelector<HTMLElement>(`.chip.${kind}`)
-      if (!el) return
-      el.animate(
-        [
-          { transform: 'translateX(0)' },
-          { transform: 'translateX(-3px)' },
-          { transform: 'translateX(3px)' },
-          { transform: 'translateX(-2px)' },
-          { transform: 'translateX(0)' },
-        ],
-        { duration: 300, easing: 'ease-out' },
-      )
-    })
   }
 
   protected override render() {
@@ -270,98 +227,14 @@ export class SfApp extends LitElement {
     if (this.screen === 'storage') {
       return html`<sf-storage @back=${this.goBack}></sf-storage>`
     }
-    return this.renderTitle()
-  }
-
-  private renderTitle() {
-    return html`
-      <main class="title">
-        <section class="title-card">
-          <div class="logo">${iconLogo}</div>
-          <h1>烧风</h1>
-          <p class="tagline">太阳精灵 · 用温度创造风</p>
-
-          <nav class="groups" aria-label="关卡组">
-            ${LEVEL_GROUPS.map((g) =>
-              html`
-                <button
-                  class="group-tab ${g.name === this.activeGroup ? 'active' : ''}"
-                  aria-pressed=${g.name === this.activeGroup}
-                  @click=${() => (this.activeGroup = g.name)}
-                >
-                  <span class="gname">${g.name}</span>
-                </button>
-              `,
-            )}
-          </nav>
-
-          <nav class="levels" aria-label="关卡列表">
-            ${(LEVEL_GROUPS.find((g) => g.name === this.activeGroup)?.ids ?? [])
-              .map((id) => LEVELS_BY_ID.get(id))
-              .filter((l): l is LevelDef => l !== undefined)
-              .map((l) => {
-                // dev 模式全关卡可玩（含未解锁），参考解按钮嵌在卡片内
-                const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(id))
-                const hasSol = this.dev && solutionsFor(l.id).length > 0
-              return html`
-                <button
-                  class="level play ${locked ? 'locked' : ''}"
-                  ?disabled=${locked}
-                  aria-label=${locked ? `第 ${l.id} 关（未解锁）` : `进入第 ${l.id} 关`}
-                  @click=${() => this.startGame(l.id)}
-                >
-                  <span class="no">第 ${l.id} 关</span>
-                  <span class="meta">
-                    <span class="name">${l.name}</span>
-                    <span class="concept">${l.tagline}</span>
-                  </span>
-                  ${hasSol
-                    ? html`<span
-                        class="sol-chip"
-                        role="button"
-                        tabindex="0"
-                        aria-label="第 ${l.id} 关参考解"
-                        title="参考解"
-                        @click=${(e: Event) => {
-                          e.stopPropagation()
-                          this.openSolution(l)
-                        }}
-                        @keydown=${(e: KeyboardEvent) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            this.openSolution(l)
-                          }
-                        }}
-                      >
-                        ${iconRoute}
-                      </span>`
-                    : html`<span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>`}
-                </button>
-              `
-            })}
-            ${LEVELS.length === 0 ? html`<p class="no-levels">暂无可用关卡</p>` : nothing}
-          </nav>
-
-          ${LEVEL_ERRORS.length > 0
-            ? html`<div class="level-errors" role="alert">
-                <b>关卡加载失败 ${LEVEL_ERRORS.length} 个</b>
-                ${LEVEL_ERRORS.map((m) => html`<p>${m}</p>`)}
-              </div>`
-            : nothing}
-
-          <p class="footnote">
-            根据菲尔兹奖得主邓煜的数学证明，从牛顿力学可以推导出热力学方程——本游戏所有物理均基于此。
-          </p>
-
-          ${this.dev
-            ? html`<button class="dev-link" @click=${this.openDev} aria-label="开发者页面">
-                ${iconGear}<span>开发者页面</span>
-              </button>`
-            : nothing}
-        </section>
-      </main>
-    `
+    return html`<sf-title-screen
+      .dev=${this.dev}
+      .activeGroup=${this.activeGroup}
+      @group=${(e: CustomEvent<string>) => (this.activeGroup = e.detail)}
+      @start=${(e: CustomEvent<number>) => this.startGame(e.detail)}
+      @solution=${(e: CustomEvent<LevelDef>) => this.openSolution(e.detail)}
+      @dev-page=${this.openDev}
+    ></sf-title-screen>`
   }
 
   private renderGame() {
@@ -373,6 +246,7 @@ export class SfApp extends LitElement {
         ${keyed(
           // keyed 按对象身份重建：关卡内容变化时必须重建 sf-game
           this.activeLevel,
+          // 事件名用字面量：Lit 模板不支持动态事件名（@${expr} 静默失效）；协议定义见 sf-game.ts 的 HUD_CHANGE/DENY/SRC_CHANGE
           html`<sf-game
             .level=${this.activeLevel}
             .initialSources=${this.initialSources}
@@ -384,44 +258,16 @@ export class SfApp extends LitElement {
           ></sf-game>`,
         )}
 
-        <header class="hud">
-          <div class="hud-left">
-            <button class="icon-btn" @click=${this.backToTitle} aria-label="回到主页" title="回到主页">
-              ${iconHome}<span class="lbl">主页</span>
-            </button>
-          </div>
-          <div class="hud-right">
-            <span class="chip hot ${this.hud.hotLeft === 0 ? 'empty' : ''}" title="剩余热源">
-              ${iconFlame}<span class="lbl">热源</span><b>${this.hud.hotLeft === Infinity ? '∞' : this.hud.hotLeft}</b>
-            </span>
-            <span class="chip cold ${this.hud.coldLeft === 0 ? 'empty' : ''}" title="剩余冷源">
-              ${iconSnow}<span class="lbl">冷源</span><b>${this.hud.coldLeft === Infinity ? '∞' : this.hud.coldLeft}</b>
-            </span>
-            <button
-              class="icon-btn pause"
-              @click=${() => this.gameEl?.togglePause()}
-              aria-label=${this.hud.paused ? '恢复' : '暂停'}
-              aria-pressed=${this.hud.paused}
-              title=${this.hud.paused ? '恢复' : '暂停'}
-            >
-              ${this.hud.paused ? iconPlay : iconPause}<span class="lbl">${this.hud.paused ? '恢复' : '暂停'}</span>
-            </button>
-            <button class="icon-btn speed" @click=${this.cycleSpeed} aria-label="游戏速率 ${this.speedLabel()}">
-              <span class="lbl">速率</span><b>${this.speedLabel()}</b>
-            </button>
-            <button class="icon-btn" @click=${this.restart} aria-label="重置关卡">
-              ${iconReset}<span class="lbl">重置</span>
-            </button>
-            <button
-              class="icon-btn"
-              @click=${this.toggleSound}
-              aria-label=${this.muted ? '开启声音' : '关闭声音'}
-              aria-pressed=${!this.muted}
-            >
-              ${this.muted ? iconSoundOff : iconSoundOn}<span class="lbl">声音</span>
-            </button>
-          </div>
-        </header>
+        <sf-hud
+          .hud=${this.hud}
+          .muted=${this.muted}
+          .rate=${this.rate}
+          @back=${this.backToTitle}
+          @pause=${() => this.gameEl?.togglePause()}
+          @speed=${this.cycleSpeed}
+          @restart=${this.restart}
+          @sound=${this.toggleSound}
+        ></sf-hud>
 
         ${won
           ? html`<sf-win-overlay
@@ -457,293 +303,6 @@ export class SfApp extends LitElement {
         touch-action: manipulation;
       }
 
-    svg {
-      display: block;
-    }
-
-    button {
-      border: none;
-      background: none;
-      padding: 0;
-      cursor: pointer;
-      color: inherit;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-
-    button:active {
-      transform: scale(0.97);
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
-        animation-duration: 0.01ms !important;
-        transition-duration: 0.01ms !important;
-      }
-    }
-
-    .title {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      padding: 1.5rem;
-      background:
-        radial-gradient(circle at 18% 12%, rgba(255, 196, 83, 0.32), transparent 42%),
-        linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
-      overflow: auto;
-    }
-
-    .title-card {
-      width: 100%;
-      max-width: 35rem;
-      margin: auto;
-      padding: 1.75rem 2rem 1.375rem;
-      text-align: center;
-      background: var(--card);
-      backdrop-filter: blur(1.5rem) saturate(1.4);
-      -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      border-radius: 1.75rem;
-      corner-shape: squircle;
-      box-shadow: 0 1.125rem 2.75rem rgba(61, 52, 39, 0.1);
-    }
-
-    .logo svg {
-      width: 3.25rem;
-      height: 3.25rem;
-      margin: 0 auto;
-    }
-
-    h1 {
-      margin: 0.625rem 0 0.25rem;
-      font-size: 2.125rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-    }
-
-    .tagline {
-      margin: 0 0 1rem;
-      color: var(--ink-soft);
-      font-size: 0.875rem;
-      letter-spacing: 0.06em;
-    }
-
-    .levels {
-      display: flex;
-      flex-direction: column;
-      gap: 0.375rem;
-      text-align: left;
-    }
-
-    /* dev 模式参考解：嵌在关卡卡片内、与卡片同族的圆钮（替换右侧 › 箭头位） */
-    .sol-chip {
-      flex: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 2.125rem;
-      height: 2.125rem;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 0.125rem 0.5rem rgba(61, 52, 39, 0.07);
-      color: var(--ink-soft);
-      cursor: pointer;
-      transition: color 120ms ease-out, background 120ms ease-out, transform 100ms ease-out;
-    }
-
-    .sol-chip:hover {
-      color: var(--ink);
-      background: #fff;
-    }
-
-    .sol-chip:active {
-      transform: scale(0.94);
-    }
-
-    .sol-chip svg {
-      width: 1.06rem;
-      height: 1.06rem;
-    }
-
-    .groups {
-      display: flex;
-      justify-content: center;
-      gap: 0.5rem;
-      margin: 0 0 0.75rem;
-    }
-
-    .group-tab {
-      flex: none;
-    }
-
-    .group-tab {
-      display: inline-flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1px;
-      padding: 0.375rem 1.125rem;
-      border-radius: 0.875rem;
-      corner-shape: squircle;
-      background: rgba(255, 255, 255, 0.55);
-      border: 1px solid rgba(255, 255, 255, 0.7);
-      color: var(--ink-soft);
-      transition: background 140ms ease-out, color 140ms ease-out, box-shadow 140ms ease-out;
-    }
-
-    .group-tab .gname {
-      font-size: 0.9375rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-    }
-
-    .group-tab.active {
-      background: var(--card);
-      color: var(--ink);
-      box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.09);
-    }
-
-    .no-levels {
-      margin: 0.75rem 0 0;
-      color: var(--ink-soft);
-      text-align: center;
-    }
-
-    .level-errors {
-      margin-top: 0.875rem;
-      padding: 0.625rem 0.75rem;
-      text-align: left;
-      font-size: 0.75rem;
-      line-height: 1.45;
-      color: #7a2415;
-      background: rgba(255, 90, 60, 0.1);
-      border: 1px solid rgba(255, 90, 60, 0.28);
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      overflow: hidden;
-    }
-
-    .level-errors p {
-      margin: 0.25rem 0 0;
-      word-break: break-all;
-    }
-
-    .level {
-      display: flex;
-      align-items: center;
-      gap: 0.875rem;
-      width: 100%;
-      padding: 0.5rem 1rem;
-      /* 覆盖卡片继承的 text-align:center */
-      text-align: left;
-      border-radius: 1rem;
-      corner-shape: squircle;
-      transition: transform 120ms ease-out, box-shadow 120ms ease-out;
-    }
-
-    .level.play {
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.07);
-    }
-
-    .level.play:hover {
-      box-shadow: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.12);
-    }
-
-    .level .no {
-      flex: none;
-      font-size: 0.75rem;
-      color: var(--ink-soft);
-      width: 2.75rem;
-    }
-
-    .level.locked {
-      background: rgba(255, 255, 255, 0.42);
-      border-color: rgba(255, 255, 255, 0.5);
-      box-shadow: none;
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-
-    .level.locked:hover {
-      transform: none;
-      box-shadow: none;
-    }
-
-    .level.locked .go {
-      color: var(--ink-soft);
-    }
-
-    .level .meta {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      min-width: 0;
-    }
-
-    .level .name {
-      font-size: 1rem;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-    }
-
-    .level .concept {
-      font-size: 0.75rem;
-      color: var(--ink-soft);
-    }
-
-    .level .go {
-      flex: none;
-      font-size: 1.5rem;
-      line-height: 1;
-      color: var(--hot);
-      font-weight: 600;
-    }
-
-    .level .go svg {
-      display: block;
-      width: 1.06rem;
-      height: 1.06rem;
-    }
-
-    .footnote {
-      margin: 1rem auto 0;
-      max-width: 28.75rem;
-      font-size: 0.75rem;
-      line-height: 1.7;
-      color: var(--ink-soft);
-    }
-
-    .dev-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.375rem;
-      margin-top: 0.75rem;
-      padding: 0.5rem 1rem;
-      font-size: 0.75rem;
-      color: var(--ink-soft);
-      background: rgba(255, 253, 248, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      border-radius: 999px;
-      corner-shape: squircle;
-      transition: color 120ms ease-out, box-shadow 120ms ease-out;
-    }
-
-    .dev-link:hover {
-      color: var(--ink);
-      box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
-    }
-
-    .dev-link svg {
-      width: 0.94rem;
-      height: 0.94rem;
-    }
-
     .game {
       position: relative;
       height: 100%;
@@ -755,120 +314,6 @@ export class SfApp extends LitElement {
       inset: 0;
     }
 
-    .hud {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      padding: calc(0.5rem + env(safe-area-inset-top, 0px)) 0.625rem 0.5rem;
-      pointer-events: none;
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: none;
-    }
-
-    .hud > * {
-      pointer-events: auto;
-      flex: none;
-    }
-
-    .hud-left,
-    .hud-right {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .lbl {
-      display: none;
-      white-space: nowrap;
-    }
-
-    /* <25rem ≈ 无标签内容宽：接管指针，否则滚动手势被下方 canvas 吃掉 */
-    @container (max-width: 25rem) {
-      .hud {
-        pointer-events: auto;
-        scrollbar-width: thin;
-        scrollbar-color: rgba(61, 52, 39, 0.25) transparent;
-      }
-    }
-
-    /* 39.7rem ≈ 带标签内容宽 */
-    @container (min-width: 39.7rem) {
-      .lbl {
-        display: inline;
-      }
-    }
-
-    .icon-btn {
-      min-width: 2.5rem;
-      height: 2.5rem;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.375rem;
-      padding: 0 0.75rem;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(1rem) saturate(1.5);
-      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
-      border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
-      color: var(--ink);
-      transition: transform 100ms ease-out;
-    }
-
-    .icon-btn svg {
-      width: 1.19rem;
-      height: 1.19rem;
-    }
-
-    .icon-btn.speed b {
-      font-variant-numeric: tabular-nums;
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.31rem;
-      height: 2.5rem;
-      padding: 0 0.75rem;
-      border-radius: 0.75rem;
-      corner-shape: squircle;
-      background: rgba(255, 253, 248, 0.66);
-      backdrop-filter: blur(1rem) saturate(1.5);
-      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
-      border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
-      font-size: 0.875rem;
-    }
-
-    .chip svg {
-      width: 0.94rem;
-      height: 0.94rem;
-    }
-
-    .chip.hot svg {
-      color: var(--hot);
-    }
-
-    .chip.cold svg {
-      color: var(--cold);
-    }
-
-    .chip b {
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .chip.empty {
-      opacity: 0.42;
-    }
   `,
   ]
 }

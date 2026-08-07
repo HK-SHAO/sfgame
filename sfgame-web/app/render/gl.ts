@@ -226,6 +226,32 @@ export class GlRenderer {
     return true
   }
 
+  // 清屏底色：与 .game 容器 CSS 背景一致（缓冲未初始化/无背景纹理时兜底）
+  private clearScreen() {
+    this.gl.clearColor(0.992, 0.969, 0.925, 1)
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT)
+  }
+
+  // 顶点批上传→绘制尾段（bakeBg 与 draw 共用；成员方法零闭包，每帧调用 JIT 内联）
+  private drawBatch(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number) {
+    const gl = this.gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
+    const bytes = batch.count * VERTEX_STRIDE * 4
+    if (bytes > this.uploadedBytes) {
+      gl.bufferData(gl.ARRAY_BUFFER, batch.data, gl.DYNAMIC_DRAW)
+      this.uploadedBytes = batch.data.byteLength
+    } else {
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, batch.data.subarray(0, batch.count * VERTEX_STRIDE))
+    }
+    gl.useProgram(this.program)
+    gl.uniform4f(this.uView, viewL, viewT, viewR - viewL, viewB - viewT)
+    gl.enableVertexAttribArray(this.aPos)
+    gl.enableVertexAttribArray(this.aColor)
+    gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, VERTEX_STRIDE * 4, 0)
+    gl.vertexAttribPointer(this.aColor, 4, gl.FLOAT, false, VERTEX_STRIDE * 4, 8)
+    gl.drawArrays(gl.TRIANGLES, 0, batch.count)
+  }
+
   bakeBg(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number): boolean {
     const gl = this.gl
     if (this.lost || !this.program || !this.buffer) return false
@@ -242,24 +268,8 @@ export class GlRenderer {
     gl.viewport(0, 0, this.canvas.width, this.canvas.height)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-    gl.clearColor(0.992, 0.969, 0.925, 1)
-    gl.clear(gl.COLOR_BUFFER_BIT)
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
-    const bytes = batch.count * VERTEX_STRIDE * 4
-    if (bytes > this.uploadedBytes) {
-      gl.bufferData(gl.ARRAY_BUFFER, batch.data, gl.DYNAMIC_DRAW)
-      this.uploadedBytes = batch.data.byteLength
-    } else {
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, batch.data.subarray(0, batch.count * VERTEX_STRIDE))
-    }
-    gl.useProgram(this.program)
-    gl.uniform4f(this.uView, viewL, viewT, viewR - viewL, viewB - viewT)
-    gl.enableVertexAttribArray(this.aPos)
-    gl.enableVertexAttribArray(this.aColor)
-    gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, VERTEX_STRIDE * 4, 0)
-    gl.vertexAttribPointer(this.aColor, 4, gl.FLOAT, false, VERTEX_STRIDE * 4, 8)
-    gl.drawArrays(gl.TRIANGLES, 0, batch.count)
+    this.clearScreen()
+    this.drawBatch(batch, viewL, viewT, viewR, viewB)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     return true
   }
@@ -292,26 +302,11 @@ export class GlRenderer {
       gl.vertexAttribPointer(this.tex.aUV, 2, gl.FLOAT, false, 16, 8)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     } else {
-      gl.clearColor(0.992, 0.969, 0.925, 1)
-      gl.clear(gl.COLOR_BUFFER_BIT)
+      this.clearScreen()
     }
 
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
-    const bytes = batch.count * VERTEX_STRIDE * 4
-    if (bytes > this.uploadedBytes) {
-      gl.bufferData(gl.ARRAY_BUFFER, batch.data, gl.DYNAMIC_DRAW)
-      this.uploadedBytes = batch.data.byteLength
-    } else {
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, batch.data.subarray(0, batch.count * VERTEX_STRIDE))
-    }
-    gl.useProgram(this.program)
-    gl.uniform4f(this.uView, viewL, viewT, viewR - viewL, viewB - viewT)
-    gl.enableVertexAttribArray(this.aPos)
-    gl.enableVertexAttribArray(this.aColor)
-    gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, VERTEX_STRIDE * 4, 0)
-    gl.vertexAttribPointer(this.aColor, 4, gl.FLOAT, false, VERTEX_STRIDE * 4, 8)
-    gl.drawArrays(gl.TRIANGLES, 0, batch.count)
+    this.drawBatch(batch, viewL, viewT, viewR, viewB)
   }
 }

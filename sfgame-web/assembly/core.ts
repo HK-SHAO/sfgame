@@ -3,8 +3,8 @@
 // 平流误差补偿是混沌放大环节，入口侧刻意用 f64x2 保持与 JS 后端一致的轨迹品质。
 // 静态容量 + stub runtime：实例化时一次性分配，运行期零分配、无 GC、memory.buffer 视图恒定。
 
-export const MAX_NX = 160
-export const MAX_NY = 120
+const MAX_NX = 160
+const MAX_NY = 120
 const MAX_CELLS = MAX_NX * MAX_NY
 
 export const u = new Float32Array(MAX_CELLS)
@@ -19,7 +19,7 @@ export const q2 = new Float32Array(MAX_CELLS)
 export const p = new Float32Array(MAX_CELLS)
 export const div = new Float32Array(MAX_CELLS)
 export const divH2 = new Float64Array(MAX_CELLS)
-export const curl = new Float32Array(MAX_CELLS)
+const curl = new Float32Array(MAX_CELLS)
 export const solidF = new Float32Array(MAX_CELLS)
 const solidList = new Int32Array(MAX_CELLS)
 export const inGroup = new Uint8Array(MAX_CELLS)

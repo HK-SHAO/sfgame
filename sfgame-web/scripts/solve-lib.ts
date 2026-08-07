@@ -4,9 +4,8 @@ import { LevelSimulation } from '../app/game/simulation'
 import type { LevelDef } from '../app/game/types'
 import { bootEngine } from '../app/wasm/engine'
 
-// FINE_DT 与浏览器固定步长 SIM_DT 一致（无头 ↔ 真机同语义）；COARSE_DT 粗筛是"另一套物理"，胜点必须 FINE_DT 精验
+// FINE_DT 与浏览器固定步长 SIM_DT 一致（无头 ↔ 真机同语义）；粗筛是"另一套物理"，胜点必须 FINE_DT 精验
 export const FINE_DT = 1 / 60
-export const COARSE_DT = 1 / 30
 
 // 无头引导：wasm 缺失/不可用直接抛错——脚本场景下无声回退等于产出假结果
 export async function initBackend(): Promise<void> {
@@ -27,7 +26,7 @@ export interface CandidateMetric {
 }
 
 export function loadLevel(file: string): LevelDef {
-  return levelFromJson(parseLevelText(readFileSync(file, 'utf8')))
+  return levelFromJson(parseLevelText(readFileSync(file, 'utf8')), true)
 }
 
 export interface EvalOptions {

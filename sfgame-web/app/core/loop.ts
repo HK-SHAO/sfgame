@@ -63,10 +63,10 @@ export class GameLoop {
     if (frameDt < 0) frameDt = 0
     this.acc += frameDt * this.rate
     this.frameTicks = 0
-    this.runTicks(now, true)
+    this.runTicks(now)
   }
 
-  private runTicks(now: number, scheduleNext: boolean) {
+  private runTicks(now: number) {
     if (!this.running) return
     let stepped = false
     let ticks = 0
@@ -79,15 +79,13 @@ export class GameLoop {
     }
     const done = this.acc < SIM_DT || this.frameTicks >= MAX_TICKS_PER_FRAME
     if (!done) {
-      setTimeout(() => this.runTicks(now, scheduleNext), 0)
+      setTimeout(() => this.runTicks(now), 0)
       return
     }
     if (stepped && now - this.lastRender >= GameLoop.RENDER_MIN_INTERVAL) {
       this.handlers.render()
       this.lastRender = now
     }
-    if (scheduleNext) {
-      this.rafId = requestAnimationFrame(this.frame)
-    }
+    this.rafId = requestAnimationFrame(this.frame)
   }
 }

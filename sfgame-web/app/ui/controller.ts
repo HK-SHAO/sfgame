@@ -4,28 +4,27 @@ import { PerformanceGovernor, DPR_TIERS } from '../core/governor'
 import { buildWindProbes, isLanding, sampleWind } from '../core/wind'
 import { Tracers, TRAIL_LEN } from '../sim/particles'
 import { Clouds } from '../sim/clouds'
-import { Trail } from '../sim/trail'
-import type { SourceKind } from '../sim/types'
+import { PLANE_TRAIL_FADE, Trail } from '../sim/trail'
+import { type PressVisual, type SourceKind } from '../sim/types'
 import { LevelSimulation } from '../game/simulation'
-import type { HudState, LevelDef, PressVisual, SourcePlacement } from '../game/types'
+import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from '../render/render'
 import { createEngine, type EngineHandle } from '../wasm/engine'
-import { SfStatusBar } from './status-bar'
-import { urlState } from '../game/state'
 import { penaltySeconds } from '../game/timer'
-import type { DevTools } from '../dev/devtools'
+import type { PerfRecorder } from '../dev/devtools'
 
 const PLANE_TRAIL_MAX_POINTS = 150
 const PLANE_TRAIL_SAMPLE = 0.3
-const PLANE_TRAIL_FADE = 6
 const LAND_SOUND_MIN_INTERVAL = 150
 // 粒子数全平台恒定（视觉一致）；性能兜底只降 dpr 分辨率档
 const TRACER_COUNT = 400
 export interface ControllerEvents {
   onHud(state: HudState): void
   onDeny(kind: SourceKind): void
-  onSources?(sources: SourcePlacement[]): void
+  onSources(sources: SourcePlacement[]): void
+  // 每帧状态条数据（sim 时间与罚时）：UI 侧短路消费，零开销
+  onStatus(time: number, extra: number): void
 }
 
 export class GameController {
@@ -52,15 +51,14 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private ground: (x: number) => number
-  private devTools: DevTools | null = null
-  private statusEl: SfStatusBar | null = null
+  private devTools: PerfRecorder | null = null
 
   constructor(
     canvas: HTMLCanvasElement,
     level: LevelDef,
     events: ControllerEvents,
     host?: HTMLElement,
-    devTools?: DevTools | null,
+    devTools?: PerfRecorder | null,
   ) {
     this.events = events
     this.host = host ?? canvas.parentElement ?? canvas
@@ -68,14 +66,9 @@ export class GameController {
     this.ground = level.ground
     // 物理与渲染共享同一 wasm 实例：渲染零拷贝读流体内存（每关一次，keyed 重建时整体释放）
     this.engine = createEngine()
-    this.sim = new LevelSimulation(level, this.engine)
-    if (urlState.get('dev')) this.sim.unlimited = true
     this.devTools = devTools ?? null
-    // 挂 document.body：sf-game 无 slot，挂宿主 light DOM 不可见
-    const status = new SfStatusBar()
-    status.setLevel(level.id, level.name)
-    document.body.appendChild(status)
-    this.statusEl = status
+    // dev 模式道具不限量：devTools 非空即 dev（app.ts 按 ?dev=1 才构造面板）
+    this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })
     // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降 dpr（所有平台同一策略）
     this.governor = new PerformanceGovernor(DPR_TIERS)
     this.tracers = new Tracers(TRACER_COUNT, this.world, this.ground, TRAIL_LEN)
@@ -118,12 +111,12 @@ export class GameController {
   }
 
   start() {
+    // ResizeObserver 覆盖窗口缩放与布局变化（宿主尺寸必然随之改变），无需再监听 window resize
     if ('ResizeObserver' in window) {
       this.ro = new ResizeObserver(() => this.fit())
       this.ro.observe(this.host)
     }
     this.fit()
-    window.addEventListener('resize', this.fit)
     this.loop.start()
     this.pushHud()
   }
@@ -138,9 +131,6 @@ export class GameController {
     this.input.destroy()
     this.ro?.disconnect()
     this.ro = null
-    window.removeEventListener('resize', this.fit)
-    this.statusEl?.remove()
-    this.statusEl = null
     sfx.fadeOutWind()
   }
 
@@ -206,14 +196,8 @@ export class GameController {
   }
 
   private emitSources() {
-    // 对齐 URL 精度（1 位小数），保证往返稳定、等值跳过生效
-    this.events.onSources?.(
-      this.sim.sources.map((s) => ({
-        x: Math.round(s.x * 10) / 10,
-        y: Math.round(s.y * 10) / 10,
-        kind: s.kind,
-      })),
-    )
+    // 精度对齐交给 URL codec 编码时的 toFixed(1)（state.ts num），此处透传原始坐标
+    this.events.onSources(this.sim.sources.map((s) => ({ x: s.x, y: s.y, kind: s.kind })))
   }
 
   private tick = (dt: number) => {
@@ -269,7 +253,7 @@ export class GameController {
       now: performance.now(),
     })
     // 每帧直推：文本不变时组件内短路，零开销
-    this.statusEl?.refresh(this.sim.time, penaltySeconds(this.sim.sources.length))
+    this.events.onStatus(this.sim.time, penaltySeconds(this.sim.sources.length))
     this.devTools?.record({
       tickMs: this.tickMs,
       batchMs: performance.now() - t0,

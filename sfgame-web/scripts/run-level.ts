@@ -229,7 +229,6 @@ const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen: 0, gro
 class WorkerPool {
   private procs: Array<{ proc: import('bun').Subprocess; buf: string; idle: boolean; jobId: number }> = []
   private queue: Array<{ src: SourceTuple[]; resolve: (m: CandidateMetric) => void }> = []
-  private open = 0
   private closed = false
 
   constructor(count: number) {
@@ -251,7 +250,6 @@ class WorkerPool {
       const i = this.procs.indexOf(w)
       if (i >= 0) this.procs.splice(i, 1)
       if (w.jobId > 0 && this.pending.has(w.jobId)) {
-        this.open--
         this.pending.get(w.jobId)!(FALLBACK_METRIC)
         this.pending.delete(w.jobId)
       }
@@ -276,7 +274,6 @@ class WorkerPool {
           if (!line) continue
           try {
             const msg = JSON.parse(line) as { id: number; m: CandidateMetric }
-            this.open--
             if (this.pending.has(msg.id)) {
               this.pending.get(msg.id)!(msg.m)
               this.pending.delete(msg.id)
@@ -301,7 +298,6 @@ class WorkerPool {
       const id = ++this.nextId
       w.idle = false
       w.jobId = id
-      this.open++
       this.pending.set(id, job.resolve)
       if (w.proc.stdin && typeof w.proc.stdin !== 'number') {
         w.proc.stdin.write(`${JSON.stringify({ id, src: job.src })}\n`)

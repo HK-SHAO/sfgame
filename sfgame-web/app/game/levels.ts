@@ -1,5 +1,6 @@
 import { levelFromJson, parseLevelText } from './level-format'
-import type { LevelDef } from './types'
+import type { LvValue } from './state'
+import type { LevelDef, LevelJson, SolutionDef } from './types'
 // YAML 经 ?raw 直读（vite 原生支持、随文件变更触发 HMR），解析在运行时统一走 parseLevelText——无需虚拟模块/构建插件
 import level1 from '../../levels/level-1.yaml?raw'
 import level2 from '../../levels/level-2.yaml?raw'
@@ -35,7 +36,8 @@ export function levelSource(id: number): string | undefined {
 }
 for (const text of LEVEL_TEXTS) {
   try {
-    const level = levelFromJson(parseLevelText(text))
+    // parseLevelText 已校验，levelFromJson 跳过重复校验（启动路径省一半校验开销）
+    const level = levelFromJson(parseLevelText(text), true)
     LEVELS_BY_ID.set(level.id, level)
     LEVEL_SOURCES.set(level.id, text)
   } catch (e) {
@@ -48,7 +50,7 @@ export const LEVELS: LevelDef[] = LEVEL_GROUPS.flatMap((g) =>
   g.ids.map((id) => LEVELS_BY_ID.get(id)).filter((l): l is LevelDef => l !== undefined),
 )
 
-export function groupOf(id: number): LevelGroup | undefined {
+function groupOf(id: number): LevelGroup | undefined {
   return LEVEL_GROUPS.find((g) => g.ids.includes(id))
 }
 
@@ -66,4 +68,23 @@ export function isUnlocked(id: number, completed: (id: number) => boolean): bool
   if (!g) return false
   const i = g.ids.indexOf(id)
   return i <= 0 ? i === 0 : completed(g.ids[i - 1])
+}
+
+// lv 双形态解析：数字 = 内置关卡；字符串 = URL 内联关卡 JSON（state.ts 编解码，解析失败视为无效）。
+// 数字分支走 LEVELS_BY_ID（O(1)，与 solutionsFor 同源）；字符串为外部输入必须完整校验
+export function resolveLevel(lv: LvValue): LevelDef | undefined {
+  if (typeof lv === 'number') return LEVELS_BY_ID.get(lv)
+  if (typeof lv === 'string') {
+    try {
+      return levelFromJson(JSON.parse(lv) as LevelJson)
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
+}
+
+// 参考解数据源：dev 模式首页关卡项直达摆法；可通关性与 winTime 由玩家实测
+export function solutionsFor(levelId: number): SolutionDef[] {
+  return LEVELS_BY_ID.get(levelId)?.json.solutions ?? []
 }

@@ -70,7 +70,7 @@ export class SfDevMenu extends LitElement {
         gap: 0.875rem;
         width: 100%;
         padding: 0.875rem 1rem;
-        /* 行含原生 button（解法参考/存储管理）：须清零 UA buttonface 底色与黑边框 */
+        /* 行含原生 button（存储管理）：须清零 UA buttonface 底色与黑边框 */
         border: none;
         background: none;
         border-radius: 0.75rem;

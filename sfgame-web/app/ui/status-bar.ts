@@ -1,35 +1,41 @@
-import { LitElement, css, html } from 'lit'
-import { customElement } from 'lit/decorators.js'
+import { LitElement, css, html, type PropertyValues } from 'lit'
+import { customElement, property } from 'lit/decorators.js'
 import { formatPenalty, formatTime } from '../game/timer'
 
+// 声明式状态条：属性每帧由 sf-game 驱动（时间持续增长），shouldUpdate 内格式化比对短路，
+// 文本未变零渲染成本（等价旧命令式 refresh 的字符串缓存）
 @customElement('sf-status')
 export class SfStatusBar extends LitElement {
-  private t = ''
-  private p = ''
-  private lvNo = ''
-  private lvName = ''
+  @property({ type: Number }) levelId = 0
+  @property({ type: String }) levelName = ''
+  @property({ type: Number }) time = 0
+  @property({ type: Number }) penalty = 0
 
-  setLevel(id: number, name: string) {
-    this.lvNo = `第 ${id} 关`
-    this.lvName = name
-    this.requestUpdate()
-  }
+  private cached = { lv: '', name: '', t: '', p: '' }
 
-  refresh(time: number, extra: number) {
-    const t = formatTime(time)
-    const p = formatPenalty(extra)
-    if (t === this.t && p === this.p) return
-    this.t = t
-    this.p = p
-    this.requestUpdate()
+  protected override shouldUpdate(changed: PropertyValues): boolean {
+    const t = formatTime(this.time)
+    const p = formatPenalty(this.penalty)
+    const lv = this.levelId > 0 ? `第 ${this.levelId} 关` : ''
+    const name = this.levelName
+    if (
+      !changed.has('levelId') &&
+      !changed.has('levelName') &&
+      t === this.cached.t &&
+      p === this.cached.p
+    ) {
+      return false
+    }
+    this.cached = { lv, name, t, p }
+    return true
   }
 
   protected override render() {
     return html`
       <span class="row">
-        <span class="lv"><span class="no">${this.lvNo}</span> ${this.lvName}</span>
-        <span class="t">用时 ${this.t}</span>
-        <span class="p">罚时 ${this.p}</span>
+        <span class="lv"><span class="no">${this.cached.lv}</span> ${this.cached.name}</span>
+        <span class="t">用时 ${this.cached.t}</span>
+        <span class="p">罚时 ${this.cached.p}</span>
       </span>
       <span class="ops">轻点放热源 · 长按放冷源 · 点按已放置的源可移除</span>
     `

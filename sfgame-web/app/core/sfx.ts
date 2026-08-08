@@ -1,5 +1,7 @@
 import { name } from '../../package.json'
 import { bakeScore, MusicPlayer } from './music'
+import { bakeLevelStems, takeStems } from './music-bakery'
+import { takeEngine } from '../wasm/engine'
 
 const STORAGE_KEY = `${name}.muted`
 const MASTER_GAIN = 0.5
@@ -147,10 +149,15 @@ class Sfx {
           maxGain: 0.3,
           tau: 0.18,
         }, true)
-        this.music = new MusicPlayer(this.ctx, this.master)
-        if (this.wantMusic >= 0) {
+        // 音乐是增强层：合成内核（WASM）不可用时静默降级为无音乐，物理内核不受牵连
+        try {
+          this.music = new MusicPlayer(this.ctx, this.master, takeEngine())
+        } catch {
+          this.music = null
+        }
+        if (this.wantMusic >= 0 && this.music) {
           this.musicLevel = this.wantMusic
-          this.music.start(bakeScore(this.wantMusic))
+          this.playLevel(this.wantMusic)
         }
         document.addEventListener('visibilitychange', () => {
           if (!this.ctx) return
@@ -206,12 +213,36 @@ class Sfx {
     }
   }
 
+  // 播放某关音乐三级路径：预烘缓存命中即起 → Worker 后台烘（主线程零开销）→ 失败回退主线程分片烘
+  private playLevel(levelId: number) {
+    if (!this.music) return
+    const cached = takeStems(levelId)
+    if (cached) {
+      this.music.startStems(cached)
+      return
+    }
+    void bakeLevelStems(levelId).then((baked) => {
+      if (this.musicLevel !== levelId || !this.music) return
+      if (baked) {
+        takeStems(levelId)
+        this.music.startStems(baked)
+      } else {
+        this.music.start(bakeScore(levelId))
+      }
+    })
+  }
+
   // 背景音乐按关卡 id 烘焙（确定性微调）；AudioContext 未解锁时记挂起，解锁后续上
   musicForLevel(levelId: number) {
     this.wantMusic = levelId
     if (!this.music || levelId === this.musicLevel) return
     this.musicLevel = levelId
-    this.music.start(bakeScore(levelId))
+    this.playLevel(levelId)
+  }
+
+  // 预烘下一关 stem（关内闲时）：进下一关起播零等待
+  musicPrebake(levelId: number) {
+    void bakeLevelStems(levelId)
   }
 
   musicStop() {

@@ -11,7 +11,8 @@ import { LevelSimulation } from '../game/simulation'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from '../render/render'
-import { createEngine, type EngineHandle } from '../wasm/engine'
+import { takeEngine, type EngineHandle } from '../wasm/engine'
+import { nextInGroup } from '../game/levels'
 import { penaltySeconds } from '../game/timer'
 import type { PerfRecorder } from '../dev/devtools'
 
@@ -66,8 +67,9 @@ export class GameController {
     this.host = host ?? canvas.parentElement ?? canvas
     this.world = level.world
     this.ground = level.ground
-    // 物理与渲染共享同一 wasm 实例：渲染零拷贝读流体内存（每关一次，keyed 重建时整体释放）
-    this.engine = createEngine()
+    // 物理与渲染共享同一 wasm 实例：渲染零拷贝读流体内存（每关一次，keyed 重建时整体释放）；
+    // 取实例池预烘件，进关热路径零实例化开销
+    this.engine = takeEngine()
     this.devTools = devTools ?? null
     // dev 模式道具不限量：devTools 非空即 dev（app.ts 按 ?dev=1 才构造面板）
     this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })
@@ -122,6 +124,9 @@ export class GameController {
     this.fit()
     this.loop.start()
     sfx.musicForLevel(this.sim.level.id)
+    // 关内闲时预烘下一关音乐 stem：换关起播零等待（延后避开本关启动峰）
+    const next = nextInGroup(this.sim.level.id)
+    if (next !== undefined) window.setTimeout(() => sfx.musicPrebake(next), 2500)
     this.pushHud()
   }
 

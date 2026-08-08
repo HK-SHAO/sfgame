@@ -85,7 +85,15 @@ export interface BatchExports {
   ): void
 }
 
-export interface EngineExports extends FluidExports, BatchExports {
+// 音乐合成内核：乐谱 f64×4（midi, startSec, durSec, vel）写入 mScoreBuf，mClear 清 PCM，mRender 按音色累加
+export interface MusicExports {
+  mPcmBuf(): number
+  mScoreBuf(): number
+  mClear(sec: number): number
+  mRender(kind: number, count: number): void
+}
+
+export interface EngineExports extends FluidExports, BatchExports, MusicExports {
   memory: WebAssembly.Memory
 }
 
@@ -152,4 +160,32 @@ export function createEngine(): EngineHandle {
   } catch {
     throw new Error('WASM 引擎实例化失败')
   }
+}
+
+// 实例池：实例化（静态内存清零+建表）有可见开销，预烘期/白场期备好，进关热路径零实例化
+const enginePool: EngineHandle[] = []
+
+export function prewarmEngines(n: number): boolean {
+  if (!wasmModule) return false
+  try {
+    while (enginePool.length < n) enginePool.push(createEngine())
+  } catch {
+    // 预热失败不阻断启动，取用时回退即时实例化
+  }
+  // 返回值兼作运行时校验信号（WASM 可实例化）
+  return enginePool.length >= n
+}
+
+// 取一实例（池空回退即时实例化）；取后后台补一个，下次热路径仍零开销
+export function takeEngine(): EngineHandle {
+  const e = enginePool.pop()
+  if (enginePool.length === 0 && wasmModule) {
+    setTimeout(() => {
+      try {
+        if (enginePool.length === 0) enginePool.push(createEngine())
+      } catch {
+      }
+    }, 0)
+  }
+  return e ?? createEngine()
 }

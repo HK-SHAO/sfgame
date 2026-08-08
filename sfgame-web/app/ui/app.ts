@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
+import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { fb } from '../core/feedback'
@@ -12,6 +12,8 @@ import './storage-view'
 import './win-overlay'
 import './title-screen'
 import './hud'
+import './prewarm'
+import { prewarm, prewarmPassed } from './prewarm'
 import { urlState } from '../game/state'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
@@ -113,6 +115,11 @@ export class SfApp extends LitElement {
   }
 
   private startGame(id: number) {
+    // 预热/运行时校验未过不放行进关（校验失败时重弹警告卡）
+    if (!prewarmPassed()) {
+      prewarm.notifyFailure()
+      return
+    }
     fb.uiEnter()
     urlState.set('lv', id)
     urlState.clear('src')
@@ -160,6 +167,10 @@ export class SfApp extends LitElement {
   private openSolution(level: LevelDef) {
     const sol = solutionsFor(level.id)[0]
     if (!sol) return
+    if (!prewarmPassed()) {
+      prewarm.notifyFailure()
+      return
+    }
     fb.uiEnter()
     urlState.set('lv', level.id)
     urlState.set('src', sol.sources)
@@ -220,26 +231,29 @@ export class SfApp extends LitElement {
   }
 
   protected override render() {
-    if (this.screen === 'game') return this.renderGame()
-    if (this.screen === 'dev') {
-      return html`<sf-dev-menu
+    let content: TemplateResult
+    if (this.screen === 'game') content = this.renderGame()
+    else if (this.screen === 'dev') {
+      content = html`<sf-dev-menu
         .dev=${this.dev}
         @back=${this.goBack}
         @open-storage=${this.openStorage}
         @toggle-dev=${this.toggleDev}
       ></sf-dev-menu>`
+    } else if (this.screen === 'storage') {
+      content = html`<sf-storage @back=${this.goBack}></sf-storage>`
+    } else {
+      content = html`<sf-title-screen
+        .dev=${this.dev}
+        .activeGroup=${this.activeGroup}
+        @group=${this.onGroup}
+        @start=${(e: CustomEvent<number>) => this.startGame(e.detail)}
+        @solution=${(e: CustomEvent<LevelDef>) => this.openSolution(e.detail)}
+        @dev-page=${this.openDev}
+      ></sf-title-screen>`
     }
-    if (this.screen === 'storage') {
-      return html`<sf-storage @back=${this.goBack}></sf-storage>`
-    }
-    return html`<sf-title-screen
-      .dev=${this.dev}
-      .activeGroup=${this.activeGroup}
-      @group=${this.onGroup}
-      @start=${(e: CustomEvent<number>) => this.startGame(e.detail)}
-      @solution=${(e: CustomEvent<LevelDef>) => this.openSolution(e.detail)}
-      @dev-page=${this.openDev}
-    ></sf-title-screen>`
+    // 预热模块全自治（流水线+校验+状态 UI）：app 只挂载，不感知内部步骤
+    return html`${content}<sf-prewarm></sf-prewarm>`
   }
 
   private renderGame() {
@@ -298,6 +312,7 @@ export class SfApp extends LitElement {
     css`
       :host {
         display: block;
+        position: relative;
         height: 100svh;
         height: 100dvh;
         overflow: hidden;

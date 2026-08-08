@@ -1,4 +1,5 @@
 import { MeshBatch, VERTEX_STRIDE } from './batch'
+import type { EngineHandle } from '../wasm/engine'
 
 const VS = `
 attribute vec2 aPos;
@@ -103,6 +104,30 @@ export class GlRenderer {
         canvas.getContext('experimental-webgl', opts)) as WebGLRenderingContext | null
     if (!gl) return null
     return new GlRenderer(canvas, gl)
+  }
+
+  // 渲染管线热身：抛弃式小画布走完 编译+链接+背景纹理+bakeBg/draw 各一次，
+  // 驱动级着色器缓存按源码共享——正式画布首帧不再现场编译/建资源；返回 false = WebGL 不可用
+  static warmup(engine: EngineHandle): boolean {
+    const canvas = document.createElement('canvas')
+    canvas.width = 16
+    canvas.height = 16
+    const r = GlRenderer.create(canvas)
+    if (!r) return false
+    try {
+      const batch = new MeshBatch(engine)
+      batch.rect(0, 0, 1, 1, 1, 1, 1, 1)
+      r.resizeBg()
+      r.bakeBg(batch, 0, 0, 1, 1)
+      r.draw(batch, 0, 0, 1, 1)
+    } catch {
+      return false
+    } finally {
+      r.dispose()
+      canvas.width = 0
+      canvas.height = 0
+    }
+    return true
   }
 
   private dispose() {

@@ -3,6 +3,8 @@
 // 主旋律音量大于伴奏。根本旋律为人工作曲（动机重复 = 记忆点），关卡种子只做移调/走向/节奏型微调
 // 自适应：setFlow(飞机相对风速) 实时驱动旋律层增益与亮度——风快音乐亮、停滞只剩伴奏
 
+import type { EngineHandle } from '../wasm/engine'
+
 export interface ScoreNote {
   beat: number
   midi: number
@@ -101,35 +103,104 @@ export function bakeScore(seed: number, opts: BakeOpts = {}): BgmScore {
   return { bpm, root, bars, bass, arp, theme }
 }
 
-const midiFreq = (m: number) => 440 * 2 ** ((m - 69) / 12)
+const BUS_GAIN = 0.24
+const DUCK_GAIN = 0.11
 
-const LOOKAHEAD_MS = 90
-const SCHED_AHEAD = 0.35
-const BUS_GAIN = 0.22
-const DUCK_GAIN = 0.1
-const START_DELAY_MS = 700
+// 预烘焙产物：伴奏/根本旋律两段循环 PCM（44.1k 单声道）
+export interface BakedStems {
+  accomp: Float32Array
+  theme: Float32Array
+}
 
+// 同步烘焙一首乐谱的两 stem（Worker 烘焙与无头测试共用）：mClear → bass+arp 累加 → 拷出 → mClear → theme 累加 → 拷出
+// onProgress 上报已完成/总音符数（烘焙进度条）；阻塞调用方线程，主线程勿直接调（走 music-bakery）
+export function renderStems(
+  eng: EngineHandle,
+  score: BgmScore,
+  onProgress?: (done: number, total: number) => void,
+): BakedStems {
+  const secPerBeat = 60 / score.bpm
+  const loopSec = score.bars * 4 * secPerBeat
+  const { ex, memory } = eng
+  const state = { done: 0, total: score.bass.length + score.arp.length + score.theme.length }
+  const renderPart = (notes: ScoreNote[], kind: number) => {
+    for (let off = 0; off < notes.length; off += 4) {
+      const cnt = Math.min(4, notes.length - off)
+      const sv = new Float64Array(memory.buffer, ex.mScoreBuf(), cnt * 4)
+      for (let i = 0; i < cnt; i++) {
+        const note = notes[off + i]
+        sv[i * 4] = note.midi
+        sv[i * 4 + 1] = note.beat * secPerBeat
+        sv[i * 4 + 2] = note.beats * secPerBeat
+        sv[i * 4 + 3] = note.vel
+      }
+      ex.mRender(kind, cnt)
+      state.done += cnt
+      onProgress?.(state.done, state.total)
+    }
+  }
+  const n = ex.mClear(loopSec)
+  renderPart(score.bass, 0)
+  renderPart(score.arp, 1)
+  const accomp = new Float32Array(memory.buffer, ex.mPcmBuf(), n).slice()
+  ex.mClear(loopSec)
+  renderPart(score.theme, 2)
+  const theme = new Float32Array(memory.buffer, ex.mPcmBuf(), n).slice()
+  return { accomp, theme }
+}
+
+// 把一组声部烘成一段循环 PCM：乐谱写入 WASM 内存 → 按音色渲染累加 → 复制出（buffer 复用）
+// 分片渲染（每片 8 音符 ~150ms，片间让出主线程）：烘焙总耗 ~2s 但不卡帧，换关白场期完成
+async function bakeStem(
+  eng: EngineHandle,
+  secPerBeat: number,
+  loopSec: number,
+  parts: Array<[notes: ScoreNote[], kind: number]>,
+  stale: () => boolean,
+): Promise<Float32Array | null> {
+  const { ex, memory } = eng
+  const n = ex.mClear(loopSec)
+  for (const [notes, kind] of parts) {
+    for (let off = 0; off < notes.length; off += 8) {
+      if (stale()) return null
+      const cnt = Math.min(8, notes.length - off)
+      const sv = new Float64Array(memory.buffer, ex.mScoreBuf(), cnt * 4)
+      for (let i = 0; i < cnt; i++) {
+        const note = notes[off + i]
+        sv[i * 4] = note.midi
+        sv[i * 4 + 1] = note.beat * secPerBeat
+        sv[i * 4 + 2] = note.beats * secPerBeat
+        sv[i * 4 + 3] = note.vel
+      }
+      ex.mRender(kind, cnt)
+      await new Promise((r) => setTimeout(r, 0))
+    }
+  }
+  return new Float32Array(memory.buffer, ex.mPcmBuf(), n).slice()
+}
+
+// stem 播放器：WASM 烘焙伴奏/根本旋律两段循环 PCM → AudioBufferSource 循环，播放零合成成本
+// 自适应保留：theme 走独立 gain+低通（setFlow 实时调），回声链随 flow 同起伏
 export class MusicPlayer {
   private ctx: AudioContext
+  private eng: EngineHandle
   private bus: GainNode
   private melBus: GainNode
   private melLp: BiquadFilterNode
   private delaySend: GainNode
-  private timer: number | null = null
-  private score: BgmScore | null = null
-  private secPerStep = 0.5
-  private startAt = 0
-  private nextStep = 0
+  private sources: AudioBufferSourceNode[] = []
+  private playing = false
   private ducked = false
   // start/stop 竞态护栏：迟到的启动定时器不得复活已停的乐谱
   private gen = 0
 
-  constructor(ctx: AudioContext, dest: AudioNode) {
+  constructor(ctx: AudioContext, dest: AudioNode, eng: EngineHandle) {
     this.ctx = ctx
+    this.eng = eng
     this.bus = ctx.createGain()
     this.bus.gain.value = 0
     this.bus.connect(dest)
-    // 主旋律层独立母线：flow 实时调增益与亮度（垂直分层混音）
+    // 根本旋律层独立母线：flow 实时调增益与亮度（垂直分层混音）
     this.melBus = ctx.createGain()
     this.melBus.gain.value = 0.6
     this.melLp = ctx.createBiquadFilter()
@@ -139,7 +210,7 @@ export class MusicPlayer {
     this.melLp.connect(this.bus)
     // 共享反馈延迟链（一次创建）：附点节奏感回声，非山洞混响；不用 convolver（内存）
     this.delaySend = ctx.createGain()
-    this.delaySend.gain.value = 0.45
+    this.delaySend.gain.value = 0.4
     const delay = ctx.createDelay(1)
     delay.delayTime.value = 0.26
     const fbLp = ctx.createBiquadFilter()
@@ -149,6 +220,7 @@ export class MusicPlayer {
     fbGain.gain.value = 0.22
     const wet = ctx.createGain()
     wet.gain.value = 0.15
+    this.melLp.connect(this.delaySend)
     this.delaySend.connect(delay)
     delay.connect(fbLp)
     fbLp.connect(fbGain)
@@ -159,33 +231,65 @@ export class MusicPlayer {
 
   start(score: BgmScore) {
     const gen = ++this.gen
-    this.stopTimer()
+    this.stopSources()
     this.bus.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3)
-    this.score = score
-    this.secPerStep = 30 / score.bpm
-    // 换关留一小段静默：旧音符尾音落定、新乐谱淡入
-    window.setTimeout(() => {
-      if (gen !== this.gen || this.score !== score) return
-      this.startAt = this.ctx.currentTime + 0.1
-      this.nextStep = 0
-      this.melBus.gain.setTargetAtTime(0.6, this.ctx.currentTime, 0.1)
-      this.melLp.frequency.setTargetAtTime(2000, this.ctx.currentTime, 0.1)
-      this.bus.gain.setTargetAtTime(this.ducked ? DUCK_GAIN : BUS_GAIN, this.ctx.currentTime, 1.4)
-      this.timer = window.setInterval(this.pump, LOOKAHEAD_MS)
-      this.pump()
-    }, START_DELAY_MS)
+    void this.bakeAndStart(gen, score)
+  }
+
+  // 预烘焙 stem 直起（music-bakery 缓存命中）：启动零合成开销
+  startStems(stems: BakedStems) {
+    const gen = ++this.gen
+    this.stopSources()
+    this.bus.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3)
+    this.launch(gen, stems.accomp, stems.theme)
+  }
+
+  private async bakeAndStart(gen: number, score: BgmScore) {
+    const stale = () => gen !== this.gen
+    const secPerBeat = 60 / score.bpm
+    const loopSec = score.bars * 4 * secPerBeat
+    const accomp = await bakeStem(this.eng, secPerBeat, loopSec, [
+      [score.bass, 0],
+      [score.arp, 1],
+    ], stale)
+    if (!accomp || stale()) return
+    const theme = await bakeStem(this.eng, secPerBeat, loopSec, [[score.theme, 2]], stale)
+    if (!theme || stale()) return
+    this.launch(gen, accomp, theme)
+  }
+
+  private launch(gen: number, accomp: Float32Array, theme: Float32Array) {
+    if (gen !== this.gen) return
+    const t0 = this.ctx.currentTime + 0.1
+    const mkSrc = (pcm: Float32Array, dest: AudioNode) => {
+      const buf = this.ctx.createBuffer(1, pcm.length, 44100)
+      buf.copyToChannel(pcm as Float32Array<ArrayBuffer>, 0)
+      const src = this.ctx.createBufferSource()
+      src.buffer = buf
+      src.loop = true
+      src.connect(dest)
+      src.start(t0)
+      this.sources.push(src)
+    }
+    mkSrc(accomp, this.bus)
+    mkSrc(theme, this.melBus)
+    this.playing = true
+    this.melBus.gain.setTargetAtTime(0.6, this.ctx.currentTime, 0.1)
+    this.melLp.frequency.setTargetAtTime(2000, this.ctx.currentTime, 0.1)
+    this.bus.gain.setTargetAtTime(this.ducked ? DUCK_GAIN : BUS_GAIN, this.ctx.currentTime, 1.4)
   }
 
   stop() {
     this.gen++
-    this.score = null
-    this.stopTimer()
+    this.playing = false
     this.bus.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4)
+    // 淡出后再停 source：避免爆音
+    window.setTimeout(() => this.stopSources(), 1200)
   }
 
   duck(on: boolean) {
     this.ducked = on
-    if (this.score) {
+    if (this.playing) {
       this.bus.gain.setTargetAtTime(on ? DUCK_GAIN : BUS_GAIN, this.ctx.currentTime, 0.6)
     }
   }
@@ -198,104 +302,14 @@ export class MusicPlayer {
     this.melLp.frequency.setTargetAtTime(900 + 2400 * v, t, 0.5)
   }
 
-  private stopTimer() {
-    if (this.timer !== null) {
-      clearInterval(this.timer)
-      this.timer = null
-    }
-  }
-
-  // 调度基准用 ctx.currentTime 而非 performance.now()：页面隐藏 ctx.suspend 后
-  // 音频时钟冻结，调度自然暂停，恢复可见无缝续播，绝不积压
-  private pump = () => {
-    const score = this.score
-    if (!score) return
-    const loopSteps = score.bars * 8
-    const horizon = this.ctx.currentTime + SCHED_AHEAD
-    while (this.startAt + this.nextStep * this.secPerStep < horizon) {
-      const loopStep = this.nextStep % loopSteps
-      const t = this.startAt + this.nextStep * this.secPerStep
-      for (const n of score.bass) if (Math.round(n.beat * 2) === loopStep) this.bassVoice(n, t)
-      for (const n of score.arp) if (Math.round(n.beat * 2) === loopStep) this.arpVoice(n, t)
-      // 伴奏先铺一遍再进主旋律（奇数遍全奏），编制起伏不靠烘焙靠排程
-      if (Math.floor(this.nextStep / loopSteps) % 2 === 1) {
-        for (const n of score.theme) if (Math.round(n.beat * 2) === loopStep) this.themeVoice(n, t)
-      }
-      this.nextStep++
-    }
-  }
-
-  private bassVoice(n: ScoreNote, t: number) {
-    const osc = this.ctx.createOscillator()
-    osc.type = 'sine'
-    osc.frequency.value = midiFreq(n.midi)
-    const g = this.ctx.createGain()
-    g.gain.setValueAtTime(0, t)
-    g.gain.linearRampToValueAtTime(0.2 * n.vel, t + 0.01)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55)
-    osc.connect(g)
-    g.connect(this.bus)
-    osc.start(t)
-    osc.stop(t + 0.75)
-    this.releaseWhenDone(osc, [osc, g])
-  }
-
-  private arpVoice(n: ScoreNote, t: number) {
-    const osc = this.ctx.createOscillator()
-    osc.type = 'triangle'
-    osc.frequency.value = midiFreq(n.midi)
-    const g = this.ctx.createGain()
-    g.gain.setValueAtTime(0, t)
-    g.gain.linearRampToValueAtTime(0.26 * n.vel, t + 0.008)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5)
-    osc.connect(g)
-    g.connect(this.bus)
-    osc.start(t)
-    osc.stop(t + 0.7)
-    this.releaseWhenDone(osc, [osc, g])
-  }
-
-  // FM 钢片琴：载波 sine + 2 倍频调制（泛音随包络衰减），八音盒的明亮晶莹
-  private themeVoice(n: ScoreNote, t: number) {
-    const f = midiFreq(n.midi)
-    const car = this.ctx.createOscillator()
-    car.type = 'sine'
-    car.frequency.value = f
-    const mod = this.ctx.createOscillator()
-    mod.type = 'sine'
-    mod.frequency.value = f * 2
-    const mg = this.ctx.createGain()
-    mg.gain.setValueAtTime(f * 2.6, t)
-    mg.gain.exponentialRampToValueAtTime(Math.max(1, f * 0.05), t + 0.6)
-    mod.connect(mg)
-    mg.connect(car.frequency)
-    const g = this.ctx.createGain()
-    g.gain.setValueAtTime(0, t)
-    g.gain.linearRampToValueAtTime(0.4 * n.vel, t + 0.008)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9)
-    car.connect(g)
-    g.connect(this.melBus)
-    g.connect(this.delaySend)
-    car.start(t)
-    mod.start(t)
-    car.stop(t + 1.1)
-    mod.stop(t + 1.1)
-    this.releaseWhenDone(car, [car, mod, mg, g])
-  }
-
-  private releaseWhenDone(src: OscillatorNode, nodes: AudioNode[]) {
-    const cleanup = () => {
-      for (const n of nodes) {
-        try {
-          n.disconnect()
-        } catch {
-        }
+  private stopSources() {
+    for (const src of this.sources) {
+      try {
+        src.stop()
+        src.disconnect()
+      } catch {
       }
     }
-    try {
-      src.addEventListener('ended', cleanup, { once: true })
-    } catch {
-      window.setTimeout(cleanup, 8000)
-    }
+    this.sources = []
   }
 }

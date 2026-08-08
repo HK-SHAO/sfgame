@@ -8,10 +8,22 @@ import { bgm } from './bgm'
 haptics.muted = sfx.muted
 bgm.muted = sfx.muted
 
+// 音频权限统一解锁：自动播放策略要求用户手势内创建/恢复音频（AudioContext resume
+// 与 HTMLAudioElement play 同受约束）。非手势调用（app 构造/URL 直达）仅布防监听，
+// 每次用户手势幂等尝试解锁 sfx 与 bgm——首次手势被拒/失败后，后续手势自动重试（不 once）；
+// sfx.unlock/bgm.start 均幂等，重复调用零开销
+let unlockArmed = false
+const unlockAudio = () => {
+  sfx.unlock()
+  bgm.start()
+}
+
 export const fb = {
   unlock() {
-    sfx.unlock()
-    bgm.start()
+    if (unlockArmed) return
+    unlockArmed = true
+    document.addEventListener('pointerdown', unlockAudio)
+    document.addEventListener('keydown', unlockAudio)
   },
 
   get muted() {

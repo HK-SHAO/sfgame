@@ -99,7 +99,6 @@ class Sfx {
   private noiseBuf: AudioBuffer | null = null
   private bed: WindVoice | null = null
   private planeWind: WindVoice | null = null
-  private unlockArmed = false
   muted = false
 
   constructor() {
@@ -111,15 +110,8 @@ class Sfx {
   }
 
   // 浏览器自动播放策略：AudioContext 须在用户手势内创建/恢复。
-  // 首次调用（非手势，如 app 构造）仅布防监听并返回；ctx 创建留给手势 fire，杜绝非手势创建+resume 被 Chrome 拒绝
+  // 手势布防统一在 feedback.ts（fb.unlock），本方法只做幂等创建+恢复——调用方须保证在手势上下文内
   unlock() {
-    if (!this.unlockArmed) {
-      this.unlockArmed = true
-      const fire = () => this.unlock()
-      document.addEventListener('pointerdown', fire, { once: true })
-      document.addEventListener('keydown', fire, { once: true })
-      return
-    }
     if (!this.ctx) {
       const Ctor =
         window.AudioContext ??

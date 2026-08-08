@@ -250,7 +250,7 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 ## F. 音频（WebAudio）
 
 ### F1 iOS 必须用户手势中创建/恢复 AudioContext
-`pointerdown` 时 unlock（`ctx.resume()`）。
+`pointerdown` 时 unlock（`ctx.resume()`）。**BGM（HTMLAudioElement）同受自动播放策略约束**：`fb.unlock()` 单点布防（feedback.ts 的 `unlockAudio`），首次手势同时解锁 sfx 与 bgm——bgm 若只在 app 构造时 `play()` 一次，非手势上下文被拒后无人重试会永久沉默（2026-08 统一化）。
 
 ### F2 后台挂起 + 恢复可见立即恢复
 `visibilitychange`：hidden → suspend；visible 且 suspended → resume（**不依赖下次触摸**，否则切回页面无声）。

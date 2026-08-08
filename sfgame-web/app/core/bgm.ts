@@ -1,4 +1,5 @@
-// 全局背景乐「风息」：流式 Audio 元素（整曲不解码进内存），首次用户手势后启动，
+// 全局背景乐「风息」：流式 Audio 元素（整曲不解码进内存）。由 fb.unlock 统一在首次用户手势内
+// 启动（HTMLAudioElement.play 同受自动播放策略约束，与 sfx 同节奏、幂等可重试）；
 // 静音/页面隐藏时暂停省资源；资源级失败（404/损坏）标记 failed 后不再重试——音乐缺失不影响游戏；
 // 播放速率跟随关卡倍率（变调无音高补偿，0.05 极低音量下瑕疵被掩蔽）
 import bgmUrl from '/bgm-main.mp3?url'
@@ -14,7 +15,8 @@ class Bgm {
   private rate = 1
   muted = false
 
-  // 须在用户手势内首次调用（浏览器自动播放策略），后续幂等
+  // 幂等可重入（fb 手势驱动、每次手势可重试）：元素未建且未失败才创建；play 被拒（非手势上下文）
+  // 由下一次手势重试，muted 挡在 attempt 前
   start() {
     if (!this.el && !this.failed) {
       let el: HTMLAudioElement

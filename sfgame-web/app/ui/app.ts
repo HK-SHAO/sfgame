@@ -5,11 +5,14 @@ import { fb } from '../core/feedback'
 import { bgm } from '../core/bgm'
 import { LEVELS, LEVEL_GROUPS, nextInGroup, solutionsFor } from '../game/levels'
 import { progress } from '../game/progress'
-import type { SfGame, DenyDetail } from './sf-game'
+import { SfGame, type DenyDetail } from './sf-game'
 import type { SfHud } from './hud'
-import type { DevTools } from '../dev/devtools'
-// 首屏内容同步进主包；其余屏组件按需动态加载（见 ensureGameReady/ensureScreen）
+import { DevTools } from '../dev/devtools'
+import '../dev/dev-menu'
+import './storage-view'
+import './win-overlay'
 import './title-screen'
+import './hud'
 import { urlState } from '../game/state'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
@@ -42,14 +45,6 @@ export class SfApp extends LitElement {
   @state() private dev = urlState.get('dev')
   // 面板由 app 持有：sf-game 重建不销毁
   private devTools: DevTools | null = null
-  private devToolsModule: Promise<typeof import('../dev/devtools') | null> | null = null
-  // 屏级 chunk 就绪门闩：异步加载完成后才渲染对应屏（避免先渲染未知元素）
-  @state() private gameReady = false
-  // dev 面板就绪门闩：构造完成置 true、destroy 置 false——sf-game 渲染前 devTools 必已就绪
-  // （controller 构造时快照 devTools，错过则 perf/无限量同时失效）
-  @state() private devToolsReady = false
-  @state() private devMenuReady = false
-  @state() private storageReady = false
   private get speedSteps(): number[] {
     return this.dev ? [1, 2, 4, 8, 16, 0.5] : [1, 2, 4, 0.5]
   }
@@ -76,59 +71,13 @@ export class SfApp extends LitElement {
     super.disconnectedCallback()
   }
 
-  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续，便于连续迭代。
-  // 面板模块按需加载（仅 ?dev=1 且游戏屏）；devToolsReady 门闩保证 sf-game 渲染前面板必已构造。
-  // 模块缓存与构造分离：退出关卡会 destroy 面板，重进须能重新构造——
-  // 若缓存整条 then 链，settled 后构造逻辑只跑一次，面板将永久缺失
-  private loadDevTools(): Promise<void> {
-    this.devToolsModule ??= import('../dev/devtools').catch(() => {
-      // 面板加载失败仅失去 dev 能力，不阻塞游戏，也不留 unhandled rejection
-      return null
-    })
-    return this.devToolsModule.then((m) => {
-      // 每次调用复查：import 完成时可能已退出 dev 游戏屏，构造面板须此刻条件仍成立
-      if (m && this.screen === 'game' && this.dev && !this.devTools) {
-        this.devTools = new m.DevTools({ onApply: this.onDevOverride })
-        this.devToolsReady = true
-      }
-    })
-  }
-
+  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续，便于连续迭代
   private syncDevTools() {
     if (this.screen === 'game' && this.dev) {
-      if (!this.devTools) void this.loadDevTools()
+      if (!this.devTools) this.devTools = new DevTools({ onApply: this.onDevOverride })
     } else if (this.devTools) {
       this.devTools.destroy()
       this.devTools = null
-      this.devToolsReady = false
-    }
-  }
-
-  // 屏级 chunk 惰性加载：首次进入对应屏才请求，加载完成置就绪门闩触发重渲染。
-  // 游戏屏 = 关卡内核（sf-game/controller/sim/render）+ HUD/结算组件整组；
-  // dev 时游戏屏须连带等待 dev 面板模块（controller 的 unlimited 依 devTools 面判 dev）
-  private ensureGameReady() {
-    if (this.gameReady) {
-      // 已就绪后重进：dev 面板若已销毁须重新构造（渲染门闩等 devToolsReady 才放行 sf-game）
-      if (this.dev && !this.devTools) void this.loadDevTools()
-      return
-    }
-    const wait: Promise<void>[] = [
-      import('./sf-game').then(() => undefined),
-      import('./hud').then(() => undefined),
-      import('./win-overlay').then(() => undefined),
-    ]
-    if (this.dev) wait.push(this.loadDevTools())
-    void Promise.all(wait).then(() => {
-      this.gameReady = true
-    })
-  }
-
-  private ensureScreen(chunk: 'dev' | 'storage') {
-    if (chunk === 'dev') {
-      if (!this.devMenuReady) void import('../dev/dev-menu').then(() => (this.devMenuReady = true))
-    } else if (!this.storageReady) {
-      void import('./storage-view').then(() => (this.storageReady = true))
     }
   }
 
@@ -159,11 +108,6 @@ export class SfApp extends LitElement {
 
   protected override willUpdate(changed: PropertyValues) {
     this.syncDevTools()
-    if (changed.has('screen')) {
-      if (this.screen === 'game') this.ensureGameReady()
-      else if (this.screen === 'dev') this.ensureScreen('dev')
-      else if (this.screen === 'storage') this.ensureScreen('storage')
-    }
     // 渲染前重置（willUpdate 不额外调度），避免上局结算覆盖层闪现
     if (changed.has('screen') && this.screen === 'game') {
       this.resetHud(this.activeLevel)
@@ -284,20 +228,16 @@ export class SfApp extends LitElement {
 
   protected override render() {
     let content: TemplateResult
-    if (this.screen === 'game') {
-      content =
-        this.gameReady && (!this.dev || this.devToolsReady) ? this.renderGame() : html``
-    } else if (this.screen === 'dev') {
-      content = this.devMenuReady
-        ? html`<sf-dev-menu
-            .dev=${this.dev}
-            @back=${this.goBack}
-            @open-storage=${this.openStorage}
-            @toggle-dev=${this.toggleDev}
-          ></sf-dev-menu>`
-        : html``
+    if (this.screen === 'game') content = this.renderGame()
+    else if (this.screen === 'dev') {
+      content = html`<sf-dev-menu
+        .dev=${this.dev}
+        @back=${this.goBack}
+        @open-storage=${this.openStorage}
+        @toggle-dev=${this.toggleDev}
+      ></sf-dev-menu>`
     } else if (this.screen === 'storage') {
-      content = this.storageReady ? html`<sf-storage @back=${this.goBack}></sf-storage>` : html``
+      content = html`<sf-storage @back=${this.goBack}></sf-storage>`
     } else {
       content = html`<sf-title-screen
         .dev=${this.dev}

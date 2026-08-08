@@ -49,8 +49,8 @@ export class SfPerf extends LitElement {
     .lines {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.0625rem 0.75rem;
-      padding: 0.125rem 0.375rem;
+      gap: 0.0625rem var(--sp-3);
+      padding: var(--sp-1) var(--sp-2);
       /* 点击即全选整块文本，便于复制性能数据 */
       user-select: all;
     }
@@ -59,7 +59,7 @@ export class SfPerf extends LitElement {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      gap: 0.25rem;
+      gap: var(--sp-1);
       min-width: 0;
       font-size: 0.6875rem;
       line-height: 1.5;
@@ -77,7 +77,7 @@ export class SfPerf extends LitElement {
 
     .divider {
       height: 1px;
-      margin: 0.25rem 0 0.0625rem;
+      margin: var(--sp-1) 0 0.0625rem;
       background: var(--dev-hairline);
     }
   `

@@ -12,8 +12,8 @@ export class SfDevPanel extends LitElement {
   // 增量跟手（不依赖 movementX 兼容性）
   private prevX = 0
   private prevY = 0
-  private gapX = 10
-  private gapY = 8
+  private gapX = 13
+  private gapY = 9
   private originX = 0
   private originY = 0
 
@@ -30,21 +30,20 @@ export class SfDevPanel extends LitElement {
 
       color-scheme: light;
       position: fixed;
-      /* 4rem = hud 总高 3.5rem + 0.5rem 间距 */
-      top: calc(3.5rem + env(safe-area-inset-top, 0px));
-      left: calc(0.625rem + env(safe-area-inset-left, 0px));
+      top: calc(3.5625rem + env(safe-area-inset-top, 0px));
+      left: 0.8125rem;
       right: auto;
       z-index: 9999;
       display: flex;
       flex-direction: column;
-      gap: 0.3125rem;
+      gap: var(--sp-1);
       width: min(20rem, calc(100vw - 1.25rem));
       max-height: calc(100dvh - 4.5rem - env(safe-area-inset-top, 0px));
       overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-color: rgba(255, 233, 201, 0.25) transparent;
-      padding: 0.25rem 0.375rem;
-      border-radius: 0.625rem;
+      padding: var(--sp-1) var(--sp-2);
+      border-radius: var(--r-md);
       corner-shape: squircle;
       background: rgba(20, 18, 14, 0.72);
       color: var(--dev-fg);
@@ -56,8 +55,8 @@ export class SfDevPanel extends LitElement {
     .head {
       display: flex;
       align-items: center;
-      gap: 0.375rem;
-      padding: 0.125rem 0.375rem;
+      gap: var(--sp-2);
+      padding: var(--sp-1);
       font-size: 0.6875rem;
       line-height: 1.5;
       cursor: grab;
@@ -168,8 +167,9 @@ export class SfDevPanel extends LitElement {
 
   private updateGap() {
     const fz = parseFloat(getComputedStyle(document.documentElement).fontSize)
-    this.gapX = 0.625 * fz
-    this.gapY = 0.5 * fz
+    // 贴边间隙与 hud 边距对齐（0.8125 侧 = hud 横向 padding、0.5625 顶 = hud 顶部 padding）
+    this.gapX = 0.8125 * fz
+    this.gapY = 0.5625 * fz
   }
 
   private snapToEdge() {

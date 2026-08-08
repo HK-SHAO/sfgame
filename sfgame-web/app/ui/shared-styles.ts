@@ -47,9 +47,9 @@ export const pageShell = css`
   .page {
     height: 100%;
     overflow-y: auto;
-    padding: 0 1.125rem calc(1.875rem + env(safe-area-inset-bottom, 0px));
+    padding: 0 var(--page-pad-x) calc(1.875rem + env(safe-area-inset-bottom, 0px));
     scrollbar-width: thin;
-    scrollbar-color: rgba(61, 52, 39, 0.25) transparent;
+    scrollbar-color: var(--scroll-thumb) transparent;
     background:
       radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
       linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
@@ -60,24 +60,23 @@ export const pageShell = css`
     position: sticky;
     top: 0;
     z-index: 10;
-    margin: 0 calc(-1.125rem) 0.875rem;
-    padding:
-      calc(0.75rem + env(safe-area-inset-top, 0px)) 1.125rem 0.75rem;
+    margin: 0 calc(-1 * var(--page-pad-x)) var(--sp-4);
+    padding: calc(0.75rem + env(safe-area-inset-top, 0px)) var(--page-pad-x) 0.75rem;
     background: rgba(255, 253, 248, 0.6);
     backdrop-filter: blur(1.5rem) saturate(1.6);
     -webkit-backdrop-filter: blur(1.5rem) saturate(1.6);
     border-bottom: 1px solid rgba(255, 255, 255, 0.45);
     box-shadow: 0 0.25rem 1rem rgba(61, 52, 39, 0.08);
     /* 底角圆润与卡片/按钮一致；顶角贴视口上沿，不圆 */
-    border-radius: 0 0 1rem 1rem;
+    border-radius: 0 0 var(--r-lg) var(--r-lg);
     corner-shape: squircle;
   }
 
   .bar-inner {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    max-width: 35rem;
+    gap: var(--sp-3);
+    max-width: var(--maxw-card);
     margin: 0 auto;
   }
 
@@ -90,12 +89,12 @@ export const pageShell = css`
 
   .icon-btn {
     flex: none;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: var(--ctl-h);
+    height: var(--ctl-h);
     display: grid;
     place-items: center;
     border: none;
-    border-radius: 0.75rem;
+    border-radius: var(--r-md);
     corner-shape: squircle;
     background: rgba(255, 253, 248, 0.66);
     backdrop-filter: blur(1rem) saturate(1.5);
@@ -119,12 +118,12 @@ export const pageShell = css`
 
 export const card = css`
   .card {
-    max-width: 35rem;
-    margin: 0 auto 1.25rem;
-    padding: 0.375rem;
+    max-width: var(--maxw-card);
+    margin: 0 auto var(--sp-4);
+    padding: var(--sp-2);
     background: var(--card);
     border: 1px solid rgba(255, 255, 255, 0.6);
-    border-radius: 1rem;
+    border-radius: var(--r-lg);
     corner-shape: squircle;
     box-shadow: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.07);
   }

@@ -135,22 +135,24 @@ export class SfTitleScreen extends LitElement {
         height: 100%;
         display: flex;
         flex-direction: column;
-        padding: 1.5rem;
+        padding: var(--page-pad-y) var(--page-pad-x);
         ${warmBg}
         overflow: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--scroll-thumb) transparent;
       }
 
       .title-card {
         width: 100%;
-        max-width: 35rem;
+        max-width: var(--maxw-card);
         margin: auto;
-        padding: 1.75rem 2rem 1.375rem;
+        padding: var(--card-pad);
         text-align: center;
         background: var(--card);
         backdrop-filter: blur(1.5rem) saturate(1.4);
         -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
         border: 1px solid rgba(255, 255, 255, 0.6);
-        border-radius: 1.75rem;
+        border-radius: var(--r-xl);
         corner-shape: squircle;
         box-shadow: 0 1.125rem 2.75rem rgba(61, 52, 39, 0.1);
       }
@@ -179,7 +181,7 @@ export class SfTitleScreen extends LitElement {
       .levels {
         display: flex;
         flex-direction: column;
-        gap: 0.375rem;
+        gap: var(--sp-2);
         text-align: left;
       }
 
@@ -187,7 +189,7 @@ export class SfTitleScreen extends LitElement {
       .level-row {
         display: flex;
         align-items: center;
-        gap: 0.375rem;
+        gap: var(--sp-2);
       }
 
       .level-row .level {
@@ -243,8 +245,8 @@ export class SfTitleScreen extends LitElement {
       .groups {
         display: flex;
         justify-content: center;
-        gap: 0.5rem;
-        margin: 0 0 0.75rem;
+        gap: var(--sp-2);
+        margin: 0 0 var(--sp-3);
       }
 
       .group-tab {
@@ -253,8 +255,8 @@ export class SfTitleScreen extends LitElement {
         flex-direction: column;
         align-items: center;
         gap: 1px;
-        padding: 0.375rem 1.125rem;
-        border-radius: 0.875rem;
+        padding: 0.375rem var(--sp-5);
+        border-radius: var(--r-lg);
         corner-shape: squircle;
         background: rgba(255, 255, 255, 0.55);
         border: 1px solid rgba(255, 255, 255, 0.7);
@@ -275,21 +277,21 @@ export class SfTitleScreen extends LitElement {
       }
 
       .no-levels {
-        margin: 0.75rem 0 0;
+        margin: var(--sp-3) 0 0;
         color: var(--ink-soft);
         text-align: center;
       }
 
       .level-errors {
-        margin-top: 0.875rem;
-        padding: 0.625rem 0.75rem;
+        margin-top: var(--sp-4);
+        padding: 0.625rem var(--sp-3);
         text-align: left;
         font-size: 0.75rem;
         line-height: 1.45;
         color: #7a2415;
         background: rgba(255, 90, 60, 0.1);
         border: 1px solid rgba(255, 90, 60, 0.28);
-        border-radius: 0.75rem;
+        border-radius: var(--r-md);
         corner-shape: squircle;
         overflow: hidden;
       }
@@ -302,12 +304,12 @@ export class SfTitleScreen extends LitElement {
       .level {
         display: flex;
         align-items: center;
-        gap: 0.875rem;
+        gap: var(--sp-4);
         width: 100%;
-        padding: 0.5rem 1rem;
+        padding: var(--sp-2) var(--sp-4);
         /* 覆盖卡片继承的 text-align:center */
         text-align: left;
-        border-radius: 1rem;
+        border-radius: var(--r-lg);
         corner-shape: squircle;
         transition: transform 120ms ease-out, box-shadow 120ms ease-out;
       }
@@ -380,7 +382,7 @@ export class SfTitleScreen extends LitElement {
       }
 
       .footnote {
-        margin: 1rem auto 0;
+        margin: var(--sp-4) auto 0;
         max-width: 28.75rem;
         font-size: 0.75rem;
         line-height: 1.7;
@@ -391,13 +393,13 @@ export class SfTitleScreen extends LitElement {
         display: inline-flex;
         align-items: center;
         gap: 0.375rem;
-        margin-top: 0.75rem;
-        padding: 0.5rem 1rem;
+        margin-top: var(--sp-3);
+        padding: var(--sp-2) var(--sp-4);
         font-size: 0.75rem;
         color: var(--ink-soft);
         background: rgba(255, 253, 248, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.6);
-        border-radius: 999px;
+        border-radius: var(--r-pill);
         corner-shape: squircle;
         transition: color 120ms ease-out, box-shadow 120ms ease-out;
       }

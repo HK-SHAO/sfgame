@@ -46,15 +46,15 @@ export class SfStatusBar extends LitElement {
       position: fixed;
       left: 50%;
       transform: translateX(-50%);
-      bottom: calc(0.875rem + env(safe-area-inset-bottom, 0px));
+      bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
       z-index: 3;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.375rem;
+      gap: var(--sp-2);
       width: max-content;
       max-width: min(94%, 36rem);
-      padding: 0.5rem 1.125rem;
+      padding: var(--sp-2) var(--page-pad-x);
       font-size: 0.875rem;
       color: var(--ink);
       font-variant-numeric: tabular-nums;
@@ -63,7 +63,7 @@ export class SfStatusBar extends LitElement {
       backdrop-filter: blur(1rem) saturate(1.5);
       -webkit-backdrop-filter: blur(1rem) saturate(1.5);
       border: 1px solid rgba(255, 255, 255, 0.6);
-      border-radius: 1rem;
+      border-radius: var(--r-lg);
       corner-shape: squircle;
       box-shadow: 0 0.25rem 1.125rem rgba(61, 52, 39, 0.1);
       pointer-events: none;
@@ -83,7 +83,7 @@ export class SfStatusBar extends LitElement {
     .row {
       display: flex;
       align-items: baseline;
-      gap: 0.875rem;
+      gap: var(--sp-4);
       font-weight: 600;
       white-space: nowrap;
     }

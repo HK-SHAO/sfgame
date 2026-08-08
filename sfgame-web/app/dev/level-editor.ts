@@ -32,9 +32,9 @@ export class SfLevelEditor extends LitElement {
       align-items: center;
       gap: 0.375rem;
       width: 100%;
-      padding: 0.25rem 0.375rem;
+      padding: var(--sp-1) var(--sp-2);
       border: none;
-      border-radius: 0.375rem;
+      border-radius: var(--r-sm);
       corner-shape: squircle;
       background: transparent;
       color: inherit;
@@ -66,9 +66,9 @@ export class SfLevelEditor extends LitElement {
     textarea {
       width: 100%;
       box-sizing: border-box;
-      padding: 0.25rem 0.375rem;
+      padding: var(--sp-1) var(--sp-2);
       border: 1px solid var(--dev-hairline);
-      border-radius: 0.375rem;
+      border-radius: var(--r-sm);
       corner-shape: squircle;
       background: var(--dev-input);
       color: inherit;
@@ -85,14 +85,14 @@ export class SfLevelEditor extends LitElement {
 
     .row {
       display: flex;
-      gap: 0.375rem;
+      gap: var(--sp-2);
     }
 
     .row button {
       flex: 1;
-      padding: 0.25rem 0.5rem;
+      padding: var(--sp-1) var(--sp-2);
       border: none;
-      border-radius: 0.375rem;
+      border-radius: var(--r-sm);
       corner-shape: squircle;
       font-size: 0.6875rem;
       cursor: pointer;

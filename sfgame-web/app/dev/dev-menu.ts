@@ -67,13 +67,13 @@ export class SfDevMenu extends LitElement {
       .row {
         display: flex;
         align-items: center;
-        gap: 0.875rem;
+        gap: var(--sp-4);
         width: 100%;
-        padding: 0.875rem 1rem;
+        padding: var(--sp-4);
         /* 行含原生 button（存储管理）：须清零 UA buttonface 底色与黑边框 */
         border: none;
         background: none;
-        border-radius: 0.75rem;
+        border-radius: var(--r-md);
         corner-shape: squircle;
         color: inherit;
         cursor: pointer;
@@ -94,11 +94,11 @@ export class SfDevMenu extends LitElement {
 
       .ico {
         flex: none;
-        width: 2.5rem;
-        height: 2.5rem;
+        width: var(--ctl-h);
+        height: var(--ctl-h);
         display: grid;
         place-items: center;
-        border-radius: 0.75rem;
+        border-radius: var(--r-md);
         corner-shape: squircle;
         background: rgba(255, 237, 209, 0.85);
         color: var(--ink);
@@ -170,7 +170,7 @@ export class SfDevMenu extends LitElement {
       }
 
       .about {
-        padding: 1rem 1.25rem;
+        padding: var(--sp-4) 1.25rem;
       }
 
       .about h2 {

@@ -119,12 +119,10 @@ export class SfHud extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 0.5rem;
-        padding: calc(0.5rem + env(safe-area-inset-top, 0px)) 0.625rem 0.5rem;
+        gap: var(--sp-2);
+        /* 阴影物理留白（0.5625 顶 = 向上 blur−offset、0.8125 侧/底 = 全外扩），不随设计 token */
+        padding: calc(0.5625rem + env(safe-area-inset-top, 0px)) 0.8125rem 0.8125rem;
         pointer-events: none;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scrollbar-width: none;
       }
 
       .hud > * {
@@ -136,21 +134,12 @@ export class SfHud extends LitElement {
       .hud-right {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: var(--sp-2);
       }
 
       .lbl {
         display: none;
         white-space: nowrap;
-      }
-
-      /* <25rem ≈ 无标签内容宽：接管指针，否则滚动手势被下方 canvas 吃掉 */
-      @container (max-width: 25rem) {
-        .hud {
-          pointer-events: auto;
-          scrollbar-width: thin;
-          scrollbar-color: rgba(61, 52, 39, 0.25) transparent;
-        }
       }
 
       /* 42rem ≈ 带标签内容宽 */
@@ -161,14 +150,14 @@ export class SfHud extends LitElement {
       }
 
       .icon-btn {
-        min-width: 2.5rem;
-        height: 2.5rem;
+        min-width: var(--ctl-h);
+        height: var(--ctl-h);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 0.375rem;
-        padding: 0 0.75rem;
-        border-radius: 0.75rem;
+        padding: 0 var(--sp-3);
+        border-radius: var(--r-md);
         corner-shape: squircle;
         background: rgba(255, 253, 248, 0.66);
         backdrop-filter: blur(1rem) saturate(1.5);
@@ -191,10 +180,10 @@ export class SfHud extends LitElement {
       .chip {
         display: inline-flex;
         align-items: center;
-        gap: 0.31rem;
-        height: 2.5rem;
-        padding: 0 0.75rem;
-        border-radius: 0.75rem;
+        gap: var(--sp-1);
+        height: var(--ctl-h);
+        padding: 0 var(--sp-3);
+        border-radius: var(--r-md);
         corner-shape: squircle;
         background: rgba(255, 253, 248, 0.66);
         backdrop-filter: blur(1rem) saturate(1.5);
@@ -224,6 +213,30 @@ export class SfHud extends LitElement {
 
       .chip.empty {
         opacity: 0.42;
+      }
+
+      /* 26rem ≈ 无标签内容宽下限：再窄收紧控件，保证永不溢出（替代旧横向滚动）。
+         置于常规定义之后：同特异性容器查询必须后定义才覆盖 */
+      @container (max-width: 26rem) {
+        .hud,
+        .hud-left,
+        .hud-right {
+          gap: var(--sp-1);
+        }
+
+        .icon-btn {
+          min-width: 2.25rem;
+          padding: 0 var(--sp-2);
+        }
+
+        .icon-btn svg {
+          width: 1.06rem;
+          height: 1.06rem;
+        }
+
+        .chip {
+          padding: 0 var(--sp-2);
+        }
       }
     `,
   ]

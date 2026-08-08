@@ -44,7 +44,8 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 ## 样式约定（本仓库特有，别写 px）
 
-- 根字号在 `app/styles.css` 随视口缩放（clamp + min(vw,vh)），**组件内尺寸一律 rem**；px 仅限特殊情形（发丝线、动画位移、胶囊、媒体查询断点、env(safe-area)、阴影）
+- 根字号在 `app/styles.css` 随视口缩放（`calc(12.5px + min(0.7vw, 0.38vh))`，**无 clamp 硬限制**——字体/组件随显示尺寸等比缩放，配合密度降级保证"不可能溢出"，禁止用滚动条兜底横向溢出；px 仅限特殊情形（发丝线、动画位移、胶囊、媒体查询断点、env(safe-area)、阴影）
+- 间距/圆角/控件尺寸一律用 `:root` 尺寸 token（`--sp-1..6`、`--r-sm/md/lg/xl/pill`、`--ctl-h`、`--maxw-card/dialog`、`--card-pad`、`--page-pad-x/y`、`--hud-h`、`--scroll-thumb`），**禁止新散点值**；物理计算值例外（如 hud 阴影留白）
 - **每个 Lit 组件须自声明 `box-sizing: border-box`**（全局样式不穿透 shadow DOM，缺了会右溢）
 - 居中 + 溢出兜底用子项 `margin: auto`，禁用 `place-items: center`（溢出双向裁切）
 

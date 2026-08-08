@@ -134,8 +134,8 @@ export class SfStorage extends LitElement {
       }
 
       .entry {
-        padding: 0.75rem 0.875rem;
-        border-radius: 0.75rem;
+        padding: var(--sp-3) var(--sp-4);
+        border-radius: var(--r-md);
         corner-shape: squircle;
       }
 
@@ -156,7 +156,7 @@ export class SfStorage extends LitElement {
       .entry-head {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: var(--sp-2);
       }
 
       .expand-ctl {
@@ -209,10 +209,10 @@ export class SfStorage extends LitElement {
 
       .del {
         flex: none;
-        padding: 0.375rem 0.75rem;
+        padding: 0.375rem var(--sp-3);
         font-size: 0.75rem;
         font-weight: 600;
-        border-radius: 999px;
+        border-radius: var(--r-pill);
         corner-shape: squircle;
         cursor: pointer;
         transition: transform 100ms ease-out, background 120ms ease-out;
@@ -223,8 +223,8 @@ export class SfStorage extends LitElement {
       }
 
       .raw {
-        margin: 0.5rem 0 0;
-        padding: 0.625rem 0.75rem;
+        margin: var(--sp-2) 0 0;
+        padding: 0.625rem var(--sp-3);
         max-height: 10rem;
         overflow: auto;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -234,7 +234,7 @@ export class SfStorage extends LitElement {
         word-break: break-all;
         color: var(--ink);
         background: rgba(61, 52, 39, 0.05);
-        border-radius: 0.625rem;
+        border-radius: var(--r-sm);
         corner-shape: squircle;
       }
 
@@ -243,7 +243,7 @@ export class SfStorage extends LitElement {
       align-items: center;
       gap: 0.625rem;
       margin: 0;
-      padding: 1.5rem 1rem;
+      padding: var(--sp-6) var(--sp-4);
       font-size: 0.875rem;
       color: var(--ink-soft);
     }
@@ -255,7 +255,7 @@ export class SfStorage extends LitElement {
     }
 
     .foot {
-      max-width: 35rem;
+      max-width: var(--maxw-card);
       margin: 0 auto;
       display: flex;
       flex-direction: column;
@@ -267,7 +267,7 @@ export class SfStorage extends LitElement {
       padding: 0.6875rem 1.375rem;
       font-size: 0.875rem;
       font-weight: 600;
-      border-radius: 0.875rem;
+      border-radius: var(--r-lg);
       corner-shape: squircle;
       cursor: pointer;
       transition: transform 100ms ease-out, background 120ms ease-out;

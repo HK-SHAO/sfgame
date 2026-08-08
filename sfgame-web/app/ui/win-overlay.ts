@@ -60,7 +60,7 @@ export class SfWinOverlay extends LitElement {
       z-index: 5;
       display: flex;
       flex-direction: column;
-      padding: 1.5rem;
+      padding: var(--page-pad-y) var(--page-pad-x);
       background: var(--scrim);
       backdrop-filter: blur(0.19rem);
       -webkit-backdrop-filter: blur(0.19rem);
@@ -69,13 +69,13 @@ export class SfWinOverlay extends LitElement {
 
     .win-card {
       width: 100%;
-      max-width: 22.5rem;
+      max-width: var(--maxw-dialog);
       margin: auto;
-      padding: 1.875rem 1.875rem 1.625rem;
+      padding: var(--card-pad);
       text-align: center;
       background: var(--card);
       border: 1px solid rgba(255, 255, 255, 0.7);
-      border-radius: 1.625rem;
+      border-radius: var(--r-xl);
       corner-shape: squircle;
       box-shadow: 0 1.5rem 3.75rem rgba(61, 52, 39, 0.22);
       animation: pop 340ms cubic-bezier(0.3, 1.35, 0.5, 1);
@@ -97,16 +97,16 @@ export class SfWinOverlay extends LitElement {
 
     .stats {
       margin: 0 0 1.375rem;
-      padding: 0.875rem 1rem;
+      padding: var(--sp-4);
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.375rem;
+      gap: var(--sp-2);
       font-variant-numeric: tabular-nums;
       color: var(--ink);
       background: var(--card-warm);
       border: 1px solid rgba(255, 255, 255, 0.55);
-      border-radius: 0.875rem;
+      border-radius: var(--r-lg);
       corner-shape: squircle;
     }
 
@@ -139,7 +139,7 @@ export class SfWinOverlay extends LitElement {
     }
 
     .row + .row {
-      margin-top: 0.75rem;
+      margin-top: var(--sp-3);
     }
 
     .row .next {
@@ -153,7 +153,7 @@ export class SfWinOverlay extends LitElement {
       padding: 0.6875rem 1.375rem;
       font-size: 0.875rem;
       font-weight: 600;
-      border-radius: 0.875rem;
+      border-radius: var(--r-lg);
       corner-shape: squircle;
       cursor: pointer;
       color: inherit;

@@ -32,18 +32,18 @@ export class SfUnsupported extends LitElement {
       display: flex;
       flex-direction: column;
       overflow: auto;
-      padding: 1.5rem;
+      padding: var(--page-pad-y) var(--page-pad-x);
       ${warmBg}
     }
 
     .card {
       /* 居中 + 溢出兜底：margin auto 而非 place-items（溢出双向裁切） */
       margin: auto;
-      padding: 1.75rem 1.5rem;
+      padding: var(--card-pad);
       text-align: center;
       background: var(--card);
       border: 1px solid rgba(255, 255, 255, 0.6);
-      border-radius: 1.75rem;
+      border-radius: var(--r-xl);
       corner-shape: squircle;
       box-shadow: 0 1.125rem 2.75rem rgba(61, 52, 39, 0.1);
     }

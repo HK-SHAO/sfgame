@@ -12,6 +12,7 @@ description: 本项目（Lit 3 + WebGL + WASM·SIMD + vite/bun 单页游戏）�
 
 - 布局右溢、右侧间距消失 → A2、A4
 - 居中元素（提示条/弹层）宽度只有容器一半 → B4
+- 滚动容器内阴影被截断/缺一截 → B5
 - 顶部滚不回去、底部间距不可见 → A3
 - 刷新后页面/状态丢失 → C6
 - 后退/前进"没反应"、源删不掉 → C5
@@ -98,11 +99,17 @@ canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配
 ### B3 headless Chrome 测量注意
 `--window-size` 是最外层窗口，内层视口更小且有 500px 最小宽。测量用 `window.innerWidth/innerHeight`，断言布局用注入脚本读 computed style + bounding rect（详见 H）。
 
-### B4 绝对定位居中元素宽度上限只有容器一半
+## C. URL 状态 / 撤销重做
 **症状**：`position: absolute; left: 50%; transform: translateX(-50%)` 居中的提示条/弹层，`max-width: 92%` 设了却永远到不了，实际宽度只有容器一半。
 **根因**：无显式宽度的绝对定位元素按 shrink-to-fit 定宽，其可用空间 = 包含块 − left 偏移 = 50%，`max-width` 只是上限、不是目标宽度。
 **修法**：加 `width: max-content`（宽度贴内容成胶囊，`max-width` 恢复封顶换行职责）；或直接给显式宽度。
 **信号**：任何 `absolute + left:50% + 无 width` 的组合，且内容比预期窄。
+
+### B5 滚动容器内 box-shadow 被"隐约截断"
+**症状**：滚动容器（`overflow: auto/scroll/hidden`）内的按钮/卡片阴影在贴容器边缘的方向缺一截，渐变硬切（hud 顶栏按钮最典型）。
+**根因**：overflow ≠ visible 的轴必裁 box-shadow（裁切边界 = 容器 padding box），`blur` 向四周扩散、不止 offset 方向（向上 = blur−offset、向下 = blur+offset）。`overflow-x: clip` + 另一轴非 clip 时 clip 被**计算为 hidden**，`overflow-clip-margin` 失效——滚动容器内阴影没有 CSS 放行魔法，只能靠留白。裁切边界在视口边缘（容器 box = 视口，如整页滚动容器）时硬边在屏幕外、不可见，属正常现象不必处理。
+**修法**：容器四边 padding ≥ 阴影外扩（offset+blur），四边都要（blur 双向扩散）；hud 同时注意 dev-panel 的 `top` 硬依赖 hud 总高（改 padding 须同步）。
+**信号**：滚动容器内带阴影元素贴边；阴影"刚冒头就被掐断"。
 
 ## C. URL 状态 / 撤销重做
 

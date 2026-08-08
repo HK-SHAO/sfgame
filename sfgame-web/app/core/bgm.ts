@@ -1,8 +1,9 @@
 // 全局背景乐「风息」：流式 Audio 元素（整曲不解码进内存），首次用户手势后启动，
 // 静音/页面隐藏时暂停省资源；资源级失败（404/损坏）标记 failed 后不再重试——音乐缺失不影响游戏；
 // 播放速率跟随关卡倍率（变调无音高补偿，0.05 极低音量下瑕疵被掩蔽）
+import bgmUrl from '/bgm-main.mp3?url'
+
 const BGM_VOLUME = 0.05
-const BGM_SRC = '/bgm-main.mp3'
 // HTMLMediaElement.playbackRate 支持范围；关卡倍率最高 16 恰好在界内
 const RATE_MIN = 0.0625
 const RATE_MAX = 16
@@ -18,7 +19,7 @@ class Bgm {
     if (!this.el && !this.failed) {
       let el: HTMLAudioElement
       try {
-        el = new Audio(BGM_SRC)
+        el = new Audio(bgmUrl)
       } catch {
         this.failed = true
         return

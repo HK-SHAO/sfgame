@@ -21,6 +21,9 @@ export const div = new Float32Array(MAX_CELLS)
 export const divH2 = new Float64Array(MAX_CELLS)
 const curl = new Float32Array(MAX_CELLS)
 export const solidF = new Float32Array(MAX_CELLS)
+// 环境风位流基场：远场单位水平风的贴地绕流（烘焙一次，采样按强度线性叠加）
+export const fxU = new Float32Array(MAX_CELLS)
+export const fxV = new Float32Array(MAX_CELLS)
 const solidList = new Int32Array(MAX_CELLS)
 export const inGroup = new Uint8Array(MAX_CELLS)
 let solidCount = 0
@@ -77,6 +80,7 @@ export function init(
   ambientX = 0
   ambientY = 0
   clear()
+  bakeAmbientBasis()
   return 0
 }
 
@@ -91,6 +95,70 @@ export function clear(): void {
 export function setAmbient(x: f64, y: f64): void {
   ambientX = x
   ambientY = y
+}
+
+// 环境风 = 预烘焙位流基场 × 强度（不再采样叠裸常数）：远场单位水平风、地面/顶面不可穿透、
+// 左右开边界——风自然顺坡爬升、绕崖壁；潮汐 = 强度时间序列（线性叠加保幅保相）。
+// 基场与热羽流/风扇完全解耦（不在 step 流水线内）。Scratch 复用 p（烘焙不在 step 内，
+// 结束后清零避免干扰压强 warm-start）
+function bakeAmbientBasis(): void {
+  // φ 初值 = x 坡道：远场 ∇φ = (1,0)；固体/边界值在迭代中按规则代入，无需单独初始化
+  for (let j = 0; j < ny; j++) {
+    const row = j * nx
+    for (let i = 0; i < nx; i++) {
+      p[i + row] = <f32>i
+    }
+  }
+  // SOR：左右边列固体 = Dirichlet 坡道（进出口）；地面/顶面固体 = Neumann 镜像（无穿透）
+  const omega = 1.85
+  for (let it = 0; it < 200; it++) {
+    for (let j = 1; j < ny - 1; j++) {
+      const row = j * nx
+      for (let i = 1; i < nx - 1; i++) {
+        const idx = i + row
+        if (solid[idx]) continue
+        let pL: f64
+        if (solid[idx - 1]) pL = i - 1 == 0 ? 0 : <f64>p[idx]
+        else pL = <f64>p[idx - 1]
+        let pR: f64
+        if (solid[idx + 1]) pR = i + 1 == nx - 1 ? <f64>(nx - 1) : <f64>p[idx]
+        else pR = <f64>p[idx + 1]
+        let pU: f64
+        if (solid[idx - nx]) pU = <f64>p[idx]
+        else pU = <f64>p[idx - nx]
+        let pD: f64
+        if (solid[idx + nx]) pD = <f64>p[idx]
+        else pD = <f64>p[idx + nx]
+        p[idx] = <f32>(<f64>p[idx] + omega * ((pL + pR + pU + pD) * 0.25 - <f64>p[idx]))
+      }
+    }
+  }
+  // 速度 = ∇φ 中心差分；固体邻居代入有效值（边列坡道/镜像）——界面法向分量为零，只留切向
+  const bytes = <usize>(nx * ny) << 2
+  memory.fill(fxU.dataStart, 0, bytes)
+  memory.fill(fxV.dataStart, 0, bytes)
+  for (let j = 1; j < ny - 1; j++) {
+    const row = j * nx
+    for (let i = 1; i < nx - 1; i++) {
+      const idx = i + row
+      if (solid[idx]) continue
+      let pL: f64
+      if (solid[idx - 1]) pL = i - 1 == 0 ? 0 : <f64>p[idx]
+      else pL = <f64>p[idx - 1]
+      let pR: f64
+      if (solid[idx + 1]) pR = i + 1 == nx - 1 ? <f64>(nx - 1) : <f64>p[idx]
+      else pR = <f64>p[idx + 1]
+      let pU: f64
+      if (solid[idx - nx]) pU = <f64>p[idx]
+      else pU = <f64>p[idx - nx]
+      let pD: f64
+      if (solid[idx + nx]) pD = <f64>p[idx]
+      else pD = <f64>p[idx + nx]
+      fxU[idx] = <f32>((pR - pL) * 0.5)
+      fxV[idx] = <f32>((pD - pU) * 0.5)
+    }
+  }
+  memory.fill(p.dataStart, 0, bytes)
 }
 
 function isCore(idx: i32): bool {
@@ -140,6 +208,7 @@ export function rebuildSolid(): void {
     }
   }
   solidCount = c
+  bakeAmbientBasis()
 }
 
 // 动量注入（风扇等）：以 (fx,fy) 方向为单位，在 radius 圆域内按 falloff 给 u/v 加 amount（JS 侧已含 dt 缩放）；
@@ -231,10 +300,14 @@ export function sampleVelocity(wx: f64, wy: f64): void {
   const w10 = fx * (1 - fy)
   const w01 = (1 - fx) * fy
   const w11 = fx * fy
+  // 环境风 = 位流基场 × 强度（贴地绕流已烘焙在 fxU/fxV）；ambientY 为裸叠加（关卡均未用非零垂直风，未烘焙垂直基）
   outVX =
-    <f64>u[a] * w00 + <f64>u[b] * w10 + <f64>u[c] * w01 + <f64>u[d] * w11 + ambientX
+    <f64>u[a] * w00 + <f64>u[b] * w10 + <f64>u[c] * w01 + <f64>u[d] * w11 +
+    ambientX * (<f64>fxU[a] * w00 + <f64>fxU[b] * w10 + <f64>fxU[c] * w01 + <f64>fxU[d] * w11)
   outVY =
-    <f64>v[a] * w00 + <f64>v[b] * w10 + <f64>v[c] * w01 + <f64>v[d] * w11 + ambientY
+    <f64>v[a] * w00 + <f64>v[b] * w10 + <f64>v[c] * w01 + <f64>v[d] * w11 +
+    ambientX * (<f64>fxV[a] * w00 + <f64>fxV[b] * w10 + <f64>fxV[c] * w01 + <f64>fxV[d] * w11) +
+    ambientY
 }
 
 export function outX(): f64 {
@@ -404,4 +477,10 @@ export function fieldT(): usize {
 }
 export function solidBuf(): usize {
   return solid.dataStart
+}
+export function fieldFxU(): usize {
+  return fxU.dataStart
+}
+export function fieldFxV(): usize {
+  return fxV.dataStart
 }

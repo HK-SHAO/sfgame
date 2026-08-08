@@ -1,4 +1,4 @@
-// 欧拉稳定流体（Jos Stam）：浮力 → 涡度约束 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风。数值内核在 assembly/core.ts（WASM·SIMD，经 app/wasm/engine.ts 单实例加载），本模块只是门面与纯计算辅助
+// 欧拉稳定流体（Jos Stam）：浮力 → 涡度约束 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风。环境风不进步流水线：预烘焙位流基场（贴地绕流，顺坡爬升），采样时按强度线性叠加。数值内核在 assembly/core.ts（WASM·SIMD，经 app/wasm/engine.ts 单实例加载），本模块只是门面与纯计算辅助
 import type { Vec2 } from './types'
 import { createEngine, type EngineHandle } from '../wasm/engine'
 
@@ -16,12 +16,13 @@ export interface FluidConfig {
   vorticity: number
 }
 
-// 流体公共面：刚体/粒子/云/渲染按接口消费，不依赖 WASM 细节
+// 流体公共面：质点/粒子/云/渲染按接口消费，不依赖 WASM 细节
 export interface FluidLike {
   readonly nx: number
   readonly ny: number
   readonly cell: number
   clear(): void
+  // 环境风强度：采样 = 模拟场 + 位流基场×强度（基场在地形变更时烘焙，贴地绕流）
   setAmbient(x: number, y: number): void
   setGroundMask(groundY: (x: number) => number): void
   addHeat(wx: number, wy: number, amount: number): void
@@ -51,11 +52,13 @@ export function buildSolidMask(
   return solid
 }
 
-// 渲染零拷贝采样：与 assembly/core.ts sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、速度叠 ambient）
+// 渲染零拷贝采样：与 assembly/core.ts sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、环境风 = 基场×强度叠加）
 export function bilinearSample(
   u: Float32Array,
   v: Float32Array,
   t: Float32Array,
+  fxU: Float32Array,
+  fxV: Float32Array,
   nx: number,
   ny: number,
   cell: number,
@@ -83,8 +86,13 @@ export function bilinearSample(
   const w10 = fx * (1 - fy)
   const w01 = (1 - fx) * fy
   const w11 = fx * fy
-  out.x = u[a] * w00 + u[b] * w10 + u[c] * w01 + u[d] * w11 + ambientX
-  out.y = v[a] * w00 + v[b] * w10 + v[c] * w01 + v[d] * w11 + ambientY
+  out.x =
+    u[a] * w00 + u[b] * w10 + u[c] * w01 + u[d] * w11 +
+    ambientX * (fxU[a] * w00 + fxU[b] * w10 + fxU[c] * w01 + fxU[d] * w11)
+  out.y =
+    v[a] * w00 + v[b] * w10 + v[c] * w01 + v[d] * w11 +
+    ambientX * (fxV[a] * w00 + fxV[b] * w10 + fxV[c] * w01 + fxV[d] * w11) +
+    ambientY
   return (
     t[a] * (1 - fx) * (1 - fy) +
     t[b] * fx * (1 - fy) +
@@ -140,7 +148,7 @@ export class WasmFluid implements FluidLike {
 
   setAmbient(x: number, y: number) {
     this.ex.setAmbient(x, y)
-    // 引擎共享环境状态：渲染零拷贝采样据此叠加 ambient（与 wasm 侧 sampleVelocity 同语义）
+    // 引擎共享环境状态：渲染零拷贝采样据此叠加基场（与 wasm 侧 sampleVelocity 同语义）
     this.engine.ambient.x = x
     this.engine.ambient.y = y
   }
@@ -173,13 +181,15 @@ export class WasmFluid implements FluidLike {
   }
 
   // 调试/测试直读内核场（内存无增长，视图恒定）
-  fieldViews(): { u: Float32Array; v: Float32Array; t: Float32Array } {
+  fieldViews(): { u: Float32Array; v: Float32Array; t: Float32Array; fxU: Float32Array; fxV: Float32Array } {
     const n = this.nx * this.ny
     const buf = this.engine.memory.buffer
     return {
       u: new Float32Array(buf, this.ex.fieldU(), n),
       v: new Float32Array(buf, this.ex.fieldV(), n),
       t: new Float32Array(buf, this.ex.fieldT(), n),
+      fxU: new Float32Array(buf, this.ex.fieldFxU(), n),
+      fxV: new Float32Array(buf, this.ex.fieldFxV(), n),
     }
   }
 }

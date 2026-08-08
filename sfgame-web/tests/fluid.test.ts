@@ -63,16 +63,36 @@ test('bilinearSample 与 wasm sampleVelocity/sampleTemp 逐位一致', () => {
     f.addHeat(36, 38, 16 * DT)
     f.step(DT)
   }
-  const { u, v, t } = f.fieldViews()
+  const { u, v, t, fxU, fxV } = f.fieldViews()
   const out1 = { x: 0, y: 0 }
   const out2 = { x: 0, y: 0 }
   for (let k = 0; k < 64; k++) {
     const px = ((k * 7.13) % 68) + 0.4
     const py = ((k * 3.77) % 48) + 0.4
-    const temp = bilinearSample(u, v, t, CFG.nx, CFG.ny, CFG.cell, 0.3, -0.2, px, py, out1)
+    const temp = bilinearSample(u, v, t, fxU, fxV, CFG.nx, CFG.ny, CFG.cell, 0.3, -0.2, px, py, out1)
     f.sampleVelocity(px, py, out2)
     expect(out1.x).toBe(out2.x)
     expect(out1.y).toBe(out2.y)
     expect(temp).toBe(f.sampleTemp(px, py))
   }
+})
+
+// 位流基场：横向环境风贴地绕流——迎风坡爬升、背风坡下沉（y 向下，上升 = v<0）
+test('ambient 横向风顺坡而上（基场绕流）', () => {
+  const f = createFluid(CFG)
+  // 中央平滑山丘：y=44 平原隆起至 y=30
+  const ground = (x: number) => 44 - 14 * Math.exp(-((x - 36) ** 2) / 40)
+  f.setGroundMask(ground)
+  f.setAmbient(1, 0)
+  const air = { x: 0, y: 0 }
+  // 远场 ≈ 均匀横向风
+  f.sampleVelocity(12, 20, air)
+  expect(air.x).toBeGreaterThan(0.8)
+  expect(Math.abs(air.y)).toBeLessThan(0.2)
+  // 迎风坡近地处向上爬
+  f.sampleVelocity(30, ground(30) - 3, air)
+  expect(air.y).toBeLessThan(-0.05)
+  // 背风坡近地处向下沉
+  f.sampleVelocity(42, ground(42) - 3, air)
+  expect(air.y).toBeGreaterThan(0.05)
 })

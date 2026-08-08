@@ -117,7 +117,7 @@ export class Renderer {
   private engine: EngineHandle
   private batch: MeshBatch
   // 零拷贝流体场视图（共享引擎内存）：按关卡网格尺寸建一次，视图恒定
-  private fields: { u: Float32Array; v: Float32Array; t: Float32Array; nx: number; ny: number; cell: number } | null = null
+  private fields: { u: Float32Array; v: Float32Array; t: Float32Array; fxU: Float32Array; fxV: Float32Array; nx: number; ny: number; cell: number } | null = null
   private cssW = 0
   private cssH = 0
   private scale = 1
@@ -453,6 +453,8 @@ export class Renderer {
       u: new Float32Array(buf, this.engine.ex.fieldU(), n),
       v: new Float32Array(buf, this.engine.ex.fieldV(), n),
       t: new Float32Array(buf, this.engine.ex.fieldT(), n),
+      fxU: new Float32Array(buf, this.engine.ex.fieldFxU(), n),
+      fxV: new Float32Array(buf, this.engine.ex.fieldFxV(), n),
       nx,
       ny,
       cell,
@@ -478,8 +480,8 @@ export class Renderer {
         envs[i] = 0
         continue
       }
-      // 零拷贝采样：直读共享内存流体场（原每粒子 2 次 wasm 跨边界调用）
-      const temp = bilinearSample(f.u, f.v, f.t, f.nx, f.ny, f.cell, amb.x, amb.y, tracers.x[i], tracers.y[i], air)
+      // 零拷贝采样：直读共享内存流体场（环境风 = 基场×强度，与 wasm 采样同构）
+      const temp = bilinearSample(f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell, amb.x, amb.y, tracers.x[i], tracers.y[i], air)
       const sp2 = air.x * air.x + air.y * air.y
       envs[i] = env
       const u = Math.tanh(Math.abs(temp) / AIR_SOFT)

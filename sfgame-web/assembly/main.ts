@@ -16,6 +16,8 @@ export {
   fieldV,
   fieldT,
   solidBuf,
+  fieldFxU,
+  fieldFxV,
 } from './core'
 
 import {

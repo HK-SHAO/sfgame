@@ -30,6 +30,8 @@ export interface FluidExports {
   fieldV(): number
   fieldT(): number
   solidBuf(): number
+  fieldFxU(): number
+  fieldFxV(): number
 }
 
 export interface BatchExports {

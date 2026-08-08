@@ -12,7 +12,6 @@ import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from '../render/render'
 import { createEngine, type EngineHandle } from '../wasm/engine'
-import { nextInGroup } from '../game/levels'
 import { penaltySeconds } from '../game/timer'
 import type { PerfRecorder } from '../dev/devtools'
 
@@ -48,7 +47,6 @@ export class GameController {
   private governor: PerformanceGovernor
   private tickMs = 0
   private lastLand = -Infinity
-    private lastFlow = 0.6
   private rate = 1
   private fitW = 0
   private fitH = 0
@@ -123,10 +121,6 @@ export class GameController {
     }
     this.fit()
     this.loop.start()
-    sfx.musicForLevel(this.sim.level.id)
-    // 关内闲时预烘下一关音乐 stem：换关起播零等待（延后避开本关启动峰）
-    const next = nextInGroup(this.sim.level.id)
-    if (next !== undefined) window.setTimeout(() => sfx.musicPrebake(next), 2500)
     this.pushHud()
   }
 
@@ -141,7 +135,6 @@ export class GameController {
     this.ro?.disconnect()
     this.ro = null
     sfx.fadeOutWind()
-    sfx.musicStop()
   }
 
   restart() {
@@ -156,7 +149,6 @@ export class GameController {
     this.sim.setPaused(!this.sim.paused)
     if (this.sim.paused) sfx.fadeOutWind()
     fb.pause(this.sim.paused)
-    sfx.setFlow(this.sim.paused ? 0.15 : this.lastFlow)
     this.pushHud()
   }
 
@@ -230,12 +222,6 @@ export class GameController {
       const wind = sampleWind(this.sim.fluid, this.windProbes, p, this.tmpAir)
       sfx.updateWind(wind.field, wind.rel, dt)
       sfx.setPlanePan(p.x, this.world.w)
-      // 音乐随飞行呼吸：飞机相对风速驱动旋律层响度/亮度，变化超 0.04 才推（不逐帧排 automation）
-      const flow = Math.min(1, wind.rel / 6)
-      if (Math.abs(flow - this.lastFlow) > 0.04) {
-        this.lastFlow = flow
-        sfx.setFlow(flow)
-      }
       const altAfter = this.sim.level.ground(p.x) - p.y
       if (isLanding(altBefore, altAfter, vyBefore)) {
         const now = performance.now()
@@ -255,9 +241,6 @@ export class GameController {
       this.lastPhase = this.sim.phase
       if (this.sim.phase === 'won') {
         sfx.fadeOutWind()
-        sfx.musicDuck(true)
-      } else {
-        sfx.musicDuck(false)
       }
       this.pushHud()
     }

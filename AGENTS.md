@@ -17,7 +17,7 @@
 - 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`
 - `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = vitest
 - `bun run dev` = 初始编译 wasm 并监视 `assembly/` 变更自动重编（`scripts/dev.ts`，vite 检测到 wasm 变化整页刷新）+ vite；`bun run dev -- --port N` 透传 vite 参数
-- `bun run build:wasm` = asc 编译单引擎：`assembly/engine.ts`（重导出流体内核 `main.ts`/`core.ts`、顶点批内核 `batch.ts` 与音乐合成内核 `music.ts`）→ `app/wasm/sfengine.wasm`（物理+渲染+音乐同一模块同一内存；dev/test/build 均已内置，改 assembly/ 后无需手动跑）
+- `bun run build:wasm` = asc 编译单引擎：`assembly/engine.ts`（重导出流体内核 `main.ts`/`core.ts` 与顶点批内核 `batch.ts`）→ `app/wasm/sfengine.wasm`（物理+渲染同一模块同一内存；dev/test/build 均已内置，改 assembly/ 后无需手动跑）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
 - 关卡工具：`bun run scripts/run-level.ts levels/level-N.yaml --verify … --solve … --sim N`（物理内核恒为 WASM·SIMD；详见 `skills/level-design/SKILL.md` §5-6）
 - `bun run test` 通过 `tests/setup.ts` 预热 WASM 引擎（缺产物会抛错提示先 build:wasm）
@@ -36,7 +36,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 - `app/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）
 - `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面遮挡；纸飞机与其拖尾在画面顶层，不被地面遮挡，画在旗/源/风扇之后）、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `assembly/batch.ts`，静态容量零分配，可无头测试）
 - `app/dev/` — ?dev=1 开发者工具：面板 + 性能块 + 关卡 YAML 编辑器（默认折叠）+ 开发者页面，由 app 持有跨关卡重建延续
-- `app/core/` — 固定步长循环、音效与反馈（离散反馈一律走 `feedback.ts` 门面 = `sfx.ts` 音频 + `haptics.ts` 震动唯一配对点；`music.ts` 背景音乐：`bakeScore` 纯函数乐谱可无头测试 + `MusicPlayer` stem 循环播放（合成内核在 `assembly/music.ts` 物理建模钢琴，试听 `bun run scripts/render-score.ts [seed]`）；stem 烘焙走 `music-bakery.ts`（Worker 后台烘 + 内存单槽缓存，主线程零开销；失败回退主线程分片烘）；`setFlow` 飞行风速驱动旋律层变奏；连续风声层/音乐传输由 controller 直驱 sfx）、性能治理（`governor.ts` 降级策略 / `wind.ts` 风强度与落地判定，均纯逻辑可无头测试）、通用 URL 状态模块
+- `app/core/` — 固定步长循环、音效与反馈（离散反馈一律走 `feedback.ts` 门面 = `sfx.ts` 音频 + `haptics.ts` 震动唯一配对点；连续风声层由 controller 直驱 sfx）、性能治理（`governor.ts` 降级策略 / `wind.ts` 风强度与落地判定，均纯逻辑可无头测试）、通用 URL 状态模块
 
 ## 拖尾约定（2026-08 起）
 

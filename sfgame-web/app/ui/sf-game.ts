@@ -12,7 +12,9 @@ export const HUD_CHANGE = 'hudchange'
 export const DENY = 'deny'
 export const SRC_CHANGE = 'sourceschange'
 
-// HUD 状态经事件在更新周期外派发，避免 change-in-update 告警
+// HUD 状态经事件派发；状态条由 onStatus 直推 @state（值不变短路零开销）。
+// 两者都只能在更新周期外发生：start/applySources 内含同步 render（onStatus 直写）与事件派发，
+// 须等 updateComplete（首轮 update 完成）后再启动，否则 firstUpdated 同步链内写 @state 触发 change-in-update
 @customElement('sf-game')
 export class SfGame extends LitElement {
   @property({ attribute: false }) level: LevelDef | null = null
@@ -41,8 +43,12 @@ export class SfGame extends LitElement {
         this.statusPenalty = extra
       },
     }, this, this.devTools)
-    this.controller.applySources(this.initialSources, true)
-    this.controller.start()
+    // 首轮 update 完成后再启动：start() 内 fit 会同步 render → onStatus 直写 @state，
+    // 在 firstUpdated 同步链内值变化会触发 change-in-update（如 URL 带源直达时罚时 0→4）
+    void this.updateComplete.then(() => {
+      this.controller?.applySources(this.initialSources, true)
+      this.controller?.start()
+    })
   }
 
   protected override updated(changed: PropertyValues) {

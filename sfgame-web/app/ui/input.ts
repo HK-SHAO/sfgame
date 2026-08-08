@@ -64,7 +64,11 @@ export class GestureInput {
     if (e.button !== 0) return
     const w = this.handlers.toWorld(e.clientX, e.clientY)
     if (!w) return
-    this.el.setPointerCapture(e.pointerId)
+    // 个别环境（自动化/合成事件等）pointer 未激活时 capture 会抛，退化为普通手势
+    try {
+      this.el.setPointerCapture(e.pointerId)
+    } catch {
+    }
     const source = this.handlers.hitSource(w)
     const track: PointerTrack = {
       startClientX: e.clientX,

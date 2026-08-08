@@ -114,13 +114,15 @@ export class LevelSimulation {
     }
   }
 
-  // 出生姿态复位：构造与 restart 共用（spawn 状态不变量落一处）
+  // 出生姿态复位：构造与 restart 共用（spawn 状态不变量落一处）；机头朝发射方向
   private resetPlane() {
     this.plane.x = this.level.spawn.x
     this.plane.y = this.spawnY
     this.plane.vx = this.spawnVx
     this.plane.vy = this.spawnVy
-    this.plane.angle = 0
+    const sv = Math.hypot(this.spawnVx, this.spawnVy)
+    this.plane.angle = sv > 0.01 ? Math.atan2(this.spawnVy, this.spawnVx) : 0
+    this.plane.w = 0
   }
 
   restart() {

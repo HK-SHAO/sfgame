@@ -50,7 +50,7 @@ export class SfTitleScreen extends LitElement {
               .map((l) => {
                 // dev 模式全关卡可玩（含未解锁），参考解按钮与卡片并排（内容模型：交互元素不得嵌套 button）
                 const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(id))
-                const hasSol = this.dev && solutionsFor(l.id).length > 0
+                const hasSol = solutionsFor(l.id).length > 0
               return html`
                 <div class="level-row">
                   <button
@@ -66,11 +66,12 @@ export class SfTitleScreen extends LitElement {
                     </span>
                     <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
                   </button>
-                  ${hasSol
+                  ${this.dev
                     ? html`<button
                         class="sol-chip"
-                        aria-label="第 ${l.id} 关参考解"
-                        title="参考解"
+                        ?disabled=${!hasSol}
+                        aria-label=${hasSol ? `第 ${l.id} 关参考解` : `第 ${l.id} 关暂无参考解`}
+                        title=${hasSol ? '参考解' : '暂无参考解'}
                         @click=${() => this.openSolution(l)}
                       >
                         ${iconRoute}
@@ -217,6 +218,21 @@ export class SfTitleScreen extends LitElement {
 
       .sol-chip:active {
         transform: scale(0.94);
+      }
+
+      .sol-chip:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      .sol-chip:disabled:hover {
+        color: var(--ink-soft);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .sol-chip:disabled:active {
+        transform: none;
       }
 
       .sol-chip svg {

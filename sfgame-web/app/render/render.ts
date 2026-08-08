@@ -5,6 +5,7 @@ import type { EngineHandle } from '../wasm/engine'
 import type { Tracers } from '../sim/particles'
 import type { Clouds } from '../sim/clouds'
 import { fadeRetention, TRAIL_FADE_T, type Trail } from '../sim/trail'
+import { PLANE_LOCAL } from '../sim/bodies'
 import type { Vec2 } from '../sim/types'
 import type { LevelSimulation } from '../game/simulation'
 import { fanDirection } from '../game/simulation'
@@ -101,10 +102,13 @@ const TERRAIN_STEP = 0.25
 const TERRAIN_MAX_STEP = 2
 const TERRAIN_ANG_TOL = 0.02
 
-const SHADOW_RADIUS = 1.5
-const SHADOW_RY = 0.32
-const SHADOW_LIFT = 0.12
+// 影子：沿地表采样的暗色折线（贴地形投影，无椭圆/旋转/抬升，永不探出地表）；
+// alpha = MAX − 高度×FADE：贴地最深、高空仍可见（无下限裁切），两端圆盘收圆
+const SHADOW_HALF = 1.5
+const SHADOW_SAMPLES = 5
+const SHADOW_W = 0.4
 const SHADOW_MAX_ALPHA = 0.3
+const SHADOW_FADE = 0.004
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement
@@ -347,40 +351,37 @@ export class Renderer {
   // 固定源形象化（#29）：热源 = 篝火（圆润泪滴火苗 + 底座），冷源 = 空调（圆角机身 + 圆环出风口）——封闭圆润、简约优雅，不复用玩家源圆盘样式
   private drawFixedSources(b: MeshBatch, sim: LevelSimulation) {
     for (const s of sim.fixedSources) {
-      const power = s.power ?? 1
-      if (s.kind === 'hot') this.drawCampfire(b, sim, s.x, s.y, power)
-      else this.drawAC(b, s.x, s.y, power)
+      if (s.kind === 'hot') this.drawCampfire(b, sim, s.x, s.y)
+      else this.drawAC(b, s.x, s.y)
     }
   }
 
-  private drawCampfire(b: MeshBatch, sim: LevelSimulation, x: number, y: number, power: number) {
-    // 光晕与火焰按 sqrt(power) 缩放（面积感）；底座固定，功率只影响输出
-    const sc = Math.sqrt(power)
-    b.discGrad(x, y, 2.2 * sc, 16, ...HOT, 0.16, ...HOT, 0)
+  // 尺寸/形象/动画与功率无关（power 只影响注入热量），避免"改个功率道具忽大忽小"
+  private drawCampfire(b: MeshBatch, sim: LevelSimulation, x: number, y: number) {
+    b.discGrad(x, y, 2.2, 16, ...HOT, 0.16, ...HOT, 0)
     // 底座：一块圆润坐垫
     b.disc(x, y + 0.1, 1.3, 0.45, 0, 16, ...INK_DARK, 0.28)
     // 火苗：圆头圆尾的泪滴（外橙内黄），摇曳轻微缩放
     const flicker = 1 + 0.12 * Math.sin(sim.time * 9) + 0.06 * Math.sin(sim.time * 15.7 + 1.3)
-    b.stroke(x, y - 0.2 * flicker * sc, x, y - 1.2 * flicker * sc, 0.9 * flicker, ...FLAME_OUTER, 0.95, true)
-    b.stroke(x, y - 0.2 * flicker * sc, x, y - 0.85 * flicker * sc, 0.5 * flicker, ...FLAME_INNER, 1, true)
+    b.stroke(x, y - 0.2 * flicker, x, y - 1.2 * flicker, 0.9 * flicker, ...FLAME_OUTER, 0.95, true)
+    b.stroke(x, y - 0.2 * flicker, x, y - 0.85 * flicker, 0.5 * flicker, ...FLAME_INNER, 1, true)
   }
 
-  private drawAC(b: MeshBatch, x: number, y: number, power: number) {
-    const sc = Math.sqrt(power)
-    const hw = 1.5 * sc
-    const hh = 0.8 * sc
+  private drawAC(b: MeshBatch, x: number, y: number) {
+    const hw = 1.5
+    const hh = 0.8
     // 冷光（含蓄）
-    b.discGrad(x, y, 2.4 * sc, 16, ...COLD, 0.14, ...COLD, 0)
+    b.discGrad(x, y, 2.4, 16, ...COLD, 0.14, ...COLD, 0)
     // 圆角机身：白底 + 四角圆盘（角半径 = hh，全圆角）
     b.rect(x - hw, y - hh, x + hw, y + hh, ...PAPER, 1)
     for (const [cx, cy] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]] as const) {
       b.disc(x + cx, y + cy, hh, hh, 0, 16, ...PAPER, 1)
     }
     // 圆形出风口：同心圆环
-    b.ring(x, y, 0.85 * sc, 0.85 * sc, 0, 20, 0.18, ...INK_DARK, 0.38)
-    b.ring(x, y, 0.55 * sc, 0.55 * sc, 0, 20, 0.15, ...INK_DARK, 0.28)
+    b.ring(x, y, 0.85, 0.85, 0, 20, 0.18, ...INK_DARK, 0.38)
+    b.ring(x, y, 0.55, 0.55, 0, 20, 0.15, ...INK_DARK, 0.28)
     // 指示灯
-    b.disc(x, y, 0.2 * sc, 0.2 * sc, 0, 10, ...COLD, 0.9)
+    b.disc(x, y, 0.2, 0.2, 0, 10, ...COLD, 0.9)
   }
 
   private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null) {
@@ -542,26 +543,52 @@ export class Renderer {
     }
   }
 
-  private static readonly PLANE_LOCAL = [
-    [1.85, 0],
-    [-1.35, -1.12],
-    [-0.6, 0],
-    [-1.35, 1.12],
-  ] as const
+  private static readonly PLANE_LOCAL = PLANE_LOCAL
   private planeWorld = new Float32Array(8)
+  private shadowPts = new Float32Array(SHADOW_SAMPLES * 2)
+  // 纸面弯曲（数据驱动 flutter）：机头/机尾沿机身采样风速差，取代旧的 sin(clock) 假抖动
+  private static readonly SHEAR_HALF = 1.2
+  private static readonly SHEAR_BEND_K = 0.22
+  private static readonly SHEAR_BEND_MAX = 0.3
+  private planeShear = { x: 0, y: 0 }
+
+  private planeBend(sim: LevelSimulation): number {
+    const f = this.fields
+    if (!f) return 0
+    const p = sim.plane
+    const ca = Math.cos(p.angle)
+    const sa = Math.sin(p.angle)
+    const air = this.planeShear
+    const amb = this.engine.ambient
+    bilinearSample(f.u, f.v, f.t, f.nx, f.ny, f.cell, amb.x, amb.y, p.x + Renderer.SHEAR_HALF * ca, p.y + Renderer.SHEAR_HALF * sa, air)
+    const hx = air.x
+    const hy = air.y
+    bilinearSample(f.u, f.v, f.t, f.nx, f.ny, f.cell, amb.x, amb.y, p.x - Renderer.SHEAR_HALF * ca, p.y - Renderer.SHEAR_HALF * sa, air)
+    const shear = (hx - air.x) * ca + (hy - air.y) * sa
+    return Math.max(-Renderer.SHEAR_BEND_MAX, Math.min(Renderer.SHEAR_BEND_MAX, shear * Renderer.SHEAR_BEND_K))
+  }
 
   private drawPlane(b: MeshBatch, sim: LevelSimulation) {
     const p = sim.plane
-    const g0 = sim.level.ground(p.x - SHADOW_RADIUS)
-    const g1 = sim.level.ground(p.x + SHADOW_RADIUS)
-    const slope = Math.atan2(g1 - g0, SHADOW_RADIUS * 2)
-    const sy = sim.level.ground(p.x) - SHADOW_LIFT
-    b.disc(p.x, sy, SHADOW_RADIUS, SHADOW_RY, slope, 24, ...INK_DARK, SHADOW_MAX_ALPHA)
+    // 影子贴地形：沿地表采样暗色折线；高空保持可见（下限），贴地加深
+    const alt = sim.level.ground(p.x) - p.y
+    const shA = SHADOW_MAX_ALPHA - alt * SHADOW_FADE
+    if (shA > 0) {
+      const pts = this.shadowPts
+      const halfW = SHADOW_W / 2
+      for (let k = 0; k < SHADOW_SAMPLES; k++) {
+        const sx = p.x - SHADOW_HALF + (2 * SHADOW_HALF * k) / (SHADOW_SAMPLES - 1)
+        pts[k * 2] = sx
+        pts[k * 2 + 1] = sim.level.ground(sx)
+      }
+      b.polyline(pts, SHADOW_SAMPLES * 2, SHADOW_W, ...INK_DARK, shA)
+      // 两端圆盘收圆（与内核 round stroke 同构：半径 = 线宽一半）
+      b.disc(pts[0], pts[1], halfW, halfW, 0, 8, ...INK_DARK, shA)
+      b.disc(pts[(SHADOW_SAMPLES - 1) * 2], pts[(SHADOW_SAMPLES - 1) * 2 + 1], halfW, halfW, 0, 8, ...INK_DARK, shA)
+    }
 
-    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
-    const idle = Math.max(0, 1 - speed / 3)
     const pitch = Math.max(-0.32, Math.min(0.32, p.vy * 0.1))
-    const rot = p.angle + 0.07 * Math.sin(p.clock * 1.8) * idle + pitch
+    const rot = p.angle + pitch
     const cos = Math.cos(rot)
     const sin = Math.sin(rot)
     const w = this.planeWorld
@@ -570,6 +597,10 @@ export class Renderer {
       w[i * 2] = p.x + lx * cos - ly * sin
       w[i * 2 + 1] = p.y + lx * sin + ly * cos
     }
+    // 机头顶点垂直机身偏移 bend：两三角共享机头与脊柱，折痕沿机身成形
+    const bend = this.planeBend(sim)
+    w[0] -= bend * sin
+    w[1] += bend * cos
     b.tri(w[0], w[1], w[2], w[3], w[4], w[5], ...PAPER, 1)
     b.tri(w[0], w[1], w[4], w[5], w[6], w[7], ...PAPER, 1)
     for (let i = 0; i < 4; i++) {

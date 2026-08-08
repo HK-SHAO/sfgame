@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { createBody, stepBody } from '../app/sim/bodies'
+import { createBody, PLANE_LOCAL, stepBody } from '../app/sim/bodies'
 import { createFluid } from '../app/sim/fluid'
 
 function makeCalmFluid() {
@@ -80,26 +80,50 @@ test('光滑地面：中坡可用水平速度滑爬抬升，不被 snap 弹回',
   expect(body.y).toBeLessThan(ground(body.x) - 0.4)
 })
 
-// #25 光滑地面：贴地水平速度不被强杀（不"卡住"），顺坡自然滑下（右下降坡）
+// #25 光滑地面：贴地滑行保留水平速度，顺坡自然滑下（右下降坡；顶点贴合后贴地摩擦参与，
+// 平衡速度受空气阻力主导，比旧"贴地悬空滑"略慢——语义不变：持续滑下而非卡住）
 test('光滑地面：贴地滑行保留水平速度，沿坡下滑', () => {
   const fluid = makeCalmFluid()
   const ground = (x: number) => 20 + 1 * x // 右下降坡（下坡向右）
   const body = createBody(10, 29.6, { radius: 1, dragK: 3, gravity: 3 })
   body.vx = 0
   for (let i = 0; i < 480; i++) stepBody(body, fluid, DT, ground, WORLD)
-  expect(body.x).toBeGreaterThan(12.5)
-  expect(body.vx).toBeGreaterThan(0.2)
+  expect(body.x).toBeGreaterThan(11.5)
+  expect(body.vx).toBeGreaterThan(0.15)
 })
 
-// #28 空气动力学：贴地时顺着地面——机头不插地，角度对齐坡面
-test('贴地姿态：机身悬浮在地面上方、角度对齐坡面', () => {
+// 底边贴合地形：机轴比地形成 PLANE_TILT 夹角（两侧边不平行 ⇒ 轴平则边斜），最低轮廓点着地不插地
+test('贴地姿态：底边贴合坡面、最低轮廓点不穿地', () => {
   const fluid = makeCalmFluid()
-  // 1:1 坡（右下降坡）：贴地后角度应 ≈ atan(1)=π/4
+  // 1:1 坡（右下降坡）：底边平行坡面 → 机轴 = atan(1) + PLANE_TILT
   const ground = (x: number) => 30 + 1 * (x - 10)
   const body = createBody(10, 30.5, { radius: 1, dragK: 3, gravity: 3 })
   body.vx = 10
   for (let i = 0; i < 240; i++) stepBody(body, fluid, DT, ground, WORLD)
-  // 滑行有 ±0.3 的逐帧微弹跳容差；上坡减速停住时停点贴地余量再放宽 0.2
-  expect(body.y).toBeGreaterThanOrEqual(ground(body.x) - 1.1 - 0.5)
-  expect(Math.abs(body.angle - Math.PI / 4)).toBeLessThan(0.2)
+  const tilt = Math.atan(1.12 / 3.2)
+  expect(Math.abs(body.angle - (Math.PI / 4 + tilt))).toBeLessThan(0.2)
+  // 最低轮廓点着地（顶点贴合）：任一顶点不深穿地面
+  const ca = Math.cos(body.angle)
+  const sa = Math.sin(body.angle)
+  let minClear = Infinity
+  for (const [lx, ly] of PLANE_LOCAL) {
+    const clear = ground(body.x + lx * ca - ly * sa) - (body.y + lx * sa + ly * ca)
+    if (clear < minClear) minClear = clear
+  }
+  expect(minClear).toBeGreaterThan(-0.05)
+})
+
+// 平地停稳：姿态折叠保留落地左右——向左滑停机头朝左（旧实现强制 atan(0)=0 恒朝右）
+test('平地停稳保持来向：向左滑停机头朝左、向右滑停机头朝右', () => {
+  const ground = () => 40
+  const OPTS_G = { radius: 1, dragK: 3, gravity: 3 }
+  const left = createBody(30, 39.5, OPTS_G)
+  left.vx = -8
+  for (let i = 0; i < 600; i++) stepBody(left, makeCalmFluid(), DT, ground, WORLD)
+  expect(Math.cos(left.angle)).toBeLessThan(-0.9)
+
+  const right = createBody(30, 39.5, OPTS_G)
+  right.vx = 8
+  for (let i = 0; i < 600; i++) stepBody(right, makeCalmFluid(), DT, ground, WORLD)
+  expect(Math.cos(right.angle)).toBeGreaterThan(0.9)
 })

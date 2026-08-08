@@ -1,8 +1,8 @@
 import type { FluidLike } from './fluid'
-import type { WorldBounds } from './types'
 
 // 质点模型（第一性原理）：只与空气和地面交互。
-// 空气 = 速度向当地风速指数收敛 + 重力；地面 = 质点不穿地。
+// 空气 = 速度向当地风速指数收敛 + 重力；地面 = 唯一边界（质点不穿地）。
+// 无墙：飞机可上天、可飞出地图，飞多远由风说了算（难度即来自此）。
 // 无升力/力矩/姿态动力学——angle 只是表现层：机头朝当前运动方向（≈风向，drag 使速度收敛于风）
 export interface Body {
   x: number
@@ -18,10 +18,6 @@ const HOVER_WIND = 1.0
 // 风耦合强度（1/s）：对风的响应时间 = 1/DRAG_K，越大越"轻"
 const DRAG_K = 3.0
 const GRAVITY = DRAG_K * HOVER_WIND
-// 碰撞半径（边界墙/地面钳制）
-const RADIUS = 1.0
-// 边界反弹系数（左右上三边；地面单独处理）
-const WALL_RESTITUTION = 0.35
 // 纸面滑动摩擦系数 μ：接触帧以恒定减速度 μ·g 线性减速到停
 const GROUND_FRICTION_MU = 0.3
 // 机头向运动方向的收敛速率（1/s）：稳稳指向、不瞬移
@@ -51,7 +47,6 @@ export function stepBody(
   fluid: FluidLike,
   dt: number,
   groundY: (x: number) => number,
-  world: WorldBounds,
 ) {
   fluid.sampleVelocity(body.x, body.y, tmpAir)
   const k = Math.min(1, DRAG_K * dt)
@@ -60,21 +55,8 @@ export function stepBody(
   body.x += body.vx * dt
   body.y += body.vy * dt
 
-  // 边界墙只反弹"正在向外运动"的质点：从画布外飞入（如关卡开场）不受拦截
-  const r = RADIUS
-  if (body.x < r && body.vx < 0) {
-    body.x = r
-    body.vx = Math.abs(body.vx) * WALL_RESTITUTION
-  } else if (body.x > world.w - r && body.vx > 0) {
-    body.x = world.w - r
-    body.vx = -Math.abs(body.vx) * WALL_RESTITUTION
-  }
-  if (body.y < r && body.vy < 0) {
-    body.y = r
-    body.vy = Math.abs(body.vy) * WALL_RESTITUTION
-  }
-
-  // 地面：质点钳制在地面及以上；垂直速度完全吸收（纸不弹跳），水平库仑摩擦减速到停
+  // 地面：唯一边界——质点钳制在地面及以上（地面函数须对地图外良性，见 simulation.groundExt）；
+  // 垂直速度完全吸收（纸不弹跳），水平库仑摩擦减速到停
   const ground = groundY(body.x)
   if (body.y > ground) {
     body.y = ground

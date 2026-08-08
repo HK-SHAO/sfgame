@@ -224,7 +224,8 @@ export class LevelSimulation {
       this.fluid.addForce(f.x, f.y, Math.cos(dir), Math.sin(dir), f.power * dt, FAN_RADIUS)
     }
     this.fluid.step(dt)
-    stepBody(this.plane, this.fluid, dt, this.level.ground, this.level.world)
+    // groundExt 而非 level.ground：飞机可飞出地图，延展地面保证地图外同样"不入地"
+    stepBody(this.plane, this.fluid, dt, this.groundExt)
     this.checkGoals()
   }
 

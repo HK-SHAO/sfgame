@@ -88,15 +88,7 @@ export interface BatchExports {
   ): void
 }
 
-// 音乐合成内核：乐谱 f64×4（midi, startSec, durSec, vel）写入 mScoreBuf，mClear 清 PCM，mRender 按音色累加
-export interface MusicExports {
-  mPcmBuf(): number
-  mScoreBuf(): number
-  mClear(sec: number): number
-  mRender(kind: number, count: number): void
-}
-
-export interface EngineExports extends FluidExports, BatchExports, MusicExports {
+export interface EngineExports extends FluidExports, BatchExports {
   memory: WebAssembly.Memory
 }
 

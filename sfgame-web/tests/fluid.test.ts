@@ -13,6 +13,7 @@ const CFG: FluidConfig = {
   tDamping: 0.99,
   iterations: 12,
   vorticity: 0.5,
+  margin: 0,
 }
 
 const DT = 1 / 60
@@ -69,7 +70,7 @@ test('bilinearSample 与 wasm sampleVelocity/sampleTemp 逐位一致', () => {
   for (let k = 0; k < 64; k++) {
     const px = ((k * 7.13) % 68) + 0.4
     const py = ((k * 3.77) % 48) + 0.4
-    const temp = bilinearSample(u, v, t, fxU, fxV, CFG.nx, CFG.ny, CFG.cell, 0.3, -0.2, px, py, out1)
+    const temp = bilinearSample(u, v, t, fxU, fxV, CFG.nx, CFG.ny, CFG.cell, 0, 0, 0.3, -0.2, px, py, out1)
     f.sampleVelocity(px, py, out2)
     expect(out1.x).toBe(out2.x)
     expect(out1.y).toBe(out2.y)
@@ -95,4 +96,36 @@ test('ambient 横向风顺坡而上（基场绕流）', () => {
   // 背风坡近地处向下沉
   f.sampleVelocity(42, ground(42) - 3, air)
   expect(air.y).toBeGreaterThan(0.05)
+})
+
+// 开放域：流体网格 = 地图外扩边距。风流出地图无墙体堆积；边距吸收层清理流出的热，不反射回场内
+test('流出边界：风丝滑流出地图，边距吸收外流能量', () => {
+  const f = createFluid({
+    nx: 56,
+    ny: 40,
+    cell: 1.5,
+    buoyancy: 0,
+    tMax: 9,
+    heatRate: 0,
+    sourceRadius: 3.4,
+    velDamping: 1,
+    tDamping: 1,
+    iterations: 12,
+    vorticity: 0,
+    margin: 6,
+  })
+  f.setAmbient(1, 0)
+  const air = { x: 0, y: 0 }
+  // 地图右界外不远处：风速仍≈远场值（旧封闭盒在此处会堆积减速）
+  f.sampleVelocity(73.5, 27, air)
+  expect(air.x).toBeGreaterThan(0.8)
+  // 持续在地图右缘注热：横向风把热带出地图，边距吸收后不回流
+  for (let i = 0; i < 300; i++) {
+    f.addHeat(70, 27, 8 * DT)
+    f.step(DT)
+  }
+  expect(f.sampleTemp(70, 27)).toBeGreaterThan(2)
+  expect(f.sampleTemp(76, 27)).toBeLessThan(1.5)
+  // 上风侧（注入点左侧远处）不被扩散污染
+  expect(f.sampleTemp(40, 27)).toBeLessThan(0.3)
 })

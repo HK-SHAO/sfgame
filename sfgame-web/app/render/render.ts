@@ -165,9 +165,10 @@ export class Renderer {
     const gl = this.gl
     if (!gl || this.cssW === 0 || this.cssH === 0) return
     const { sim, tracers, planeTrail, press, now } = scene
-    const { w, h, cell } = sim.level.world
+    const { w, h } = sim.level.world
     this.world = sim.level.world
-    this.ensureFields(Math.round(w / cell), Math.round(h / cell), cell)
+    // 场视图尺寸以流体为准（流体域 = 地图外扩边距，大于关卡世界）
+    this.ensureFields(sim.fluid.nx, sim.fluid.ny, sim.fluid.cell)
 
     this.scale = Math.min(this.cssW / w, this.cssH / h)
     this.ox = (this.cssW - w * this.scale) / 2
@@ -191,20 +192,20 @@ export class Renderer {
     const b = this.batch
     b.reset()
     // 遮挡契约（远→近）：天空烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
-    // 太阳盘面 → 云（遮粒子与日芒）→ 飞机拖尾 → 飞机 → 地形填充（盖掉云的山体内部分，
-    // 云被山体精确遮挡；飞机为质点，低飞/触地下沉部分由地面遮挡）→ 旗杆 → 旗面/套筒/抵达圆 → 源
+    // 太阳盘面 → 云（遮粒子与日芒）→ 地形填充（云被山体精确遮挡）→ 旗杆 → 旗面/套筒/抵达圆 →
+    // 固定源/源/风扇 → 飞机拖尾与飞机（画面顶层，不被地面遮挡）→ 按压指示
     this.drawSunHalo(b)
     this.drawTracers(b, tracers)
     this.drawSun(b, now)
     this.drawClouds(b, scene.clouds)
-    this.drawPlaneTrail(b, sim, planeTrail)
-    this.drawPlane(b, sim)
     this.drawTerrain(b, sim, viewL, viewR, viewB)
     this.drawGoalPoles(b, sim)
     this.drawGoal(b, sim)
     this.drawFixedSources(b, sim)
     this.drawSources(b, sim, press)
     this.drawFans(b, sim)
+    this.drawPlaneTrail(b, sim, planeTrail)
+    this.drawPlane(b, sim)
     if (press && press.kind === 'place') this.drawPress(b, press, now)
     this.lastVertexCount = b.count
     this.lastUploadBytes = b.count * VERTEX_STRIDE * 4
@@ -467,6 +468,7 @@ export class Renderer {
     const air = Renderer.tmpAir
     const f = this.fields!
     const amb = this.engine.ambient
+    const org = this.engine.origin
     if (this.tracerEnv.length < count) {
       this.tracerEnv = new Float32Array(count)
       this.tracerColor = new Float32Array(count * 5)
@@ -481,7 +483,7 @@ export class Renderer {
         continue
       }
       // 零拷贝采样：直读共享内存流体场（环境风 = 基场×强度，与 wasm 采样同构）
-      const temp = bilinearSample(f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell, amb.x, amb.y, tracers.x[i], tracers.y[i], air)
+      const temp = bilinearSample(f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell, org.x, org.y, amb.x, amb.y, tracers.x[i], tracers.y[i], air)
       const sp2 = air.x * air.x + air.y * air.y
       envs[i] = env
       const u = Math.tanh(Math.abs(temp) / AIR_SOFT)

@@ -6,7 +6,7 @@ import { GOAL_LIFT, type SourceKind } from '../sim/types'
 import { penaltySeconds } from './timer'
 import type { FanDef, HudState, LevelDef, Source, SourcePlacement } from './types'
 
-const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
+const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell' | 'margin'> = {
   buoyancy: 2.0,
   tMax: 9,
   heatRate: 10,
@@ -14,11 +14,12 @@ const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell'> = {
   velDamping: 0.997,
   tDamping: 0.99,
   iterations: 12,
-  vorticity: 0.5,
+  // 0 = 去掉人工增涡（vorticity confinement 是反耗散风格化项，非物理）：场更平静，MacCormack 平流自带锐度
+  vorticity: 0,
 }
 
-// 悬停阈值 = gravity/dragK ≈ 1.0（上升风需超过它才能抬升）
-const PLANE_PHYSICS = { radius: 1.0, dragK: 3.0, gravity: 3.0 }
+// 流体域 = 地图外扩边距：开放大气替身——风/热流出可见区后被边距吸收层清理，不撞墙反射回场内
+export const FLUID_MARGIN = 10
 
 // 风扇注入半径（世界单位）：与源半径同量级，圆域内速度以 falloff 注入
 const FAN_RADIUS = 3.0
@@ -61,14 +62,15 @@ export class LevelSimulation {
     const { w, h, cell } = level.world
     this.fluid = createFluid(
       {
-        nx: Math.round(w / cell),
-        ny: Math.round(h / cell),
+        nx: Math.round((w + 2 * FLUID_MARGIN) / cell),
+        ny: Math.round((h + FLUID_MARGIN) / cell),
         cell,
+        margin: FLUID_MARGIN,
         ...FLUID_TUNING,
       },
       engine,
     )
-    this.fluid.setGroundMask(level.ground)
+    this.fluid.setGroundMask(this.groundExt)
     this.applyAmbient(0)
     this.visited = level.goals.map(() => false)
     // 负 id 区段：与玩家源 id 空间隔离；born=-1 免生长动画（渲染 pop 恒为 1）
@@ -85,12 +87,18 @@ export class LevelSimulation {
     this.spawnY = level.spawn.y ?? level.ground(level.spawn.x)
     this.spawnVx = level.spawn.vx ?? 0
     this.spawnVy = level.spawn.vy ?? 0
-    this.plane = createBody(level.spawn.x, this.spawnY, PLANE_PHYSICS)
+    this.plane = createBody(level.spawn.x, this.spawnY)
     this.resetPlane()
   }
 
   get hotLeft() {
     return this.unlimited ? Infinity : this.level.budget.hot - this.usedHot
+  }
+
+  // 延展地面：地图外取边缘值（边距列的固体掩码/示踪粒子需要，关卡地面表达式在域外未必良性）
+  groundExt = (x: number): number => {
+    const { w } = this.level.world
+    return this.level.ground(x < 0 ? 0 : x > w ? w : x)
   }
 
   get coldLeft() {

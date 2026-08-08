@@ -7,7 +7,7 @@ import { Tracers, TRAIL_LEN } from '../sim/particles'
 import { Clouds } from '../sim/clouds'
 import { PLANE_TRAIL_FADE, Trail } from '../sim/trail'
 import { type PressVisual, type SourceKind } from '../sim/types'
-import { LevelSimulation } from '../game/simulation'
+import { LevelSimulation, FLUID_MARGIN } from '../game/simulation'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from '../render/render'
@@ -74,7 +74,8 @@ export class GameController {
     this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })
     // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降 dpr（所有平台同一策略）
     this.governor = new PerformanceGovernor(DPR_TIERS)
-    this.tracers = new Tracers(TRACER_COUNT, this.world, this.ground, TRAIL_LEN)
+    // 示踪粒子用延展地面：可随流体飞出地图，在外扩边距末端才清理
+    this.tracers = new Tracers(TRACER_COUNT, this.world, this.sim.groundExt, TRAIL_LEN, FLUID_MARGIN)
     this.clouds = new Clouds(level.id, this.world, this.ground)
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world

@@ -44,6 +44,14 @@ let heatRate: f64 = 0
 let sourceRadius: f64 = 0
 export let velDamping: f64 = 0
 export let tDamping: f64 = 0
+// 地图在网格内的原点偏移（格）：流体域 = 地图外扩边距，世界坐标 → 网格需加偏移
+let ox: i32 = 0
+let oy: i32 = 0
+// 边距吸收层（sponge）：越靠外壁衰减越强，能量在撞墙反射前被吸收，地图内恒不生效
+let marginCells: i32 = 0
+let spongeVelIn: f64 = 0
+let spongeVelOut: f64 = 0
+let spongeTOut: f64 = 0
 export let iterations: i32 = 0
 export let vorticity: f64 = 0
 let ambientX: f64 = 0
@@ -64,6 +72,7 @@ export function init(
   tDamping_: f64,
   iterations_: i32,
   vorticity_: f64,
+  marginCells_: i32,
 ): i32 {
   if (nx_ < 3 || ny_ < 3 || nx_ > MAX_NX || ny_ > MAX_NY) return 1
   nx = nx_
@@ -77,6 +86,12 @@ export function init(
   tDamping = tDamping_
   iterations = iterations_
   vorticity = vorticity_
+  marginCells = marginCells_
+  ox = marginCells_
+  oy = marginCells_
+  spongeVelIn = 0.999
+  spongeVelOut = 0.97
+  spongeTOut = 0.94
   ambientX = 0
   ambientY = 0
   clear()
@@ -226,8 +241,8 @@ export function addForce(
   const dxu = fx / len
   const dyv = fy / len
   const gr = radius / cell
-  const gx = wx / cell - 0.5
-  const gy = wy / cell - 0.5
+  const gx = wx / cell - 0.5 + <f64>ox
+  const gy = wy / cell - 0.5 + <f64>oy
   let x0 = <i32>Math.floor(gx - gr)
   if (x0 < 1) x0 = 1
   let x1 = <i32>Math.ceil(gx + gr)
@@ -253,8 +268,8 @@ export function addForce(
 }
 
 export function addHeat(wx: f64, wy: f64, amount: f64): void {  const gr = sourceRadius / cell
-  const gx = wx / cell - 0.5
-  const gy = wy / cell - 0.5
+  const gx = wx / cell - 0.5 + <f64>ox
+  const gy = wy / cell - 0.5 + <f64>oy
   let x0 = <i32>Math.floor(gx - gr)
   if (x0 < 1) x0 = 1
   let x1 = <i32>Math.ceil(gx + gr)
@@ -282,8 +297,8 @@ export function addHeat(wx: f64, wy: f64, amount: f64): void {  const gr = sourc
 }
 
 export function sampleVelocity(wx: f64, wy: f64): void {
-  let gx = wx / cell - 0.5
-  let gy = wy / cell - 0.5
+  let gx = wx / cell - 0.5 + <f64>ox
+  let gy = wy / cell - 0.5 + <f64>oy
   if (gx < 0) gx = 0
   else if (gx > <f64>nx - 1.001) gx = <f64>nx - 1.001
   if (gy < 0) gy = 0
@@ -318,8 +333,8 @@ export function outY(): f64 {
 }
 
 export function sampleTemp(wx: f64, wy: f64): f64 {
-  let gx = wx / cell - 0.5
-  let gy = wy / cell - 0.5
+  let gx = wx / cell - 0.5 + <f64>ox
+  let gy = wy / cell - 0.5 + <f64>oy
   if (gx < 0) gx = 0
   else if (gx > <f64>nx - 1.001) gx = <f64>nx - 1.001
   if (gy < 0) gy = 0
@@ -463,6 +478,41 @@ export function enforceBoundary(): void {
     u[idx] = 0
     v[idx] = 0
     t[idx] = 0
+  }
+}
+
+// 边距吸收层：仅扫左/右/上三条边距带（约 3k 格），系数随深入边距线性增强。
+// 开放大气的替身：风与热流出地图后被吸收，不撞外壁反射回场内
+export function applySponge(): void {
+  if (marginCells <= 0) return
+  const m = <f64>marginCells
+  for (let j = 1; j < ny - 1; j++) {
+    const row = j * nx
+    for (let i = 1; i <= marginCells; i++) {
+      const s = (m - <f64>i) / m
+      const kv = <f32>(spongeVelIn + (spongeVelOut - spongeVelIn) * s)
+      const kt = <f32>(1 + (spongeTOut - 1) * s)
+      const l = i + row
+      const r = nx - 1 - i + row
+      u[l] *= kv
+      v[l] *= kv
+      t[l] *= kt
+      u[r] *= kv
+      v[r] *= kv
+      t[r] *= kt
+    }
+  }
+  for (let j = 1; j <= marginCells; j++) {
+    const row = j * nx
+    const s = (m - <f64>j) / m
+    const kv = <f32>(spongeVelIn + (spongeVelOut - spongeVelIn) * s)
+    const kt = <f32>(1 + (spongeTOut - 1) * s)
+    for (let i = marginCells + 1; i < nx - marginCells - 1; i++) {
+      const idx = i + row
+      u[idx] *= kv
+      v[idx] *= kv
+      t[idx] *= kt
+    }
   }
 }
 

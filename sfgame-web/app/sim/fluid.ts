@@ -14,6 +14,8 @@ export interface FluidConfig {
   tDamping: number
   iterations: number
   vorticity: number
+  // 地图外扩边距（世界单位，左/右/上等宽）：流体域大于地图，风与热可流出可见区；0 = 域即地图（测试）
+  margin: number
 }
 
 // 流体公共面：质点/粒子/云/渲染按接口消费，不依赖 WASM 细节
@@ -33,18 +35,21 @@ export interface FluidLike {
   step(dt: number): void
 }
 
-// 地面/边界固体掩码（几何与 assembly/core.ts 的 rebuildSolid 一致）
+// 地面/边界固体掩码（几何与 assembly/core.ts 的 rebuildSolid 一致）。
+// originX/Y（格）= 地图在网格内的原点偏移：地面函数定义在世界坐标，格中心须减回偏移
 export function buildSolidMask(
   nx: number,
   ny: number,
   cell: number,
   groundY: (x: number) => number,
+  originX = 0,
+  originY = 0,
 ): Uint8Array {
   const solid = new Uint8Array(nx * ny)
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
-      const cx = (i + 0.5) * cell
-      const cy = (j + 0.5) * cell
+      const cx = (i - originX + 0.5) * cell
+      const cy = (j - originY + 0.5) * cell
       const edge = i === 0 || j === 0 || i === nx - 1 || j === ny - 1
       solid[i + j * nx] = edge || cy >= groundY(cx) ? 1 : 0
     }
@@ -52,7 +57,8 @@ export function buildSolidMask(
   return solid
 }
 
-// 渲染零拷贝采样：与 assembly/core.ts sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、环境风 = 基场×强度叠加）
+// 渲染零拷贝采样：与 assembly/core.ts sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、
+// 网格原点偏移 originX/Y（格）、环境风 = 基场×强度叠加）
 export function bilinearSample(
   u: Float32Array,
   v: Float32Array,
@@ -62,14 +68,16 @@ export function bilinearSample(
   nx: number,
   ny: number,
   cell: number,
+  originX: number,
+  originY: number,
   ambientX: number,
   ambientY: number,
   wx: number,
   wy: number,
   out: Vec2,
 ): number {
-  let gx = wx / cell - 0.5
-  let gy = wy / cell - 0.5
+  let gx = wx / cell - 0.5 + originX
+  let gy = wy / cell - 0.5 + originY
   if (gx < 0) gx = 0
   else if (gx > nx - 1.001) gx = nx - 1.001
   if (gy < 0) gy = 0
@@ -112,6 +120,8 @@ export class WasmFluid implements FluidLike {
 
   static create(cfg: FluidConfig, engine = createEngine()): WasmFluid | null {
     try {
+      // 边距取整格：JS 采样用同一整数偏移，保证与内核逐位同构
+      const marginCells = Math.round(cfg.margin / cfg.cell)
       // init 越界（nx/ny 超编译期容量）返回 1 → 拒绝创建
       const st = engine.ex.init(
         cfg.nx,
@@ -125,8 +135,11 @@ export class WasmFluid implements FluidLike {
         cfg.tDamping,
         cfg.iterations,
         cfg.vorticity,
+        marginCells,
       )
       if (st !== 0) return null
+      engine.origin.x = marginCells
+      engine.origin.y = marginCells
       return new WasmFluid(cfg, engine)
     } catch {
       return null
@@ -154,7 +167,8 @@ export class WasmFluid implements FluidLike {
   }
 
   setGroundMask(groundY: (x: number) => number) {
-    this.solidView.set(buildSolidMask(this.nx, this.ny, this.cell, groundY))
+    const m = this.engine.origin.x
+    this.solidView.set(buildSolidMask(this.nx, this.ny, this.cell, groundY, m, m))
     this.ex.rebuildSolid()
   }
 

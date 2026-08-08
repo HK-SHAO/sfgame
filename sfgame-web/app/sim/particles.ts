@@ -34,13 +34,21 @@ export class Tracers {
   private lastOdo: Float32Array
   private world: WorldBounds
   private groundY: (x: number) => number
+  private margin: number
   private air = { x: 0, y: 0 }
 
-  constructor(count: number, world: WorldBounds, groundY: (x: number) => number, trailLen = TRAIL_LEN) {
+  constructor(
+    count: number,
+    world: WorldBounds,
+    groundY: (x: number) => number,
+    trailLen = TRAIL_LEN,
+    margin = 0,
+  ) {
     this.count = count
     this.trailLen = trailLen
     this.world = world
     this.groundY = groundY
+    this.margin = margin
     this.x = new Float32Array(count)
     this.y = new Float32Array(count)
     this.life = new Float32Array(count)
@@ -128,11 +136,13 @@ export class Tracers {
       this.y[i] = ny
       if (this.odo[i] - this.lastOdo[i] >= TRAIL_SAMPLE) this.recordTrail(i)
       const gy = this.groundY(this.x[i]) - 0.4
+      // 允许飞出地图：流体域外扩边距内继续随风流动，接近边距末端才清理（可见区无堆积/断崖）
+      const m = this.margin
       if (
         this.y[i] > gy ||
-        this.y[i] < 0.5 ||
-        this.x[i] < 0.5 ||
-        this.x[i] > this.world.w - 0.5
+        this.y[i] < 1 - m ||
+        this.x[i] < 1 - m ||
+        this.x[i] > this.world.w + m - 1
       ) {
         this.respawn(i)
       }

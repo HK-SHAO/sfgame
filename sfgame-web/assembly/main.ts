@@ -50,6 +50,7 @@ import {
   tDamping,
   vorticity,
   applyVorticity,
+  applySponge,
   copyFields,
   advectPass,
   correctCell,
@@ -493,6 +494,7 @@ export function step(dt: f64): void {
   advectMacCormack(v, v0, dt, velDamping)
   advectMacCormack(t, t0, dt, tDamping)
 
+  applySponge()
   project()
   enforceBoundary()
 }

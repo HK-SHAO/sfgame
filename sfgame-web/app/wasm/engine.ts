@@ -15,6 +15,7 @@ export interface FluidExports {
     tDamping: number,
     iterations: number,
     vorticity: number,
+    marginCells: number,
   ): number
   clear(): void
   setAmbient(x: number, y: number): void
@@ -99,11 +100,13 @@ export interface EngineExports extends FluidExports, BatchExports, MusicExports 
   memory: WebAssembly.Memory
 }
 
-// 单实例句柄：fluid/batch 门面共享 ex 与 ambient（物理 setAmbient 写、渲染零拷贝采样读）
+// 单实例句柄：fluid/batch 门面共享 ex、ambient 与 origin（物理 setAmbient/create 写、渲染零拷贝采样读）。
+// origin = 地图在流体网格内的原点偏移（格）：流体域 = 地图外扩边距
 export interface EngineHandle {
   readonly ex: EngineExports
   readonly memory: WebAssembly.Memory
   readonly ambient: { x: number; y: number }
+  readonly origin: { x: number; y: number }
 }
 
 let wasmModule: WebAssembly.Module | null = null
@@ -158,7 +161,7 @@ export function createEngine(): EngineHandle {
       },
     })
     const ex = inst.exports as unknown as EngineExports
-    return { ex, memory: ex.memory, ambient: { x: 0, y: 0 } }
+    return { ex, memory: ex.memory, ambient: { x: 0, y: 0 }, origin: { x: 0, y: 0 } }
   } catch {
     throw new Error('WASM 引擎实例化失败')
   }

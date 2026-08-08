@@ -1,7 +1,6 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { name } from '../../package.json'
-import { deleteStemCache, listStemCache, type StemCacheInfo } from '../core/music-bakery'
 import { iconBack, iconDatabase } from './icons'
 import { boxReset, card, pageShell } from './shared-styles'
 
@@ -26,20 +25,12 @@ function listEntries(): StorageEntry[] {
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / 1024 / 1024).toFixed(1)} MB`
-}
-
-function formatTime(t: number): string {
-  const d = new Date(t)
-  const p = (v: number) => String(v).padStart(2, '0')
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  return `${(n / 1024).toFixed(1)} KB`
 }
 
 @customElement('sf-storage')
 export class SfStorage extends LitElement {
   @state() private armed: string | null = null
-  @state() private idbEntries: StemCacheInfo[] = []
   private entries: StorageEntry[] = []
   private disarmTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -48,31 +39,24 @@ export class SfStorage extends LitElement {
   connectedCallback() {
     super.connectedCallback()
     this.entries = listEntries()
-    void listStemCache().then((list) => {
-      this.idbEntries = list
-    })
   }
 
-  // 两步确认删除；armed 键域：'*' = 全部、'idb:N' = 烘焙缓存、其余 = localStorage 键
   private arm(key: string) {
-    if (this.armed !== key) {
-      this.armed = key
-      if (this.disarmTimer) clearTimeout(this.disarmTimer)
-      this.disarmTimer = setTimeout(() => {
-        this.armed = null
-      }, 3000)
+    if (this.armed === key) {
+      if (key === '*') {
+        for (const e of this.entries) localStorage.removeItem(e.key)
+      } else {
+        localStorage.removeItem(key)
+      }
+      // 整页重载：模块单例在内存持有旧数据（URL 带 v=storage，重载仍回本页）
+      location.reload()
       return
     }
-    if (key === '*') {
-      for (const e of this.entries) localStorage.removeItem(e.key)
-      // 整页重载：模块单例在内存持有旧数据（URL 带 v=storage，重载仍回本页）
-      void deleteStemCache().finally(() => location.reload())
-    } else if (key.startsWith('idb:')) {
-      void deleteStemCache(Number(key.slice(4))).finally(() => location.reload())
-    } else {
-      localStorage.removeItem(key)
-      location.reload()
-    }
+    this.armed = key
+    if (this.disarmTimer) clearTimeout(this.disarmTimer)
+    this.disarmTimer = setTimeout(() => {
+      this.armed = null
+    }, 3000)
   }
 
   override disconnectedCallback() {
@@ -81,9 +65,7 @@ export class SfStorage extends LitElement {
   }
 
   protected override render() {
-    const localTotal = this.entries.reduce((s, e) => s + e.bytes, 0)
-    const idbTotal = this.idbEntries.reduce((s, e) => s + e.bytes, 0)
-    const allEmpty = this.entries.length === 0 && this.idbEntries.length === 0
+    const total = this.entries.reduce((s, e) => s + e.bytes, 0)
     return html`
       <main class="page">
         <header class="bar">
@@ -96,7 +78,6 @@ export class SfStorage extends LitElement {
         </header>
 
         <section class="card">
-          <h2 class="card-title">进度与偏好（localStorage）</h2>
           ${this.entries.length === 0
             ? html`<p class="empty">${iconDatabase}<span>暂无本地持久化数据</span></p>`
             : this.entries.map(
@@ -126,45 +107,16 @@ export class SfStorage extends LitElement {
               )}
         </section>
 
-        <section class="card">
-          <h2 class="card-title">音乐烘焙缓存（IndexedDB）</h2>
-          ${this.idbEntries.length === 0
-            ? html`<p class="empty small">${iconDatabase}<span>暂无缓存，进关时会重新烘焙</span></p>`
-            : this.idbEntries.map(
-                (e) => html`
-                  <div class="entry">
-                    <div class="entry-head">
-                      <code class="key">背景音乐 · 关卡 ${e.id}</code>
-                      <span class="size">${formatBytes(e.bytes)} · ${formatTime(e.time)}</span>
-                      <button
-                        class="del"
-                        @click=${(ev: Event) => {
-                          ev.preventDefault()
-                          ev.stopPropagation()
-                          this.arm(`idb:${e.id}`)
-                        }}
-                      >
-                        ${this.armed === `idb:${e.id}` ? '确认删除' : '删除'}
-                      </button>
-                    </div>
-                  </div>
-                `,
-              )}
-          <p class="note left">预烘的钢琴 BGM 音频数据，清除后不影响游玩（下次进关重新烘焙）。</p>
-        </section>
-
         <div class="foot">
           <button
             class="clear ${this.armed === '*' ? 'armed' : ''}"
             @click=${() => this.arm('*')}
-            ?disabled=${allEmpty}
+            ?disabled=${this.entries.length === 0}
           >
             ${this.armed === '*' ? '确认清空全部' : '清空全部数据'}
           </button>
-          <p class="note">
-            共 ${this.entries.length + this.idbEntries.length} 项 · ${formatBytes(localTotal + idbTotal)}
-          </p>
-          <p class="note">数据仅保存在本设备浏览器（localStorage + IndexedDB），删除后不可恢复。</p>
+          <p class="note">共 ${this.entries.length} 项 · ${formatBytes(total)}</p>
+          <p class="note">数据仅保存在本设备浏览器（localStorage），删除后不可恢复。</p>
         </div>
       </main>
     `
@@ -286,13 +238,7 @@ export class SfStorage extends LitElement {
         corner-shape: squircle;
       }
 
-      .card-title {
-        margin: var(--sp-1) var(--sp-2) var(--sp-2);
-        font-size: 0.875rem;
-        font-weight: 700;
-      }
-
-      .empty {
+    .empty {
       display: flex;
       align-items: center;
       gap: 0.625rem;
@@ -302,20 +248,10 @@ export class SfStorage extends LitElement {
       color: var(--ink-soft);
     }
 
-    .empty.small {
-      padding: var(--sp-3) var(--sp-4);
-      font-size: 0.8125rem;
-    }
-
     .empty svg {
       width: 1.5rem;
       height: 1.5rem;
       flex: none;
-    }
-
-    .note.left {
-      text-align: left;
-      margin: var(--sp-2) var(--sp-2) var(--sp-1);
     }
 
     .foot {

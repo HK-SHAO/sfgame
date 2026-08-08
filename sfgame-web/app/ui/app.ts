@@ -12,8 +12,6 @@ import './storage-view'
 import './win-overlay'
 import './title-screen'
 import './hud'
-import './prewarm'
-import { prewarm, prewarmPassed } from './prewarm'
 import { urlState } from '../game/state'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
@@ -115,11 +113,6 @@ export class SfApp extends LitElement {
   }
 
   private startGame(id: number) {
-    // 预热/运行时校验未过不放行进关（校验失败时重弹警告卡）
-    if (!prewarmPassed()) {
-      prewarm.notifyFailure()
-      return
-    }
     fb.uiEnter()
     urlState.set('lv', id)
     urlState.clear('src')
@@ -167,10 +160,6 @@ export class SfApp extends LitElement {
   private openSolution(level: LevelDef) {
     const sol = solutionsFor(level.id)[0]
     if (!sol) return
-    if (!prewarmPassed()) {
-      prewarm.notifyFailure()
-      return
-    }
     fb.uiEnter()
     urlState.set('lv', level.id)
     urlState.set('src', sol.sources)
@@ -252,8 +241,7 @@ export class SfApp extends LitElement {
         @dev-page=${this.openDev}
       ></sf-title-screen>`
     }
-    // 预热模块全自治（流水线+校验+状态 UI）：app 只挂载，不感知内部步骤
-    return html`${content}<sf-prewarm></sf-prewarm>`
+    return content
   }
 
   private renderGame() {
@@ -312,7 +300,6 @@ export class SfApp extends LitElement {
     css`
       :host {
         display: block;
-        position: relative;
         height: 100svh;
         height: 100dvh;
         overflow: hidden;

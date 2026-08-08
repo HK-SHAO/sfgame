@@ -11,7 +11,7 @@ import { LevelSimulation } from '../game/simulation'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from '../render/render'
-import { takeEngine, type EngineHandle } from '../wasm/engine'
+import { createEngine, type EngineHandle } from '../wasm/engine'
 import { nextInGroup } from '../game/levels'
 import { penaltySeconds } from '../game/timer'
 import type { PerfRecorder } from '../dev/devtools'
@@ -67,9 +67,8 @@ export class GameController {
     this.host = host ?? canvas.parentElement ?? canvas
     this.world = level.world
     this.ground = level.ground
-    // 物理与渲染共享同一 wasm 实例：渲染零拷贝读流体内存（每关一次，keyed 重建时整体释放）；
-    // 取实例池预烘件，进关热路径零实例化开销
-    this.engine = takeEngine()
+    // 物理与渲染共享同一 wasm 实例：渲染零拷贝读流体内存（每关一次，keyed 重建时整体释放）
+    this.engine = createEngine()
     this.devTools = devTools ?? null
     // dev 模式道具不限量：devTools 非空即 dev（app.ts 按 ?dev=1 才构造面板）
     this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })

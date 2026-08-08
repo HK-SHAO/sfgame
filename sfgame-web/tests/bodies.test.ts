@@ -113,17 +113,49 @@ test('贴地姿态：底边贴合坡面、最低轮廓点不穿地', () => {
   expect(minClear).toBeGreaterThan(-0.05)
 })
 
+// 上坡代价：贴地时水平风推上坡要付重力切向代价，风无富余推不动（防"水平风无成本爬墙"）
+test('贴地上坡：水平风难以把飞机推上坡', () => {
+  const fluid = makeCalmFluid()
+  fluid.setAmbient(1.5, 0)
+  // 45° 右升坡：代价 ≈ g·sin45°·CLIMB_COST/(dragK·0.8) ≈ 1.77 > 风速 1.5
+  const ground = (x: number) => 40 - x
+  const body = createBody(20, 18.6, { radius: 1, dragK: 3, gravity: 3 })
+  for (let i = 0; i < 240; i++) stepBody(body, fluid, DT, ground, WORLD)
+  expect(body.x).toBeLessThan(20.5)
+})
+
+// 停稳双点接地（刚体静平衡＝两点支撑）：坡脚强弯曲地形不得单点机头支撑的"按地悬空"
+test('停稳双点接地：坡脚停稳至少两顶点触地、无深穿', () => {
+  const fluid = makeCalmFluid()
+  // 平地接右升坡（坡脚）：x<30 平，之后 1.5:1 上升
+  const ground = (x: number) => (x < 30 ? 40 : 40 - 1.5 * (x - 30))
+  const body = createBody(29.5, 39.4, { radius: 1, dragK: 3, gravity: 3 })
+  body.vx = 1.5
+  for (let i = 0; i < 600; i++) stepBody(body, fluid, DT, ground, WORLD)
+  const ca = Math.cos(body.angle)
+  const sa = Math.sin(body.angle)
+  let touching = 0
+  for (const [lx, ly] of PLANE_LOCAL) {
+    const clear = ground(body.x + lx * ca - ly * sa) - (body.y + lx * sa + ly * ca)
+    expect(clear).toBeGreaterThan(-0.06)
+    if (clear < 0.1) touching++
+  }
+  expect(touching).toBeGreaterThanOrEqual(2)
+})
+
 // 平地停稳：姿态折叠保留落地左右——向左滑停机头朝左（旧实现强制 atan(0)=0 恒朝右）
 test('平地停稳保持来向：向左滑停机头朝左、向右滑停机头朝右', () => {
   const ground = () => 40
   const OPTS_G = { radius: 1, dragK: 3, gravity: 3 }
+  // 静流体建一次循环外复用（每步新建网格是纯浪费）
+  const fluid = makeCalmFluid()
   const left = createBody(30, 39.5, OPTS_G)
   left.vx = -8
-  for (let i = 0; i < 600; i++) stepBody(left, makeCalmFluid(), DT, ground, WORLD)
+  for (let i = 0; i < 600; i++) stepBody(left, fluid, DT, ground, WORLD)
   expect(Math.cos(left.angle)).toBeLessThan(-0.9)
 
   const right = createBody(30, 39.5, OPTS_G)
   right.vx = 8
-  for (let i = 0; i < 600; i++) stepBody(right, makeCalmFluid(), DT, ground, WORLD)
+  for (let i = 0; i < 600; i++) stepBody(right, fluid, DT, ground, WORLD)
   expect(Math.cos(right.angle)).toBeGreaterThan(0.9)
 })

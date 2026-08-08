@@ -58,6 +58,10 @@ const WALL_RESTITUTION = 0.35
 // 纸面滑动摩擦系数 μ：接触帧以恒定减速度 μ·g 线性减速到停（现实滑动摩擦，
 // 纸面 μ≈0.3——可丝滑长滑；缓坡净驱动力不足时自然停住）
 const GROUND_FRICTION_MU = 0.3
+// 上坡爬升代价倍数（非物理护栏，与地效同类）：贴地上坡方向的风驱动按重力切向分量
+// ×此倍数付代价（等效风目标扣减），风有富余才推得动——防水平风无成本爬墙；
+// 下坡滑行与惯性滑爬（无风驱动）不受影响
+const CLIMB_COST = 2.0
 
 // 贴地区（地面边界层）：离地低于 GROUND_EFFECT_H 风耦合按贴地度衰减至 GROUND_AERO_MIN——
 // 唯一非现实护栏（地效反直觉：现实地效增强升力）：防贴地悬停成为最优策略（贴地悬停需风 ≈1.25 倍）
@@ -100,6 +104,38 @@ function vertexRestY(body: Body, groundY: (x: number) => number): number {
   return rest
 }
 
+// 停稳双点接地姿态：机头与指定翼尖同时触地（f(a)=两点触地中心高度差，二分求根）。
+// 均匀坡/平地退化为 坡角+PLANE_TILT；强弯曲地形（坡脚）避免单点机头支撑的"按地悬空"。
+// ±π/2 内无根返回 null（回退底边贴坡目标）
+function twoPointRestAngle(
+  body: Body,
+  groundY: (x: number) => number,
+  wing: readonly [number, number],
+): number | null {
+  const f = (a: number) => {
+    const ca = Math.cos(a)
+    const sa = Math.sin(a)
+    const restN = groundY(body.x + PLANE_LOCAL[0][0] * ca) - PLANE_LOCAL[0][0] * sa
+    const restW = groundY(body.x + wing[0] * ca - wing[1] * sa) - (wing[0] * sa + wing[1] * ca)
+    return restN - restW
+  }
+  let lo = body.angle - Math.PI / 2
+  let hi = body.angle + Math.PI / 2
+  let flo = f(lo)
+  const fhi = f(hi)
+  if (flo * fhi > 0) return null
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2
+    const fm = f(mid)
+    if (fm * flo <= 0) hi = mid
+    else {
+      lo = mid
+      flo = fm
+    }
+  }
+  return (lo + hi) / 2
+}
+
 export function stepBody(
   body: Body,
   fluid: FluidLike,
@@ -108,13 +144,22 @@ export function stepBody(
   world: WorldBounds,
 ) {
   const px = body.x
+  const py = body.y
   fluid.sampleVelocity(body.x, body.y, tmpAir)
   const r = body.radius
   const hAbove = Math.max(0, groundY(px) - body.y - REST_OFFSET)
   const eff = Math.min(1, hAbove / GROUND_EFFECT_H)
   const airK = 1 - (1 - eff) * (1 - GROUND_AERO_MIN)
   const k = Math.min(1, body.dragK * dt) * airK
-  body.vx += (tmpAir.x - body.vx) * k
+  // 坡面（中心差分）：上坡代价、坡面下滑与姿态共用
+  const slope = (groundY(body.x + SLOPE_EPS) - groundY(body.x - SLOPE_EPS)) / (2 * SLOPE_EPS)
+  // 上坡代价：贴地且风朝上坡方向吹时，风目标扣掉重力切向代价（连续力语义：收敛率 K 除回）
+  let airX = tmpAir.x
+  if (body.y >= vertexRestY(body, groundY) - 0.05 && airX * slope < 0) {
+    const cost = (body.gravity * Math.abs(slope) * CLIMB_COST) / (Math.sqrt(1 + slope * slope) * body.dragK * airK)
+    airX -= Math.sign(airX) * cost
+  }
+  body.vx += (airX - body.vx) * k
   body.vy += body.gravity * dt + (tmpAir.y - body.vy) * k
   body.x += body.vx * dt
   body.y += body.vy * dt
@@ -138,8 +183,6 @@ export function stepBody(
     }
   }
 
-  const pground = groundY(px) - REST_OFFSET
-  const ground = groundY(body.x) - REST_OFFSET
   // 最低轮廓点接触高度（顶点贴合）：接触与贴地判定以它为准，中心基准只作边界层检测
   const rest = vertexRestY(body, groundY)
   const speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy)
@@ -149,9 +192,19 @@ export function stepBody(
   if (body.y > rest) {
     // 实际触地（最低轮廓点穿地）：崖壁护栏 + 反弹 + 库仑摩擦——触地才接地，边界层内不再提前"吸"住
     const dx = body.x - px
-    if (Math.abs(dx) > 1e-6 && pground - ground > MAX_SLIDE_SLOPE * Math.abs(dx)) {
+    const pground = groundY(px) - REST_OFFSET
+    const ground = groundY(body.x) - REST_OFFSET
+    // 机头扫过的地形是否真抬升：机头先够到陡坡时中心基准看不见（地形在机头处骤升），
+    // 逐帧 snap 抬升能把飞机"爬墙"送上山肩（挂机通关漏洞）；抬升超 2:1 判墙，缓坡滑爬不受影响
+    const nxv = body.x + PLANE_LOCAL[0][0]
+    const aheadRise = (groundY(nxv) < groundY(nxv - dx)) ? groundY(nxv - dx) - groundY(nxv) : 0
+    if (
+      Math.abs(dx) > 1e-6 &&
+      (pground - ground > MAX_SLIDE_SLOPE * Math.abs(dx) || aheadRise > MAX_SLIDE_SLOPE * Math.abs(dx))
+    ) {
+      // 撞墙帧位置整体退回（x 与 y 都回 px/py）
       body.x = px
-      if (body.y > pground) body.y = pground
+      body.y = py
       body.vx = Math.sign(-dx) * Math.abs(body.vx) * WALL_RESTITUTION
       if (body.vy > 0) body.vy = -body.vy * 0.1
     } else {
@@ -169,7 +222,6 @@ export function stepBody(
     body.y = Math.min(rest, body.y + GROUND_SETTLE_RATE * dt)
   }
   // 坡面滑行（#25）：贴地或边界层内时重力沿坡面的切向分量持续驱动下滑（仅接触帧会因逐帧微弹跳而断续）
-  const slope = (groundY(body.x + SLOPE_EPS) - groundY(body.x - SLOPE_EPS)) / (2 * SLOPE_EPS)
   if (eff < 1) {
     body.vx += body.gravity * (slope / (1 + slope * slope)) * dt
   }
@@ -183,7 +235,13 @@ export function stepBody(
     const c1 = s + PLANE_TILT
     const c2 = s + Math.PI - PLANE_TILT
     if (Math.abs(body.vx) > REST_MOVE_EPS) target = body.vx > 0 ? c1 : c2
-    else target = Math.abs(wrapAngle(c1 - body.angle)) <= Math.abs(wrapAngle(c2 - body.angle)) ? c1 : c2
+    else {
+      // 停稳取双点接地姿态（刚体静平衡＝两点支撑）：同侧升级 c1/c2（腹侧 ab、翻侧 af），
+      // 再取近当前姿态者——避免与已收敛姿态竞争时无解回退底边贴坡
+      const t1 = twoPointRestAngle(body, groundY, PLANE_LOCAL[3]) ?? c1
+      const t2 = twoPointRestAngle(body, groundY, PLANE_LOCAL[1]) ?? c2
+      target = Math.abs(wrapAngle(t1 - body.angle)) <= Math.abs(wrapAngle(t2 - body.angle)) ? t1 : t2
+    }
   } else if (speed > ATT_SPEED) {
     target = Math.atan2(body.vy, body.vx)
   }

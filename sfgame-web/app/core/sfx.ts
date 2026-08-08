@@ -1,7 +1,7 @@
 import { name } from '../../package.json'
 import { bakeScore, MusicPlayer } from './music'
 import { bakeLevelStems, takeStems } from './music-bakery'
-import { takeEngine } from '../wasm/engine'
+import { createEngine } from '../wasm/engine'
 
 const STORAGE_KEY = `${name}.muted`
 const MASTER_GAIN = 0.5
@@ -151,7 +151,7 @@ class Sfx {
         }, true)
         // 音乐是增强层：合成内核（WASM）不可用时静默降级为无音乐，物理内核不受牵连
         try {
-          this.music = new MusicPlayer(this.ctx, this.master, takeEngine())
+          this.music = new MusicPlayer(this.ctx, this.master, createEngine())
         } catch {
           this.music = null
         }

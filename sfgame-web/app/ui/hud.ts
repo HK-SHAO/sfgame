@@ -153,8 +153,8 @@ export class SfHud extends LitElement {
         }
       }
 
-      /* 39.7rem ≈ 带标签内容宽 */
-      @container (min-width: 39.7rem) {
+      /* 42rem ≈ 带标签内容宽 */
+      @container (min-width: 42rem) {
         .lbl {
           display: inline;
         }

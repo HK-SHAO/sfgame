@@ -1,5 +1,6 @@
 import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
+import { fb } from '../core/feedback'
 import { PerformanceGovernor, DPR_TIERS } from '../core/governor'
 import { buildWindProbes, isLanding, sampleWind } from '../core/wind'
 import { Tracers, TRAIL_LEN } from '../sim/particles'
@@ -46,6 +47,7 @@ export class GameController {
   private governor: PerformanceGovernor
   private tickMs = 0
   private lastLand = -Infinity
+    private lastFlow = 0.6
   private rate = 1
   private fitW = 0
   private fitH = 0
@@ -82,6 +84,7 @@ export class GameController {
       toWorld: (cx, cy) => this.renderer.toWorld(cx, cy),
       hitSource: (w) => this.sim.hitSource(w.x, w.y),
       sourceGrabbed: (s) => {
+        fb.grab()
         this.press = {
           kind: 'remove',
           x: s.x,
@@ -93,7 +96,7 @@ export class GameController {
       sourceReleased: (s) => {
         this.press = null
         if (this.sim.removeSource(s.id)) {
-          sfx.remove()
+          fb.remove()
           this.pushHud()
           this.emitSources()
         }
@@ -118,6 +121,7 @@ export class GameController {
     }
     this.fit()
     this.loop.start()
+    sfx.musicForLevel(this.sim.level.id)
     this.pushHud()
   }
 
@@ -132,6 +136,7 @@ export class GameController {
     this.ro?.disconnect()
     this.ro = null
     sfx.fadeOutWind()
+    sfx.musicStop()
   }
 
   restart() {
@@ -145,6 +150,8 @@ export class GameController {
   togglePause() {
     this.sim.setPaused(!this.sim.paused)
     if (this.sim.paused) sfx.fadeOutWind()
+    fb.pause(this.sim.paused)
+    sfx.setFlow(this.sim.paused ? 0.15 : this.lastFlow)
     this.pushHud()
   }
 
@@ -176,12 +183,12 @@ export class GameController {
     this.press = null
     const source = this.sim.placeSource(x, y, kind)
     if (source) {
-      if (kind === 'hot') sfx.placeHot()
-      else sfx.placeCold()
+      if (kind === 'hot') fb.placeHot()
+      else fb.placeCold()
       this.pushHud()
       this.emitSources()
     } else {
-      sfx.deny()
+      fb.deny()
       this.events.onDeny(kind)
     }
   }
@@ -218,24 +225,35 @@ export class GameController {
       const wind = sampleWind(this.sim.fluid, this.windProbes, p, this.tmpAir)
       sfx.updateWind(wind.field, wind.rel, dt)
       sfx.setPlanePan(p.x, this.world.w)
+      // 音乐随飞行呼吸：飞机相对风速驱动旋律层响度/亮度，变化超 0.04 才推（不逐帧排 automation）
+      const flow = Math.min(1, wind.rel / 6)
+      if (Math.abs(flow - this.lastFlow) > 0.04) {
+        this.lastFlow = flow
+        sfx.setFlow(flow)
+      }
       const altAfter = this.sim.level.ground(p.x) - p.y
       if (isLanding(altBefore, altAfter, vyBefore)) {
         const now = performance.now()
         if (now - this.lastLand > LAND_SOUND_MIN_INTERVAL) {
           this.lastLand = now
-          sfx.land(Math.abs(vyBefore))
+          fb.land(Math.abs(vyBefore))
         }
       }
     }
 
     if (this.sim.visitedCount > visitedBefore) {
-      if (this.sim.phase === 'won') sfx.win()
-      else sfx.reward()
+      if (this.sim.phase === 'won') fb.win()
+      else fb.reward()
     }
 
     if (this.sim.phase !== this.lastPhase) {
       this.lastPhase = this.sim.phase
-      if (this.sim.phase === 'won') sfx.fadeOutWind()
+      if (this.sim.phase === 'won') {
+        sfx.fadeOutWind()
+        sfx.musicDuck(true)
+      } else {
+        sfx.musicDuck(false)
+      }
       this.pushHud()
     }
 

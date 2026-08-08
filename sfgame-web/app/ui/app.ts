@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
-import { sfx } from '../core/sfx'
+import { fb } from '../core/feedback'
 import { LEVELS, LEVEL_GROUPS, nextInGroup, solutionsFor } from '../game/levels'
 import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
@@ -39,7 +39,7 @@ export class SfApp extends LitElement {
   @state() private activeGroup = LEVEL_GROUPS[0]?.name ?? ''
   @state() private initialSources: SourcePlacement[] = []
   @state() private hud: HudState = defaultHud(FIRST_LEVEL)
-  @state() private muted = sfx.muted
+  @state() private muted = fb.muted
   private winRank = -1
   @state() private rate = 1
   @state() private dev = urlState.get('dev')
@@ -54,14 +54,14 @@ export class SfApp extends LitElement {
 
   constructor() {
     super()
-    sfx.unlock()
+    fb.unlock()
     // 初始加载与外部变化允许脏 lv 净化；本地写路径不净化（见 screen.ts cleanup 注释）
     this.applyScreen(screenFromUrl(true))
     urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true)))
     urlState.onChange('v', () => this.applyScreen(screenFromUrl(true)))
     urlState.onChange('src', (v) => {
       this.gameEl?.applySources(v)
-      sfx.uiClick()
+      fb.uiClick()
     })
   }
 
@@ -113,7 +113,7 @@ export class SfApp extends LitElement {
   }
 
   private startGame(id: number) {
-    sfx.uiEnter()
+    fb.uiEnter()
     urlState.set('lv', id)
     urlState.clear('src')
     this.applyScreen(screenFromUrl())
@@ -122,7 +122,7 @@ export class SfApp extends LitElement {
   private playNext() {
     const next = nextInGroup(this.activeLevel.id)
     if (next === undefined) return
-    sfx.uiEnter()
+    fb.uiEnter()
     // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
     urlState.set('lv', next)
     urlState.clear('src')
@@ -130,14 +130,14 @@ export class SfApp extends LitElement {
   }
 
   private goBack() {
-    sfx.uiBack()
+    fb.uiBack()
     // 仅应用内导航（pushState 带 sf 标记）才回退上一页；直达链接/外部进入回首页
     if (window.history.state && window.history.state.sf) window.history.back()
     else this.backToTitle()
   }
 
   private backToTitle() {
-    sfx.uiBack()
+    fb.uiBack()
     urlState.clear('lv')
     urlState.clear('src')
     urlState.clear('v')
@@ -145,13 +145,13 @@ export class SfApp extends LitElement {
   }
 
   private openStorage() {
-    sfx.uiEnter()
+    fb.uiEnter()
     urlState.set('v', 'storage')
     this.applyScreen(screenFromUrl())
   }
 
   private openDev() {
-    sfx.uiEnter()
+    fb.uiEnter()
     urlState.set('v', 'dev')
     this.applyScreen(screenFromUrl())
   }
@@ -160,7 +160,7 @@ export class SfApp extends LitElement {
   private openSolution(level: LevelDef) {
     const sol = solutionsFor(level.id)[0]
     if (!sol) return
-    sfx.uiEnter()
+    fb.uiEnter()
     urlState.set('lv', level.id)
     urlState.set('src', sol.sources)
     urlState.clear('v')
@@ -171,23 +171,28 @@ export class SfApp extends LitElement {
   private toggleDev(e: CustomEvent<boolean>) {
     this.dev = e.detail
     urlState.set('dev', e.detail, { replace: true })
-    sfx.uiClick()
+    fb.uiClick()
   }
 
   private restart() {
-    sfx.uiReset()
+    fb.uiReset()
     this.gameEl?.restart()
   }
 
   private toggleSound() {
-    this.muted = sfx.toggleMuted()
-    if (!this.muted) sfx.uiClick()
+    this.muted = fb.toggleMuted()
+    if (!this.muted) fb.uiClick()
   }
 
   private cycleSpeed() {
     const steps = this.speedSteps
     this.rate = steps[(steps.indexOf(this.rate) - 1 + steps.length) % steps.length]
-    sfx.uiClick()
+    fb.uiClick()
+  }
+
+  private onGroup(e: CustomEvent<string>) {
+    this.activeGroup = e.detail
+    fb.uiClick()
   }
 
   private onHudChange(e: CustomEvent<HudState>) {
@@ -230,7 +235,7 @@ export class SfApp extends LitElement {
     return html`<sf-title-screen
       .dev=${this.dev}
       .activeGroup=${this.activeGroup}
-      @group=${(e: CustomEvent<string>) => (this.activeGroup = e.detail)}
+      @group=${this.onGroup}
       @start=${(e: CustomEvent<number>) => this.startGame(e.detail)}
       @solution=${(e: CustomEvent<LevelDef>) => this.openSolution(e.detail)}
       @dev-page=${this.openDev}

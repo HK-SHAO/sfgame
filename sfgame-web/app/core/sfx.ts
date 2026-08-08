@@ -1,4 +1,5 @@
 import { name } from '../../package.json'
+import { bakeScore, MusicPlayer } from './music'
 
 const STORAGE_KEY = `${name}.muted`
 const MASTER_GAIN = 0.5
@@ -99,6 +100,9 @@ class Sfx {
   private noiseBuf: AudioBuffer | null = null
   private bed: WindVoice | null = null
   private planeWind: WindVoice | null = null
+  private music: MusicPlayer | null = null
+  private wantMusic = -1
+  private musicLevel = -1
   private unlockArmed = false
   muted = false
 
@@ -143,6 +147,11 @@ class Sfx {
           maxGain: 0.3,
           tau: 0.18,
         }, true)
+        this.music = new MusicPlayer(this.ctx, this.master)
+        if (this.wantMusic >= 0) {
+          this.musicLevel = this.wantMusic
+          this.music.start(bakeScore(this.wantMusic))
+        }
         document.addEventListener('visibilitychange', () => {
           if (!this.ctx) return
           if (document.hidden) void this.ctx.suspend()
@@ -176,7 +185,6 @@ class Sfx {
   // 落地音：响度与低通截止随撞击速度增大（动能 → 声能）
   land(impact: number) {
     if (this.muted || !this.ctx || !this.master || !this.noiseBuf) return
-    if (impact < 0.6) return
     try {
       const t0 = this.ctx.currentTime
       const src = this.ctx.createBufferSource()
@@ -196,6 +204,29 @@ class Sfx {
       this.releaseWhenDone(src, [src, lp, g])
     } catch {
     }
+  }
+
+  // 背景音乐按关卡 id 烘焙（确定性微调）；AudioContext 未解锁时记挂起，解锁后续上
+  musicForLevel(levelId: number) {
+    this.wantMusic = levelId
+    if (!this.music || levelId === this.musicLevel) return
+    this.musicLevel = levelId
+    this.music.start(bakeScore(levelId))
+  }
+
+  musicStop() {
+    this.wantMusic = -1
+    this.musicLevel = -1
+    this.music?.stop()
+  }
+
+  musicDuck(on: boolean) {
+    this.music?.duck(on)
+  }
+
+  // 游戏状态 → 音乐强度（飞机相对风速），由 controller 节流后驱动
+  setFlow(x: number) {
+    this.music?.setFlow(x)
   }
 
   toggleMuted(): boolean {
@@ -229,6 +260,60 @@ class Sfx {
     }
   }
 
+  // FM 合成：载波 sine + ratio 倍频调制，泛音随包络衰减——钢片琴/冰晶/电钢的明亮个性
+  private fmTone(f: number, dur: number, peak: number, ratio: number, index: number, delay = 0) {
+    if (this.muted || !this.ctx || !this.master) return
+    try {
+      const t0 = this.ctx.currentTime + delay
+      const car = this.ctx.createOscillator()
+      car.type = 'sine'
+      car.frequency.value = f
+      const mod = this.ctx.createOscillator()
+      mod.type = 'sine'
+      mod.frequency.value = f * ratio
+      const mg = this.ctx.createGain()
+      mg.gain.setValueAtTime(f * index, t0)
+      mg.gain.exponentialRampToValueAtTime(Math.max(1, f * 0.05), t0 + dur * 0.7)
+      mod.connect(mg)
+      mg.connect(car.frequency)
+      const g = this.ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t0)
+      g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+      car.connect(g)
+      g.connect(this.master)
+      car.start(t0)
+      mod.start(t0)
+      car.stop(t0 + dur + 0.05)
+      mod.stop(t0 + dur + 0.05)
+      this.releaseWhenDone(car, [car, mod, mg, g])
+    } catch {
+    }
+  }
+
+  // 噪声脉冲：低通截爆点（火焰“蓬”、风压等物理感）
+  private noiseBurst(cutoff: number, dur: number, peak: number, delay = 0) {
+    if (this.muted || !this.ctx || !this.master || !this.noiseBuf) return
+    try {
+      const t0 = this.ctx.currentTime + delay
+      const src = this.ctx.createBufferSource()
+      src.buffer = this.noiseBuf
+      src.playbackRate.value = 0.9 + Math.random() * 0.2
+      const lp = this.ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = cutoff
+      const g = this.ctx.createGain()
+      g.gain.setValueAtTime(peak, t0)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+      src.connect(lp)
+      lp.connect(g)
+      g.connect(this.master)
+      src.start(t0, Math.random() * 1.4, dur + 0.05)
+      this.releaseWhenDone(src, [src, lp, g])
+    } catch {
+    }
+  }
+
   private tone(
     f0: number,
     f1: number,
@@ -257,14 +342,26 @@ class Sfx {
     }
   }
 
-  placeHot() {
-    const f = 620 * (0.95 + Math.random() * 0.1)
-    this.tone(f, f * 0.52, 0.14, 'sine', 0.5)
+  grab() {
+    this.tone(880, 660, 0.045, 'sine', 0.1)
   }
 
+  pause(paused: boolean) {
+    if (paused) this.tone(392, 294, 0.08, 'sine', 0.2)
+    else this.tone(294, 392, 0.08, 'sine', 0.2)
+  }
+
+  // 火焰“蓬”：下滑音 + 低通噪声爆点（点燃的物理感）
+  placeHot() {
+    const f = 620 * (0.95 + Math.random() * 0.1)
+    this.tone(f, f * 0.52, 0.14, 'sine', 0.4)
+    this.noiseBurst(520, 0.1, 0.15)
+  }
+
+  // 冰晶“叮铃”：FM 高载波双音（G6 + D7），3.07 非谐波比出金属泛音
   placeCold() {
-    const f = 340 * (0.95 + Math.random() * 0.1)
-    this.tone(f, f * 0.59, 0.16, 'sine', 0.5)
+    this.fmTone(1567.98, 0.24, 0.28, 3.07, 3.5)
+    this.fmTone(2349.32, 0.18, 0.13, 3.07, 3, 0.05)
   }
 
   remove() {
@@ -292,14 +389,18 @@ class Sfx {
     this.tone(440, 440, 0.05, 'triangle', 0.25, 0.07)
   }
 
+  // 过关：FM 电钢终止式（C 大调琶音 + 主音长音 + C3 低音锚点）
   win() {
     const notes = [523.25, 659.25, 783.99, 1046.5]
-    notes.forEach((f, i) => this.tone(f, f, 0.22, 'triangle', 0.32, i * 0.09))
+    notes.forEach((f, i) => this.fmTone(f, 0.5, 0.26, 2.99, 2.6, i * 0.11))
+    this.fmTone(1046.5, 1.0, 0.24, 2.99, 2.2, 0.46)
+    this.tone(130.81, 130.81, 0.9, 'sine', 0.16, 0.46)
   }
 
+  // 抵达奖励：chiptune 快琶音（8bit 琶音器技法，A5-D6-E6-A6 四音 50ms 连发）
   reward() {
-    this.tone(880, 880, 0.09, 'sine', 0.28)
-    this.tone(1174.66, 1174.66, 0.15, 'sine', 0.24, 0.07)
+    const notes = [880, 1174.66, 1318.51, 1760]
+    notes.forEach((f, i) => this.fmTone(f, 0.13, 0.2, 2, 2.2, i * 0.05))
   }
 }
 

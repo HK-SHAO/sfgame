@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": 2,
+  "name": "起飞",
+  "tagline": "上升气流",
+  "win": {
+    "title": "飞起来了！",
+    "text": "阳光化作热，热化作风，风托起纸飞机——温柔是一层层传递的。"
+  },
+  "world": { "w": 76, "h": 56, "cell": 0.75 },
+  "ground": { "expr": "48 - 26*ss((x-36)/12)" },
+  "budget": { "hot": 4, "cold": 2 },
+  "spawn": { "x": -6, "y": 33, "vx": 40 },
+  "goals": [{ "x": 58, "r": 7.5 }],
+  "ambient": { "x": 1.8, "y": 0 },
+  "solutions": [
+    {
+      "name": "冷压热托",
+      "sources": [
+        { "x": 38, "y": 45.4, "kind": "hot" },
+        { "x": 50, "y": 21.3, "kind": "cold" }
+      ],
+      "winTime": 16.9
+    }
+  ]
+}

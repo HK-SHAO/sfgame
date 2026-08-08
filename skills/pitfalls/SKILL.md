@@ -212,7 +212,7 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 旧 `drawPlane` 在 `alt >= SHADOW_FADE_ALT` 时直接 `return`——连飞机本体都不画，高空飞机凭空消失。**影子淡出是"局部效果"，早退只能跳过影子那段**；任何"某效果随条件淡出"的代码，先确认早退范围不含主体绘制。重构渲染时优先审这类 early-return。
 
 ### D11 模块级初始化抛错 → 整包白屏（如关卡解析失败）
-**症状**：改坏一个关卡 YAML（如 `r: 0`）后刷新页面直接白屏，console 是模块求值时的 `Uncaught Error: 关卡校验失败…`。
+**症状**：改坏一个关卡 JSON（如 `"r": 0`）后刷新页面直接白屏，console 是模块求值时的 `Uncaught Error: 关卡校验失败…`。
 **根因**：`levels.ts` 在模块顶层 `LEVEL_TEXTS.map(parseLevelText)`——任一条解析抛错，整个 bundle 求值失败，连 `sf-app` 都注册不了，任何错误 UI 都没有机会渲染。
 **修法**：逐项 try/catch 容错加载（坏关卡进 `LEVEL_ERRORS` 清单，模块永不抛）；UI 在标题页渲染告警卡（`role="alert"` 红底小卡列出错误原文）；依赖首关的字段初始化（如 `hud` 的预算初值）用 `?.` + `?? 0` 兜底，`startGame` 找不到关卡直接 return。
 **信号**：任何"模块顶层立即执行解析/编译/IO"的代码（关卡、JSON、wasm 初始化）——一律逐项容错 + 错误清单外显，白屏是最大的鲁棒性失败。

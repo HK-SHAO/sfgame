@@ -6,6 +6,16 @@ export default defineConfig({
   build: {
     // Safari 不消费 modulepreload 缓存并误报 "preloaded but not used"，禁用注入
     modulePreload: false,
+    rollupOptions: {
+      output: {
+        // 第三方稳定 chunk：lit 体积大且全组件共享，独立成块利于浏览器缓存命中
+        manualChunks(id) {
+          if (id.includes('node_modules/lit') || id.includes('node_modules/@lit')) {
+            return 'vendor-lit'
+          }
+        },
+      },
+    },
   },
   test: {
     include: ['tests/**/*.test.ts'],

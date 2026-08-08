@@ -1,10 +1,9 @@
 import { expect, test } from 'vitest'
-import { parse as parseYaml, stringify as yamlStringify } from 'yaml'
 import { LEVELS, levelSource, resolveLevel } from '../app/game/levels'
 import { parseLevelText } from '../app/game/level-format'
 import { lvCodec } from '../app/game/state'
 
-const levelJson = (id: number) => JSON.stringify(parseYaml(levelSource(id)!))
+const levelJson = (id: number) => levelSource(id)!
 
 test('内置关卡：id 解析，无效 id 回落 undefined', () => {
   expect(resolveLevel(6)).toBe(LEVELS.find((l) => l.id === 6))
@@ -38,10 +37,10 @@ test('内联关卡：JSON 压入 lv 往返无损，URL 零百分号转义', () =
   expect(resolveLevel(json)?.id).toBe(6)
 })
 
-test('内联关卡经 yaml.stringify 重建后语义等值（预填路径）', () => {
+test('内联关卡经 JSON 美化重建后语义等值（预填路径）', () => {
   const json = levelJson(6)
-  const rebuilt = yamlStringify(JSON.parse(json))
-  expect(JSON.stringify(parseLevelText(rebuilt))).toBe(json)
+  const rebuilt = JSON.stringify(JSON.parse(json), null, 2)
+  expect(parseLevelText(rebuilt)).toEqual(JSON.parse(json))
 })
 
 test('损坏/非法内联编码回落，整数形态拒绝 lv=0', () => {

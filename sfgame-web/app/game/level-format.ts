@@ -1,8 +1,7 @@
-import { parse as parseYaml } from 'yaml'
 import { compileExpr, ExprError } from './expr'
 import type { LevelDef, LevelJson } from './types'
 
-// 关卡协议版本：YAML 顶层必须为 1
+// 关卡协议版本：JSON 顶层必须为 1
 const LEVEL_SCHEMA = 1
 
 const isFin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -221,9 +220,9 @@ export function validateLevelJson(raw: unknown): string[] {
 export function parseLevelText(text: string): LevelJson {
   let raw: unknown
   try {
-    raw = parseYaml(text)
+    raw = JSON.parse(text)
   } catch (e) {
-    throw new Error(`关卡 YAML 解析失败：${e instanceof Error ? e.message : String(e)}`)
+    throw new Error(`关卡 JSON 解析失败：${e instanceof Error ? e.message : String(e)}`)
   }
   const errs = validateLevelJson(raw)
   if (errs.length > 0) throw new Error(`关卡校验失败：${errs.join('；')}`)

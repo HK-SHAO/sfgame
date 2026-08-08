@@ -5,14 +5,11 @@ import { fb } from '../core/feedback'
 import { bgm } from '../core/bgm'
 import { LEVELS, LEVEL_GROUPS, nextInGroup, solutionsFor } from '../game/levels'
 import { progress } from '../game/progress'
-import { SfGame, type DenyDetail } from './sf-game'
+import type { SfGame, DenyDetail } from './sf-game'
 import type { SfHud } from './hud'
-import { DevTools } from '../dev/devtools'
-import '../dev/dev-menu'
-import './storage-view'
-import './win-overlay'
+import type { DevTools } from '../dev/devtools'
+// 首屏内容同步进主包；其余屏组件按需动态加载（见 ensureGameReady/ensureScreen）
 import './title-screen'
-import './hud'
 import { urlState } from '../game/state'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
@@ -45,6 +42,11 @@ export class SfApp extends LitElement {
   @state() private dev = urlState.get('dev')
   // 面板由 app 持有：sf-game 重建不销毁
   private devTools: DevTools | null = null
+  private devToolsLoad: Promise<void> | null = null
+  // 屏级 chunk 就绪门闩：异步加载完成后才渲染对应屏（避免先渲染未知元素）
+  @state() private gameReady = false
+  @state() private devMenuReady = false
+  @state() private storageReady = false
   private get speedSteps(): number[] {
     return this.dev ? [1, 2, 4, 8, 16, 0.5] : [1, 2, 4, 0.5]
   }
@@ -71,13 +73,48 @@ export class SfApp extends LitElement {
     super.disconnectedCallback()
   }
 
-  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续，便于连续迭代
+  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续，便于连续迭代。
+  // 面板模块按需加载（仅 ?dev=1 且游戏屏）；gameReady 栅栏保证 sf-game 渲染前面板必已构造
+  private loadDevTools(): Promise<void> {
+    this.devToolsLoad ??= import('../dev/devtools').then(({ DevTools: DevToolsClass }) => {
+      // import 完成时复查：期间可能已退出 dev 游戏屏，构造面板须此刻条件仍成立
+      if (this.screen === 'game' && this.dev && !this.devTools) {
+        this.devTools = new DevToolsClass({ onApply: this.onDevOverride })
+      }
+    })
+    return this.devToolsLoad
+  }
+
   private syncDevTools() {
     if (this.screen === 'game' && this.dev) {
-      if (!this.devTools) this.devTools = new DevTools({ onApply: this.onDevOverride })
+      if (!this.devTools) void this.loadDevTools()
     } else if (this.devTools) {
       this.devTools.destroy()
       this.devTools = null
+    }
+  }
+
+  // 屏级 chunk 惰性加载：首次进入对应屏才请求，加载完成置就绪门闩触发重渲染。
+  // 游戏屏 = 关卡内核（sf-game/controller/sim/render）+ HUD/结算组件整组；
+  // dev 时游戏屏须连带等待 dev 面板模块（controller 的 unlimited 依 devTools 面判 dev）
+  private ensureGameReady() {
+    if (this.gameReady) return
+    const wait: Promise<void>[] = [
+      import('./sf-game').then(() => undefined),
+      import('./hud').then(() => undefined),
+      import('./win-overlay').then(() => undefined),
+    ]
+    if (this.screen === 'game' && this.dev) wait.push(this.loadDevTools())
+    void Promise.all(wait).then(() => {
+      this.gameReady = true
+    })
+  }
+
+  private ensureScreen(chunk: 'dev' | 'storage') {
+    if (chunk === 'dev') {
+      if (!this.devMenuReady) void import('../dev/dev-menu').then(() => (this.devMenuReady = true))
+    } else if (!this.storageReady) {
+      void import('./storage-view').then(() => (this.storageReady = true))
     }
   }
 
@@ -108,6 +145,11 @@ export class SfApp extends LitElement {
 
   protected override willUpdate(changed: PropertyValues) {
     this.syncDevTools()
+    if (changed.has('screen')) {
+      if (this.screen === 'game') this.ensureGameReady()
+      else if (this.screen === 'dev') this.ensureScreen('dev')
+      else if (this.screen === 'storage') this.ensureScreen('storage')
+    }
     // 渲染前重置（willUpdate 不额外调度），避免上局结算覆盖层闪现
     if (changed.has('screen') && this.screen === 'game') {
       this.resetHud(this.activeLevel)
@@ -228,16 +270,19 @@ export class SfApp extends LitElement {
 
   protected override render() {
     let content: TemplateResult
-    if (this.screen === 'game') content = this.renderGame()
-    else if (this.screen === 'dev') {
-      content = html`<sf-dev-menu
-        .dev=${this.dev}
-        @back=${this.goBack}
-        @open-storage=${this.openStorage}
-        @toggle-dev=${this.toggleDev}
-      ></sf-dev-menu>`
+    if (this.screen === 'game') {
+      content = this.gameReady ? this.renderGame() : html``
+    } else if (this.screen === 'dev') {
+      content = this.devMenuReady
+        ? html`<sf-dev-menu
+            .dev=${this.dev}
+            @back=${this.goBack}
+            @open-storage=${this.openStorage}
+            @toggle-dev=${this.toggleDev}
+          ></sf-dev-menu>`
+        : html``
     } else if (this.screen === 'storage') {
-      content = html`<sf-storage @back=${this.goBack}></sf-storage>`
+      content = this.storageReady ? html`<sf-storage @back=${this.goBack}></sf-storage>` : html``
     } else {
       content = html`<sf-title-screen
         .dev=${this.dev}

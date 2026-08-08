@@ -24,7 +24,7 @@ app/
   game/           无头关卡逻辑：模拟、关卡数据、类型（无 DOM）
   render/         WebGL 渲染层：场景顶点批组装、GL 薄层（batch 为纯计算可无头测试）
   ui/             玩家界面：Lit 组件、控制器、手势输入、图标
-  dev/            开发者工具（?dev=1）：开发面板、性能块、关卡 YAML 编辑器
+  dev/            开发者工具（?dev=1）：开发面板、性能块、关卡 JSON 编辑器
 tests/            vitest 单元测试（setup.ts 预热 WASM 内核）
 ```
 

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": 6,
+  "name": "营火",
+  "tagline": "篝火为伴",
+  "win": {
+    "title": "火光指路",
+    "text": "火堆自己燃烧，热自己上升——世界有它自己的心跳，学会与它共舞。"
+  },
+  "world": { "w": 76, "h": 56, "cell": 0.75 },
+  "ground": { "expr": "44 - 16*ss((x-36)/3) - 12*ss((x-54)/3)" },
+  "budget": { "hot": 2, "cold": 1 },
+  "spawn": { "x": -5, "y": 12, "vx": 26 },
+  "goals": [{ "x": 66, "r": 8 }],
+  "ambient": { "x": 0.8, "y": 0 },
+  "fixed": [{ "x": 46, "y": 27, "kind": "hot" }],
+  "solutions": [
+    {
+      "name": "双热接力翻双崖",
+      "sources": [
+        { "x": 30, "y": 40, "kind": "hot" },
+        { "x": 52, "y": 26, "kind": "hot" }
+      ],
+      "winTime": 27
+    }
+  ]
+}

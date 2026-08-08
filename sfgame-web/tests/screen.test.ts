@@ -1,5 +1,4 @@
 import { expect, test } from 'vitest'
-import { parse as parseYaml } from 'yaml'
 import { deriveScreen } from '../app/game/screen'
 import { LEVELS, LEVELS_BY_ID, levelSource } from '../app/game/levels'
 import type { SourcePlacement } from '../app/game/types'
@@ -33,7 +32,7 @@ test('lv=0 不再有效（旧开发槽已移除）→ title', () => {
 })
 
 test('内联关卡 JSON → game 屏', () => {
-  const json = JSON.stringify({ ...parseYaml(levelSource(1)!), tagline: '内联版' })
+  const json = JSON.stringify({ ...JSON.parse(levelSource(1)!), tagline: '内联版' })
   const s = deriveScreen('title', json, sources)
   expect(s.screen).toBe('game')
   expect(s.level?.tagline).toBe('内联版')

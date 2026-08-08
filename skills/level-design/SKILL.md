@@ -1,43 +1,43 @@
 ---
 name: level-design
-description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计新关卡：按协议 v1（YAML 序列化 + 表达式地形 + 六个原子字段）搭建关卡，用无头仿真验证可玩性，并注册参考答案。适用于新增关卡、DIY 关卡传播、教学关设计。
+description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计新关卡：按协议 v1（JSON 序列化 + 表达式地形 + 六个原子字段）搭建关卡，用无头仿真验证可玩性，并注册参考答案。适用于新增关卡、DIY 关卡传播、教学关设计。
 ---
 
 # 烧风关卡搭建指南（协议 v1）
 
-本 skill 指导用「积木式」协议搭建关卡。核心信念：**少量精选的原子能力，通过组合产生乘法式/涌现式的关卡**，而不是堆砌新机制。每个关卡是纯数据（YAML），可在无头引擎内跑完整模拟，方便调试、测试与接入算法/AI。
+本 skill 指导用「积木式」协议搭建关卡。核心信念：**少量精选的原子能力，通过组合产生乘法式/涌现式的关卡**，而不是堆砌新机制。每个关卡是纯数据（JSON），可在无头引擎内跑完整模拟，方便调试、测试与接入算法/AI。
 
 ## 1. 一个关卡长什么样
 
-关卡是 `sfgame-web/levels/level-N.yaml`（内置关卡）或任意 `.yaml` 文件（DIY 传播）。完整示例：
+关卡是 `sfgame-web/levels/level-N.json`（内置关卡）或任意 `.json` 文件（DIY 传播）。完整示例：
 
-```yaml
-# 第 3 关 · 信风 —— 多站之旅：把路程拆成站点，全部抵达过即过关
-schema: 1            # 协议版本，必填
-id: 3                # 正整数
-name: 信风
-tagline: 多站之旅
-win:
-  title: 一站又一站
-  text: 风把信从一站送到下一站。抵达不是终点，而是下一段路程的起点。
-world: { w: 76, h: 56, cell: 0.75 }
-ground:
-  expr: 30 - 8*ss((x-20)/16)
-budget: { hot: 3, cold: 2 }
-spawn: { x: -4, y: 16, vx: 40 }
-goals:
-  - { x: 15, r: 10 }
-  - { x: 52, r: 9 }   # 高原站贴右缘，须接力托举
-ambient: { x: 2.4, y: 0 }
-solutions:
-  - name: 双热源接力翻山脊
-    sources:
-      - { x: 20, y: 29.3, kind: hot }
-      - { x: 50, y: 21.3, kind: hot }
-    winTime: 16.8   # 展示用数据（win 结算展示最快成绩），由玩家实测，#27 起不设自动守护
+```json
+{
+  "schema": 1,
+  "id": 3,
+  "name": "信风",
+  "tagline": "多站之旅",
+  "win": { "title": "一站又一站", "text": "风把信从一站送到下一站。抵达不是终点，而是下一段路程的起点。" },
+  "world": { "w": 76, "h": 56, "cell": 0.75 },
+  "ground": { "expr": "30 - 8*ss((x-20)/16)" },
+  "budget": { "hot": 3, "cold": 2 },
+  "spawn": { "x": -4, "y": 16, "vx": 40 },
+  "goals": [{ "x": 15, "r": 10 }, { "x": 52, "r": 9 }],
+  "ambient": { "x": 2.4, "y": 0 },
+  "solutions": [
+    {
+      "name": "双热源接力翻山脊",
+      "sources": [
+        { "x": 20, "y": 29.3, "kind": "hot" },
+        { "x": 50, "y": 21.3, "kind": "hot" }
+      ],
+      "winTime": 16.8
+    }
+  ]
+}
 ```
 
-序列化选型：**YAML**（易读、可写注释、锚点 `&a`/`*a` 复用重复值）；地形只用**表达式字符串**（精准、高密度、可移植到任意数学工具），刻意不用采样折线（不精准）也不引 path（与表达式重叠、求值复杂——堆积功能）。
+序列化选型：**JSON**（`JSON.parse` 零依赖解析，浏览器/脚本通用；不支持注释——设计说明放本 skill 或提交信息）；地形只用**表达式字符串**（精准、高密度、可移植到任意数学工具），刻意不用采样折线（不精准）也不引 path（与表达式重叠、求值复杂——堆积功能）。
 
 ## 2. 原子能力（积木）
 
@@ -51,7 +51,7 @@ solutions:
 | 环境风 | `ambient` | 常风 `{x,y}` + 可选潮汐 `tide{period,phase,ampX,ampY}` | L1/L2 常风、L4 潮汐 |
 | 固定源 | `fixed[]` | 关卡自带的 `{x, y, kind:'hot'\|'cold'}`，玩家不可移除/撤销、不占预算（渲染为篝火/空调） | L6 营火、L7 冰窖、L10 焚风 |
 | 风扇 | `fans[]` | 定向气流 `{x, y, dir(弧度), power(注入风速)}`；可选 `swing`（摆幅 ±弧度）+ `period`（周期）= 摇头风扇 | L8 鼓风、L9 钟摆、L10 焚风 |
-| 关卡组 | `LEVEL_GROUPS` | 主页选项卡分组：**YAML 不声明归属，分组在 `app/game/levels.ts` 的 `LEVEL_GROUPS` 常量声明**（组名 + 组内 ids 顺序，组内按 id 线性解锁） | 第 1 组「长风」、第 2 组「焚风」 |
+| 关卡组 | `LEVEL_GROUPS` | 主页选项卡分组：**JSON 不声明归属，分组在 `app/game/levels.ts` 的 `LEVEL_GROUPS` 常量声明**（组名 + 组内 ids 顺序，组内按 id 线性解锁） | 第 1 组「长风」、第 2 组「焚风」 |
 
 参考解法（`solutions[]`）不是新原子，而是 dev 模式首页关卡项「参考解」按钮的直达摆法数据（源一次性放置）。
 
@@ -111,9 +111,9 @@ solutions:
 ```bash
 cd sfgame-web
 # 无操作 150s：必须不通关（设计红线，挂机轨迹不得穿过任何抵达圆）
-bun run scripts/run-level.ts levels/level-N.yaml --sim 150
+bun run scripts/run-level.ts levels/level-N.json --sim 150
 # 参考解自查（可选）：手摆一版确认可通关，写入 winTime（展示用）
-bun run scripts/run-level.ts levels/level-N.yaml --verify 20-29.3-h,50-21.3-h
+bun run scripts/run-level.ts levels/level-N.json --verify 20-29.3-h,50-21.3-h
 ```
 
 ## 6. 参考解搜索（多目标遗传算法，`run-level.ts --solve`）
@@ -142,10 +142,10 @@ bun run scripts/run-level.ts levels/level-N.yaml --verify 20-29.3-h,50-21.3-h
 - **搜索 cap 35s**：教学关参考解应 ≤25s，35s 留足余量；新物理（#25）下贴地飞机可被风重新带飞，不再设贴地早退。
 - 候选源网格：x 每 2 单位一列，贴地/中空/高空三档高度，热冷各一；
   `--kinds h` 可只搜热源（教学主题约束，如 L1「上升风」只放热源）。
-- **种子注入**：种群首代包含 YAML 里已登记的参考解——搜索至少保住现状，
+- **种子注入**：种群首代包含 JSON 里已登记的参考解——搜索至少保住现状，
   只做改进；连续多代无改进会停滞重启。
 - 每次搜索输出**候选榜**（前 5 个互不相同的通关解），逐一 `--verify --robust`
-  复核后选入 YAML。**鲁棒性 ≥6/8（75%）才适合做教学关参考解**（G7）；
+  复核后选入 JSON。**鲁棒性 ≥6/8（75%）才适合做教学关参考解**（G7）；
   快而脆的解不如慢而稳的解。
 - 单次精筛评估 ≈ 1–2s（60fps × cap 35s）：32 个体、8 worker 约 4s/代，
   90–120s 预算通常够用；先想清楚预算再跑，别盲目加大。
@@ -162,9 +162,9 @@ bun run scripts/run-level.ts levels/level-N.yaml --verify 20-29.3-h,50-21.3-h
 
 ## 8. 登记新关卡
 
-1. 新建 `sfgame-web/levels/level-N.yaml`（含 `solutions` 与实测 `winTime`；新关卡组先在 `levels.ts` 声明 `LEVEL_GROUPS` 条目）
-2. 在 `app/game/levels.ts` 顶部 `import levelN from '../../levels/level-N.yaml?raw'`
-   并加入 `LEVEL_TEXTS` 数组一行（YAML 以纯文本经 `?raw` 直读，随文件变更
+1. 新建 `sfgame-web/levels/level-N.json`（含 `solutions` 与实测 `winTime`；新关卡组先在 `levels.ts` 声明 `LEVEL_GROUPS` 条目）
+2. 在 `app/game/levels.ts` 顶部 `import levelN from '../../levels/level-N.json?raw'`
+   并加入 `LEVEL_TEXTS` 数组一行（JSON 以纯文本经 `?raw` 直读，随文件变更
    触发 vite HMR，无需构建插件）；按关卡分组把 id 加进 `LEVEL_GROUPS` 对应组，选项卡自动出现
 3. 走完第 5 节设计工作流
 4. 选关页、dev 模式参考解按钮、URL 直达（`?lv=N&src=…`）自动生效，无需额外 UI 改动

@@ -1,22 +1,22 @@
 import { levelFromJson, parseLevelText } from './level-format'
 import type { LvValue } from './state'
 import type { LevelDef, LevelJson, SolutionDef } from './types'
-// YAML 经 ?raw 直读（vite 原生支持、随文件变更触发 HMR），解析在运行时统一走 parseLevelText——无需虚拟模块/构建插件
-import level1 from '../../levels/level-1.yaml?raw'
-import level2 from '../../levels/level-2.yaml?raw'
-import level3 from '../../levels/level-3.yaml?raw'
-import level4 from '../../levels/level-4.yaml?raw'
-import level5 from '../../levels/level-5.yaml?raw'
-import level6 from '../../levels/level-6.yaml?raw'
-import level7 from '../../levels/level-7.yaml?raw'
-import level8 from '../../levels/level-8.yaml?raw'
-import level9 from '../../levels/level-9.yaml?raw'
-import level10 from '../../levels/level-10.yaml?raw'
+// 关卡 JSON 经 ?raw 直读（vite 原生支持、随文件变更触发 HMR），解析在运行时统一走 parseLevelText——无需虚拟模块/构建插件
+import level1 from '../../levels/level-1.json?raw'
+import level2 from '../../levels/level-2.json?raw'
+import level3 from '../../levels/level-3.json?raw'
+import level4 from '../../levels/level-4.json?raw'
+import level5 from '../../levels/level-5.json?raw'
+import level6 from '../../levels/level-6.json?raw'
+import level7 from '../../levels/level-7.json?raw'
+import level8 from '../../levels/level-8.json?raw'
+import level9 from '../../levels/level-9.json?raw'
+import level10 from '../../levels/level-10.json?raw'
 
 const LEVEL_TEXTS = [level1, level2, level3, level4, level5, level6, level7, level8, level9, level10]
 
 // 关卡图（主页选项卡 + 解锁/导航的单一事实来源）：组内顺序 = ids 数组顺序，
-// YAML 只承载关卡内容，不再声明归属
+// JSON 只承载关卡内容，不再声明归属
 export interface LevelGroup {
   name: string
   ids: readonly number[]

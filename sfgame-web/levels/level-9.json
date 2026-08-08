@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": 9,
+  "name": "钟摆",
+  "tagline": "风有节奏",
+  "win": {
+    "title": "趁风而动",
+    "text": "摆动有周期，出手看时机——就像潮汐，就像钟摆。"
+  },
+  "world": { "w": 76, "h": 56, "cell": 0.75 },
+  "ground": { "expr": "30 + 14*ss((x-32)/4) - 14*ss((x-40)/4)" },
+  "budget": { "hot": 2, "cold": 1 },
+  "spawn": { "x": -5, "y": 18, "vx": 26 },
+  "goals": [{ "x": 54, "r": 7 }],
+  "ambient": { "x": 1.8, "y": 0 },
+  "fans": [{ "x": 24, "y": 22, "dir": 0.6, "power": 5, "swing": 0.4, "period": 8 }],
+  "solutions": [
+    {
+      "name": "趁摆风入流",
+      "sources": [{ "x": 16, "y": 28, "kind": "hot" }],
+      "winTime": 33.3
+    }
+  ]
+}

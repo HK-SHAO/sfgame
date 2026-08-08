@@ -18,8 +18,7 @@
     "check": "bun run typecheck && bun run test && vite build"
   },
   "dependencies": {
-    "lit": "^3.3.3",
-    "yaml": "^2.9.0"
+    "lit": "^3.3.3"
   },
   "devDependencies": {
     "@types/bun": "latest",

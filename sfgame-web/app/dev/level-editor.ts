@@ -1,6 +1,5 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
-import { stringify as yamlStringify } from 'yaml'
 import { parseLevelText } from '../game/level-format'
 import { levelSource } from '../game/levels'
 import { urlState } from '../game/state'
@@ -130,7 +129,7 @@ export class SfLevelEditor extends LitElement {
       ${this.expanded
         ? html`
             <textarea
-              name="dev-level-yaml"
+              name="dev-level-json"
               rows="10"
               spellcheck="false"
               .value=${this.editorText}
@@ -154,12 +153,12 @@ export class SfLevelEditor extends LitElement {
     }
   }
 
-  // 当前关卡源文本：内联关卡由 URL JSON 重建 YAML（无注释），内置关卡取仓库 YAML
+  // 当前关卡源文本：内联关卡为 URL 紧凑 JSON，这里重新美化；内置关卡取仓库 JSON 原文
   private currentText(): string | undefined {
     const lv = urlState.get('lv')
     if (typeof lv === 'string') {
       try {
-        return yamlStringify(JSON.parse(lv))
+        return JSON.stringify(JSON.parse(lv), null, 2)
       } catch {
         return undefined
       }

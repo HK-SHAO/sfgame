@@ -27,7 +27,6 @@ export type AppView = 'title' | 'dev' | 'storage'
 
 // lv 双形态：整数 = 内置关卡 id；内联关卡 JSON（dev 编辑生效即压入 URL，见 level-editor.ts）。
 // 形态自判别无需前缀：id 为纯数字，base64url 必含字母（`eyJ` = `{"` 的固定编码，肉眼可辨）。
-// JSON 比 YAML 小 ~40%（无注释与格式冗余），base64url 无压缩但放大确定，实测仍短于压缩 YAML
 export type LvValue = number | string | null
 
 export const lvCodec: UrlStateCodec<LvValue> = {

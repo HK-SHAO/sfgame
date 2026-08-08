@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": 4,
+  "name": "潮汐",
+  "tagline": "风有涨落",
+  "win": {
+    "title": "顺流而上",
+    "text": "熵给时间画了箭头，风只往一个方向留下痕迹——读懂其节奏，在合适坐标出手。"
+  },
+  "world": { "w": 76, "h": 56, "cell": 0.75 },
+  "ground": { "expr": "44 - 24*ss((x-34)/4)*ss((50-x)/4)" },
+  "budget": { "hot": 2, "cold": 2 },
+  "spawn": { "x": -4, "y": 30, "vx": 30 },
+  "goals": [{ "x": 42, "r": 10 }],
+  "ambient": { "x": 0.8, "y": 0, "tide": { "period": 18, "ampX": 2.8 } },
+  "solutions": [
+    {
+      "name": "孤山热源",
+      "sources": [{ "x": 32, "y": 44, "kind": "hot" }],
+      "winTime": 11.5
+    }
+  ]
+}

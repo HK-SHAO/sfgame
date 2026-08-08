@@ -47,69 +47,43 @@ test('地形原子：smoothstep 三参 GLSL 兼容，bump/gauss 山丘', () => {
   expect(() => compileExpr('gauss(20, 5)')(0)).toThrow(ExprError)
 })
 
-test('YAML 解析 + 校验：非法关卡被可读错误拒绝', () => {
-  expect(() => parseLevelText('schema: 1\nid: x\n')).toThrow(/校验失败/)
-  expect(() => parseLevelText('schema: 2\nid: 1\n')).toThrow(/schema/)
+test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
+  expect(() => parseLevelText('{"schema":1,"id":"x"}')).toThrow(/校验失败/)
+  expect(() => parseLevelText('{"schema":2,"id":1}')).toThrow(/schema/)
+  const json = (o: object) => JSON.stringify(o)
   expect(() =>
     parseLevelText(
-      [
-        'schema: 1',
-        'id: 1',
-        'name: t',
-        'tagline: t',
-        'win: { title: t, text: t }',
-        'world: { w: 76, h: 56, cell: 0.75 }',
-        'ground: { expr: "999" }',
-        'budget: { hot: 1, cold: 0 }',
-        'spawn: { x: 0 }',
-        'goals: [{ x: 40, r: 5 }]',
-      ].join('\n'),
+      json({
+        schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
+        world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: '999' },
+        budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+      }),
     ),
   ).toThrow(/世界高度/)
   expect(() =>
     parseLevelText(
-      [
-        'schema: 1',
-        'id: 1',
-        'name: t',
-        'tagline: t',
-        'win: { title: t, text: t }',
-        'ground: { expr: "30" }',
-        'spawn: { x: 0 }',
-        'goals: [{ x: 40, r: 5 }]',
-      ].join('\n'),
+      json({
+        schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
+        ground: { expr: '30' }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+      }),
     ),
   ).toThrow(/world/)
   expect(() =>
     parseLevelText(
-      [
-        'schema: 1',
-        'id: 1',
-        'name: t',
-        'tagline: t',
-        'win: { title: t, text: t }',
-        'world: { w: 76, h: 56, cell: 0.75 }',
-        'ground: { expr: "40" }',
-        'budget: { hot: 1, cold: 0 }',
-        'spawn: { x: 0 }',
-        'goals: [{ x: 40, r: 0 }]',
-      ].join('\n'),
+      json({
+        schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
+        world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: '40' },
+        budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 0 }],
+      }),
     ),
   ).toThrow(/goals/)
   expect(() =>
     parseLevelText(
-      [
-        'schema: 1',
-        'id: 1',
-        'name: t',
-        'tagline: t',
-        'win: { title: t, text: t }',
-        'world: { w: 76, h: 56, cell: 0.75 }',
-        'ground: { expr: "bump(20, 0, 5)" }',
-        'budget: { hot: 1, cold: 0 }',
-        'spawn: { x: 0 }',
-        'goals: [{ x: 40, r: 5 }]',
-      ].join('\n'),
+      json({
+        schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
+        world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: 'bump(20, 0, 5)' },
+        budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+      }),
     ),
   ).toThrow(/求值错误/)
 })
@@ -124,7 +98,7 @@ test('仓库关卡全部合法，协议一致且可往返序列化', () => {
   }
 })
 
-test('关卡图：组名与组内顺序（TS 声明，YAML 不携带）', () => {
+test('关卡图：组名与组内顺序（TS 声明，JSON 不携带）', () => {
   expect(LEVEL_GROUPS.map((g) => [g.name, [...g.ids]])).toEqual([
     ['长风', [1, 2, 3, 4, 5]],
     ['焚风', [6, 7, 8, 9, 10]],
@@ -157,23 +131,17 @@ test('组内导航：nextInGroup 组尾无下一关', () => {
 })
 
 test('新原子校验：fixed/fans 合法放行、非法被拒', () => {
-  const base = [
-    'schema: 1',
-    'id: 20',
-    'name: t',
-    'tagline: t',
-    'win: { title: t, text: t }',
-    'world: { w: 76, h: 56, cell: 0.75 }',
-    'ground: { expr: "40" }',
-    'budget: { hot: 1, cold: 0 }',
-    'spawn: { x: 0 }',
-    'goals: [{ x: 40, r: 5 }]',
-  ]
-  const ok = (extra: string) => expect(validateLevelJson(parseLevelText([...base, extra].join('\n')))).toEqual([])
-  ok('fixed:\n  - { x: 10, y: 20, kind: hot }')
-  ok('fixed:\n  - { x: 10, y: 20, kind: cold, power: 1.5 }')
-  ok('fans:\n  - { x: 10, y: 20, dir: 0, power: 2, swing: 0.5, period: 6 }')
-  const j = parseLevelText(base.join('\n')) as unknown as Record<string, unknown>
+  const json = (o: object) => JSON.stringify(o)
+  const base = {
+    schema: 1, id: 20, name: 't', tagline: 't', win: { title: 't', text: 't' },
+    world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: '40' },
+    budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+  }
+  const ok = (extra: object) => expect(validateLevelJson(parseLevelText(json({ ...base, ...extra })))).toEqual([])
+  ok({ fixed: [{ x: 10, y: 20, kind: 'hot' }] })
+  ok({ fixed: [{ x: 10, y: 20, kind: 'cold', power: 1.5 }] })
+  ok({ fans: [{ x: 10, y: 20, dir: 0, power: 2, swing: 0.5, period: 6 }] })
+  const j = parseLevelText(json(base)) as unknown as Record<string, unknown>
   const bad = (mut: (x: Record<string, unknown>) => void, re: RegExp) => {
     const clone = structuredClone(j)
     mut(clone)

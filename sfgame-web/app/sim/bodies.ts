@@ -65,8 +65,11 @@ const GROUND_EFFECT_H = 1.5
 const GROUND_AERO_MIN = 0.8
 // 坡面重力切向分量用中心差分坡度（tanθ），切向加速度 = g·sinθcosθ = g·slope/(1+slope²)
 const SLOPE_EPS = 0.5
-// 贴地基准高度（中心基准，仅作检测/边界层护栏）：地面检测与 hAbove 保持中心参照不变
+// 边界层检测高度（中心基准）：风耦合衰减与贴地沉降的触发区，非接触高度——
+// 接触以最低轮廓点为准（vertexRestY），飞机真正触地才接地
 const REST_OFFSET = 1.1
+// 边界层内未触地时的限速沉降速率（u/s）：落地/躺平自然，不瞬移
+const GROUND_SETTLE_RATE = 2.5
 // 姿态二阶弹簧（只进表现层）：落地/转向带 ~0.4s 阻尼摆动（"扑通"惯性），近临界阻尼无可见回弹
 const ATT_SPEED = 1.2
 const FLOP_W0 = 10
@@ -137,8 +140,14 @@ export function stepBody(
 
   const pground = groundY(px) - REST_OFFSET
   const ground = groundY(body.x) - REST_OFFSET
+  // 最低轮廓点接触高度（顶点贴合）：接触与贴地判定以它为准，中心基准只作边界层检测
+  const rest = vertexRestY(body, groundY)
+  const speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy)
+  // 慢速近地（距接触线 1.5 内）：沉降与姿态折叠的触发区——快飞不受影响，正常下降不拉拽
+  const nearGround = rest - body.y < GROUND_EFFECT_H && speed < ATT_SPEED
   let grounded = false
-  if (body.y > ground) {
+  if (body.y > rest) {
+    // 实际触地（最低轮廓点穿地）：崖壁护栏 + 反弹 + 库仑摩擦——触地才接地，边界层内不再提前"吸"住
     const dx = body.x - px
     if (Math.abs(dx) > 1e-6 && pground - ground > MAX_SLIDE_SLOPE * Math.abs(dx)) {
       body.x = px
@@ -146,11 +155,7 @@ export function stepBody(
       body.vx = Math.sign(-dx) * Math.abs(body.vx) * WALL_RESTITUTION
       if (body.vy > 0) body.vy = -body.vy * 0.1
     } else {
-      body.y = ground
-      // 顶点贴合：接触线低于中心基准（贴地姿态）则沉降到底边着地——平地上底边齐平、斜坡整条底边贴坡；
-      // 不向上抬（悬崖悬垂时顶点接触高于机身，交给 MAX_SLIDE_SLOPE 护栏与旧有中心模型）
-      const rest = vertexRestY(body, groundY)
-      if (rest > body.y) body.y = rest
+      body.y = rest
       if (body.vy > 0) body.vy = -body.vy * 0.1
       // 库仑滑动摩擦：恒定减速度 μ·g，线性减速到停（而非指数衰减——永不归零的旧实现）
       const fric = GROUND_FRICTION_MU * body.gravity * dt
@@ -159,6 +164,9 @@ export function stepBody(
       else body.vx = 0
     }
     grounded = true
+  } else if (nearGround) {
+    // 慢速近地：限速沉降到接触线（落地/躺平自然，不瞬移）——触地后姿态翻转时保持贴地
+    body.y = Math.min(rest, body.y + GROUND_SETTLE_RATE * dt)
   }
   // 坡面滑行（#25）：贴地或边界层内时重力沿坡面的切向分量持续驱动下滑（仅接触帧会因逐帧微弹跳而断续）
   const slope = (groundY(body.x + SLOPE_EPS) - groundY(body.x - SLOPE_EPS)) / (2 * SLOPE_EPS)
@@ -166,13 +174,12 @@ export function stepBody(
     body.vx += body.gravity * (slope / (1 + slope * slope)) * dt
   }
 
-  // 姿态只进表现层：贴地/近地下降 → 底边贴合地形（机轴比地形成 PLANE_TILT）；
-  // 有水平运动机头朝去向，停稳保留落地左右；空中快动 → 机头朝去向；慢速空中冻结。
-  // 二阶弹簧驱动（w 状态），落地有自然"扑通"
-  const speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy)
+  // 姿态只进表现层：贴地/慢速近地 → 底边贴合地形（机轴比地形成 PLANE_TILT：有水平运动机头朝去向，
+  // 停稳保留落地左右）；空中快动 → 机头朝去向；慢空冻结。无快飞预拂——快速下落保持机头朝速度，
+  // 触地后由弹簧翻转自然"扑通"
   const s = Math.atan(slope)
   let target: number | null = null
-  if (grounded || (eff < 1 && body.vy > 0)) {
+  if (grounded || nearGround) {
     const c1 = s + PLANE_TILT
     const c2 = s + Math.PI - PLANE_TILT
     if (Math.abs(body.vx) > REST_MOVE_EPS) target = body.vx > 0 ? c1 : c2

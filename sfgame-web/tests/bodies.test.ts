@@ -95,10 +95,10 @@ test('光滑地面：贴地滑行保留水平速度，沿坡下滑', () => {
 // 底边贴合地形：机轴比地形成 PLANE_TILT 夹角（两侧边不平行 ⇒ 轴平则边斜），最低轮廓点着地不插地
 test('贴地姿态：底边贴合坡面、最低轮廓点不穿地', () => {
   const fluid = makeCalmFluid()
-  // 1:1 坡（右下降坡）：底边平行坡面 → 机轴 = atan(1) + PLANE_TILT
+  // 1:1 坡（右下降坡）：从坡上静止出发（顺坡下滑），贴地后底边平行坡面 → 机轴 = atan(1) + PLANE_TILT
   const ground = (x: number) => 30 + 1 * (x - 10)
-  const body = createBody(10, 30.5, { radius: 1, dragK: 3, gravity: 3 })
-  body.vx = 10
+  const body = createBody(10, 28.9, { radius: 1, dragK: 3, gravity: 3 })
+  body.vx = 0
   for (let i = 0; i < 240; i++) stepBody(body, fluid, DT, ground, WORLD)
   const tilt = Math.atan(1.12 / 3.2)
   expect(Math.abs(body.angle - (Math.PI / 4 + tilt))).toBeLessThan(0.2)

@@ -22,7 +22,7 @@ win:
   text: 风把信从一站送到下一站。抵达不是终点，而是下一段路程的起点。
 world: { w: 76, h: 56, cell: 0.75 }
 ground:
-  expr: 30 - 8*smoothstep((x-20)/16)
+  expr: 30 - 8*ss((x-20)/16)
 budget: { hot: 3, cold: 2 }
 spawn: { x: -4, y: 16, vx: 40 }
 goals:
@@ -81,19 +81,19 @@ solutions:
 
 - 变量/常量：`x`、`PI`、`E`
 - 运算符：`+ - * / % ^`（幂，右结合）、一元正负、括号
-- 函数：`abs min max clamp(v,lo,hi) step(x,edge) smoothstep(t) smoothstep(e0,e1,x) bump(c,w,h) gauss(c,w,h) sin cos exp sqrt pow(a,b)`
+- 函数：`abs min max clamp(v,lo,hi) step(x,edge) smoothstep(t)（常用别名 ss）smoothstep(e0,e1,x) bump(c,w,h) gauss(c,w,h) sin cos exp sqrt pow(a,b)`
 
 常用配方：
 
 ```text
-平原→高原平滑爬升：     30 - 8*smoothstep((x-20)/16)        # x∈[20,36] 由 30 升至 22
-对称孤峰：              44 - bump(42, 8, 24)                 # = 24*smoothstep((x-34)/8)*smoothstep((50-x)/8)
-平顶台地（L4/L7）：     44 - 24*smoothstep((x-34)/4)*smoothstep((50-x)/4)   # 顶 [38,46] 全高
+平原→高原平滑爬升：     30 - 8*ss((x-20)/16)        # x∈[20,36] 由 30 升至 22
+对称孤峰：              44 - bump(42, 8, 24)                 # = 24*ss((x-34)/8)*ss((50-x)/8)
+平顶台地（L4/L7）：     44 - 24*ss((x-34)/4)*ss((50-x)/4)   # 顶 [38,46] 全高
 高斯圆丘：              30 - gauss(20, 6, 12)                # C∞ 圆顶，3w 外视作平原
-两级山脊（L5）：        30 - 6*smoothstep((x-20)/10) - 6*smoothstep((x-44)/10)
+两级山脊（L5）：        30 - 6*ss((x-20)/10) - 6*ss((x-44)/10)
 ```
 
-`smoothstep(t)`/`bump` 自动钳制输入到 [0,1]，`bump`/`gauss` 两端 C1 平滑接平原（`gauss` 永不归零，3w 处残量 ~1e-4）。最大坡度 = 1.5×高/宽（`h*smoothstep((x-c)/w)` 为 1.5h/w）：缓坡靠加大 w，与高度无关。地面光滑（#25/#28）：≤2:1 的坡可借速度滑爬（1:1~1.5:1 顺手），更陡的崖是墙，只能靠热源托升——这本身就是谜题设计工具。`smoothstep(e0,e1,x)` 为 GLSL 三参形式（要求 e0<e1），可从 GLSL 代码直接复制。
+`smoothstep(t)`/`bump` 自动钳制输入到 [0,1]，`bump`/`gauss` 两端 C1 平滑接平原（`gauss` 永不归零，3w 处残量 ~1e-4）。最大坡度 = 1.5×高/宽（`h*ss((x-c)/w)` 为 1.5h/w）：缓坡靠加大 w，与高度无关。地面光滑（#25/#28）：≤2:1 的坡可借速度滑爬（1:1~1.5:1 顺手），更陡的崖是墙，只能靠热源托升——这本身就是谜题设计工具。`smoothstep(e0,e1,x)` 为 GLSL 三参形式（要求 e0<e1），可从 GLSL 代码直接复制。
 
 ## 4. 设计要义（行业经验沉淀）
 

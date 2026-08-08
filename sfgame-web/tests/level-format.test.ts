@@ -28,6 +28,9 @@ test('地形原子：smoothstep 三参 GLSL 兼容，bump/gauss 山丘', () => {
   expect(() => ss(2, 1, 0.5)).toThrow(ExprError)
   expect(() => compileExpr('smoothstep(x, 2)')(0)).toThrow(ExprError)
   expect(compileExpr('smoothstep(x)')(0.5)).toBe(0.5)
+  // ss 别名与 smoothstep 等价（1 参与 3 参）
+  expect(compileExpr('ss(x)')(0.5)).toBe(compileExpr('smoothstep(x)')(0.5))
+  expect(compileExpr('ss(0, 2, x)')(1)).toBe(compileExpr('smoothstep(0, 2, x)')(1))
   const b = compileExpr('bump(20, 5, 12)')
   expect(b(20)).toBe(12)
   expect(b(15)).toBe(0)

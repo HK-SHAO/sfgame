@@ -17,22 +17,25 @@ const expectArgs = (args: unknown[], n: number, name: string) => {
   if (args.length !== n) throw new ExprError(`${name} 需 ${n} 参`)
 }
 
+// 1 参 = smoothstep(t)；3 参 = GLSL smoothstep(e0,e1,x)（GLSL 规定 e0≥e1 未定义，这里拒绝）；ss 为常用别名
+const smoothstepFn = (args: number[]) => {
+  if (args.length === 1) return smoothstepCurve(args[0])
+  if (args.length === 3) {
+    const [e0, e1, x] = args
+    if (e0 >= e1) throw new ExprError('smoothstep(e0,e1,x) 要求 e0 < e1')
+    return smoothstepCurve((x - e0) / (e1 - e0))
+  }
+  throw new ExprError('smoothstep 需 1 参 smoothstep(t) 或 3 参 smoothstep(e0,e1,x)')
+}
+
 const FUNCS: Record<string, (args: number[], x: number) => number> = {
   abs: ([v]) => Math.abs(v),
   min: ([a, b]) => Math.min(a, b),
   max: ([a, b]) => Math.max(a, b),
   clamp: ([v, lo, hi]) => Math.min(hi, Math.max(lo, v)),
   step: ([t, edge]) => (t >= edge ? 1 : 0),
-  // 1 参 = smoothstep(t)；3 参 = GLSL smoothstep(e0,e1,x)（GLSL 规定 e0≥e1 未定义，这里拒绝）
-  smoothstep: (args) => {
-    if (args.length === 1) return smoothstepCurve(args[0])
-    if (args.length === 3) {
-      const [e0, e1, x] = args
-      if (e0 >= e1) throw new ExprError('smoothstep(e0,e1,x) 要求 e0 < e1')
-      return smoothstepCurve((x - e0) / (e1 - e0))
-    }
-    throw new ExprError('smoothstep 需 1 参 smoothstep(t) 或 3 参 smoothstep(e0,e1,x)')
-  },
+  smoothstep: smoothstepFn,
+  ss: smoothstepFn,
   // 单峰山丘：跨 [c-w, c+w] 峰高 h，两端斜率 0，与平原 C1 相接
   bump: (args, x) => {
     const [c, w, h] = args

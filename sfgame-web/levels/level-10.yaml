@@ -9,7 +9,7 @@ win:
 world: { w: 76, h: 56, cell: 0.75 }
 # 左谷地 y=44 → 悬崖（x∈[36,39]）→ 高原1 y=24 → 缓坡（x∈[58,64]）→ 高原2 y=34
 ground:
-  expr: 44 - 20*smoothstep((x-36)/3) + 10*smoothstep((x-58)/6)
+  expr: 44 - 20*ss((x-36)/3) + 10*ss((x-58)/6)
 budget: { hot: 2, cold: 1 }
 spawn: { x: -5, y: 16, vx: 30 }
 goals:

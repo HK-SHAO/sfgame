@@ -9,7 +9,7 @@ win:
 world: { w: 76, h: 56, cell: 0.75 }
 # 平原 y=42；左侧缓丘（x∈[14,26]，峰 y=30）；右侧目标丘（x∈[46,60]，峰 y=26）
 ground:
-  expr: 42 - 12*smoothstep((x-14)/5)*smoothstep((26-x)/5) - 16*smoothstep((x-46)/6)*smoothstep((60-x)/6)
+  expr: 42 - 12*ss((x-14)/5)*ss((26-x)/5) - 16*ss((x-46)/6)*ss((60-x)/6)
 budget: { hot: 1, cold: 2 }
 spawn: { x: -5, y: 18, vx: 26 }
 goals:

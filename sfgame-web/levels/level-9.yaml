@@ -9,7 +9,7 @@ win:
 world: { w: 76, h: 56, cell: 0.75 }
 # 左岸高原 y=30 → 悬崖（x∈[32,36]）→ 沟壑底 y=44 → 右岸陡坡（x∈[40,44]）→ 右高原 y=30
 ground:
-  expr: 30 + 14*smoothstep((x-32)/4) - 14*smoothstep((x-40)/4)
+  expr: 30 + 14*ss((x-32)/4) - 14*ss((x-40)/4)
 budget: { hot: 2, cold: 1 }
 spawn: { x: -5, y: 18, vx: 26 }
 goals:

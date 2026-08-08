@@ -106,6 +106,7 @@ class Sfx {
     try {
       this.muted = localStorage.getItem(STORAGE_KEY) === '1'
     } catch {
+      /* 音频或存储异常静默：声音与静音记忆属锦上添花，失败不打断游戏 */
     }
   }
 
@@ -151,6 +152,7 @@ class Sfx {
           else if (this.ctx.state === 'suspended') void this.ctx.resume()
         })
       } catch {
+        // WebAudio 创建失败（极端环境）：静默降级为无音效，游戏照常
         this.ctx = null
         this.master = null
         return
@@ -196,6 +198,7 @@ class Sfx {
       src.start(t0, Math.random() * 1.4, 0.22)
       this.releaseWhenDone(src, [src, lp, g])
     } catch {
+      /* 音频或存储异常静默：声音与静音记忆属锦上添花，失败不打断游戏 */
     }
   }
 
@@ -204,6 +207,7 @@ class Sfx {
     try {
       localStorage.setItem(STORAGE_KEY, this.muted ? '1' : '0')
     } catch {
+      /* 音频或存储异常静默：声音与静音记忆属锦上添花，失败不打断游戏 */
     }
     if (this.master && this.ctx) {
       this.master.gain.setTargetAtTime(this.muted ? 0 : MASTER_GAIN, this.ctx.currentTime, 0.05)
@@ -220,6 +224,7 @@ class Sfx {
         try {
           n.disconnect()
         } catch {
+          // 节点已断开/销毁时 disconnect 抛：清理动作本就无后续，静默
         }
       }
     }
@@ -258,6 +263,7 @@ class Sfx {
       mod.stop(t0 + dur + 0.05)
       this.releaseWhenDone(car, [car, mod, mg, g])
     } catch {
+      /* 音频或存储异常静默：声音与静音记忆属锦上添花，失败不打断游戏 */
     }
   }
 
@@ -281,6 +287,7 @@ class Sfx {
       src.start(t0, Math.random() * 1.4, dur + 0.05)
       this.releaseWhenDone(src, [src, lp, g])
     } catch {
+      /* 音频或存储异常静默：声音与静音记忆属锦上添花，失败不打断游戏 */
     }
   }
 
@@ -309,6 +316,7 @@ class Sfx {
       osc.stop(t0 + dur + 0.05)
       this.releaseWhenDone(osc, [osc, gain])
     } catch {
+      /* 音频或存储异常静默：声音与静音记忆属锦上添花，失败不打断游戏 */
     }
   }
 

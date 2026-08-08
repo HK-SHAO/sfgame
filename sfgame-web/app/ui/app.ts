@@ -5,7 +5,7 @@ import { fb } from '../core/feedback'
 import { bgm } from '../core/bgm'
 import { LEVELS, LEVEL_GROUPS, nextInGroup, solutionsFor } from '../game/levels'
 import { progress } from '../game/progress'
-import { SfGame } from './sf-game'
+import { SfGame, type DenyDetail } from './sf-game'
 import type { SfHud } from './hud'
 import { DevTools } from '../dev/devtools'
 import '../dev/dev-menu'
@@ -16,7 +16,6 @@ import './hud'
 import { urlState } from '../game/state'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
-import type { SourceKind } from '../sim/types'
 import { boxReset } from './shared-styles'
 
 const FIRST_LEVEL = LEVELS[0]
@@ -95,6 +94,11 @@ export class SfApp extends LitElement {
     // 非 game 屏保留旧关卡：渲染不依赖，且 keyed(activeLevel) 换关重建语义由引用变化驱动
     if (s.level) this.activeLevel = s.level
     this.initialSources = s.sources
+    // 退出关卡屏（主页/存储/dev）速率归 1：倍率只在关卡内有意义，BGM 播放速率同步恢复
+    if (s.screen !== 'game' && this.rate !== 1) {
+      this.rate = 1
+      bgm.setRate(1)
+    }
   }
 
   private resetHud(level: LevelDef) {
@@ -212,8 +216,9 @@ export class SfApp extends LitElement {
     })
   }
 
-  private onDeny(e: CustomEvent<SourceKind>) {
-    this.hudEl?.deny(e.detail)
+  private onDeny(e: CustomEvent<DenyDetail>) {
+    // chip 抖动（哪个道具不足）由 hud 呈现，全屏波纹已在 sf-game 层播放
+    this.hudEl?.deny(e.detail.kind)
   }
 
   private onSourcesChange(e: CustomEvent<SourcePlacement[]>) {

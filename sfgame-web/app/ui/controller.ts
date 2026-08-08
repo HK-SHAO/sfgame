@@ -22,7 +22,8 @@ const LAND_SOUND_MIN_INTERVAL = 150
 const TRACER_COUNT = 400
 export interface ControllerEvents {
   onHud(state: HudState): void
-  onDeny(kind: SourceKind): void
+  // 放置被拒：client 坐标用于全屏统一波纹反馈（含 letterbox 带内的无效点击）
+  onDeny(kind: SourceKind, clientX: number, clientY: number): void
   onSources(sources: SourcePlacement[]): void
   // 每帧状态条数据（sim 时间与罚时）：UI 侧短路消费，零开销
   onStatus(time: number, extra: number): void
@@ -104,12 +105,13 @@ export class GameController {
       pressStarted: (w) => {
         this.press = { kind: 'place', x: w.x, y: w.y, start: performance.now() }
       },
-      longPressConfirmed: (w) => this.tryPlace(w.x, w.y, 'cold'),
-      tap: (w) => this.tryPlace(w.x, w.y, 'hot'),
+      longPressConfirmed: (w, cx, cy) => this.tryPlace(w.x, w.y, 'cold', cx, cy),
+      tap: (w, cx, cy) => this.tryPlace(w.x, w.y, 'hot', cx, cy),
       pressCancelled: () => {
         this.press = null
       },
-      secondaryTap: (w) => this.tryPlace(w.x, w.y, 'cold'),
+      secondaryTap: (w, cx, cy) => this.tryPlace(w.x, w.y, 'cold', cx, cy),
+      denyAt: (kind, cx, cy) => this.deny(kind, cx, cy),
     })
   }
 
@@ -176,7 +178,13 @@ export class GameController {
     this.render()
   }
 
-  private tryPlace(x: number, y: number, kind: SourceKind) {
+  // 放置被拒统一出口：反馈音 + 全屏波纹 + hud chip 抖动（预算空/位置非法/世界外点击同一路径）
+  private deny(kind: SourceKind, clientX: number, clientY: number) {
+    fb.deny()
+    this.events.onDeny(kind, clientX, clientY)
+  }
+
+  private tryPlace(x: number, y: number, kind: SourceKind, clientX: number, clientY: number) {
     this.press = null
     const source = this.sim.placeSource(x, y, kind)
     if (source) {
@@ -185,8 +193,7 @@ export class GameController {
       this.pushHud()
       this.emitSources()
     } else {
-      fb.deny()
-      this.events.onDeny(kind)
+      this.deny(kind, clientX, clientY)
     }
   }
 

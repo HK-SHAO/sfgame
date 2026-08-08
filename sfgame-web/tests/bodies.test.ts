@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { createBody, PLANE_LOCAL, stepBody } from '../app/sim/bodies'
+import { createBody, stepBody } from '../app/sim/bodies'
 import { createFluid } from '../app/sim/fluid'
 
 function makeCalmFluid() {
@@ -19,143 +19,69 @@ function makeCalmFluid() {
 }
 
 const DT = 1 / 60
-const OPTS = { radius: 1, dragK: 3, gravity: 0 }
 const WORLD = { w: 76, h: 56 }
+const OPTS_G = { radius: 1, dragK: 3, gravity: 3 }
 
-test('从画布外向右飞入的物体不被左边界墙拦截（开场入场）', () => {
+test('从画布外向右飞入的质点不被左边界墙拦截（开场入场）', () => {
   const fluid = makeCalmFluid()
-  const body = createBody(-6, 20, OPTS)
+  const body = createBody(-6, 20, { radius: 1, dragK: 3, gravity: 0 })
   body.vx = 12
   const ground = () => 100
   stepBody(body, fluid, DT, ground, WORLD)
   expect(body.x).toBeLessThan(0)
-  expect(body.x).toBeGreaterThan(-6)
   expect(body.vx).toBeGreaterThan(11)
-  for (let i = 0; i < 59; i++) stepBody(body, fluid, DT, ground, WORLD)
-  expect(body.x).toBeGreaterThan(-4)
 })
 
-test('崖壁视为墙：一帧内陡坡抬升禁止 snap 爬升，横向弹回', () => {
+// 悬停阈值 = gravity/dragK = 1.0：上升风超过它才抬升，不足则继续下落
+test('垂直风：超过悬停阈值抬升、不足则下落', () => {
+  const ground = () => 100 // 地面足够深，只观察空气行为
+  const up = makeCalmFluid()
+  up.setAmbient(0, -2)
+  const rising = createBody(30, 50, OPTS_G)
+  for (let i = 0; i < 120; i++) stepBody(rising, up, DT, ground, WORLD)
+  expect(rising.y).toBeLessThan(50)
+
+  const weak = makeCalmFluid()
+  weak.setAmbient(0, -0.5)
+  const sinking = createBody(30, 50, OPTS_G)
+  for (let i = 0; i < 120; i++) stepBody(sinking, weak, DT, ground, WORLD)
+  expect(sinking.y).toBeGreaterThan(50)
+})
+
+// 地面：静息恰在地面上（不穿地），静风下惯性最终耗散停住
+test('静风落地：质点静息在地面上且最终停住', () => {
   const fluid = makeCalmFluid()
-  const ground = (x: number) => (x < 10 ? 40 : 10)
-  const body = createBody(9.4, 39.5, OPTS)
-  body.vx = 60
-  stepBody(body, fluid, DT, ground, WORLD)
-  expect(body.x).toBeLessThan(10)
-  expect(body.vx).toBeLessThan(0)
-  expect(body.y).toBeGreaterThan(30)
-})
-
-// 悬停需垂直风 ≥ gravity/dragK = 1.0；贴地耦合衰减 0.8 → 贴地阈值 ≈1.25（#25：适度风即可重新带飞）
-test('贴地边界层：贴地悬停所需垂直风略高于空中，强风可重新带飞', () => {
   const ground = () => 40
-  const OPTS_G = { radius: 1, dragK: 3, gravity: 3 }
-
-  const fluid = makeCalmFluid()
-  fluid.setAmbient(0, -1.2)
-  const air = createBody(10, 30, OPTS_G)
-  for (let i = 0; i < 120; i++) stepBody(air, fluid, DT, ground, WORLD)
-  expect(air.y).toBeLessThan(30)
-  // 贴地基准 = ground - REST_OFFSET(1.1)：弱风压不破
-  const gnd = createBody(10, 39.6, OPTS_G)
-  for (let i = 0; i < 120; i++) stepBody(gnd, fluid, DT, ground, WORLD)
-  expect(gnd.y).toBeGreaterThanOrEqual(38.8)
-
-  const strong = makeCalmFluid()
-  strong.setAmbient(0, -2.0)
-  const body = createBody(10, 39.6, OPTS_G)
-  for (let i = 0; i < 120; i++) stepBody(body, strong, DT, ground, WORLD)
-  expect(body.y).toBeLessThan(39.5)
-})
-
-// #25 光滑地面：1.5:1 坡可借水平速度滑爬（斜率 < MAX_SLIDE_SLOPE=2.0，不被 snap 弹回）
-test('光滑地面：中坡可用水平速度滑爬抬升，不被 snap 弹回', () => {
-  const fluid = makeCalmFluid()
-  // 1.5:1 坡：x∈[20,40] 地面 40 → 10（右升坡）
-  const ground = (x: number) => (x < 20 ? 40 : 40 - 1.5 * (x - 20))
-  const body = createBody(16, 39.5, { radius: 1, dragK: 3, gravity: 3 })
-  body.vx = 30
-  for (let i = 0; i < 240; i++) stepBody(body, fluid, DT, ground, WORLD)
-  expect(body.x).toBeGreaterThan(22.5)
-  expect(body.y).toBeLessThan(ground(body.x) - 0.4)
-})
-
-// #25 光滑地面：贴地滑行保留水平速度，顺坡自然滑下（右下降坡；顶点贴合后贴地摩擦参与，
-// 平衡速度受空气阻力主导，比旧"贴地悬空滑"略慢——语义不变：持续滑下而非卡住）
-test('光滑地面：贴地滑行保留水平速度，沿坡下滑', () => {
-  const fluid = makeCalmFluid()
-  const ground = (x: number) => 20 + 1 * x // 右下降坡（下坡向右）
-  const body = createBody(10, 29.6, { radius: 1, dragK: 3, gravity: 3 })
-  body.vx = 0
-  for (let i = 0; i < 480; i++) stepBody(body, fluid, DT, ground, WORLD)
-  expect(body.x).toBeGreaterThan(11.5)
-  expect(body.vx).toBeGreaterThan(0.15)
-})
-
-// 底边贴合地形：机轴比地形成 PLANE_TILT 夹角（两侧边不平行 ⇒ 轴平则边斜），最低轮廓点着地不插地
-test('贴地姿态：底边贴合坡面、最低轮廓点不穿地', () => {
-  const fluid = makeCalmFluid()
-  // 1:1 坡（右下降坡）：从坡上静止出发（顺坡下滑），贴地后底边平行坡面 → 机轴 = atan(1) + PLANE_TILT
-  const ground = (x: number) => 30 + 1 * (x - 10)
-  const body = createBody(10, 28.9, { radius: 1, dragK: 3, gravity: 3 })
-  body.vx = 0
-  for (let i = 0; i < 240; i++) stepBody(body, fluid, DT, ground, WORLD)
-  const tilt = Math.atan(1.12 / 3.2)
-  expect(Math.abs(body.angle - (Math.PI / 4 + tilt))).toBeLessThan(0.2)
-  // 最低轮廓点着地（顶点贴合）：任一顶点不深穿地面
-  const ca = Math.cos(body.angle)
-  const sa = Math.sin(body.angle)
-  let minClear = Infinity
-  for (const [lx, ly] of PLANE_LOCAL) {
-    const clear = ground(body.x + lx * ca - ly * sa) - (body.y + lx * sa + ly * ca)
-    if (clear < minClear) minClear = clear
-  }
-  expect(minClear).toBeGreaterThan(-0.05)
-})
-
-// 上坡代价：贴地时水平风推上坡要付重力切向代价，风无富余推不动（防"水平风无成本爬墙"）
-test('贴地上坡：水平风难以把飞机推上坡', () => {
-  const fluid = makeCalmFluid()
-  fluid.setAmbient(1.5, 0)
-  // 45° 右升坡：代价 ≈ g·sin45°·CLIMB_COST/(dragK·0.8) ≈ 1.77 > 风速 1.5
-  const ground = (x: number) => 40 - x
-  const body = createBody(20, 18.6, { radius: 1, dragK: 3, gravity: 3 })
-  for (let i = 0; i < 240; i++) stepBody(body, fluid, DT, ground, WORLD)
-  expect(body.x).toBeLessThan(20.5)
-})
-
-// 停稳双点接地（刚体静平衡＝两点支撑）：坡脚强弯曲地形不得单点机头支撑的"按地悬空"
-test('停稳双点接地：坡脚停稳至少两顶点触地、无深穿', () => {
-  const fluid = makeCalmFluid()
-  // 平地接右升坡（坡脚）：x<30 平，之后 1.5:1 上升
-  const ground = (x: number) => (x < 30 ? 40 : 40 - 1.5 * (x - 30))
-  const body = createBody(29.5, 39.4, { radius: 1, dragK: 3, gravity: 3 })
-  body.vx = 1.5
+  const body = createBody(30, 36, OPTS_G)
+  body.vx = 4
   for (let i = 0; i < 600; i++) stepBody(body, fluid, DT, ground, WORLD)
-  const ca = Math.cos(body.angle)
-  const sa = Math.sin(body.angle)
-  let touching = 0
-  for (const [lx, ly] of PLANE_LOCAL) {
-    const clear = ground(body.x + lx * ca - ly * sa) - (body.y + lx * sa + ly * ca)
-    expect(clear).toBeGreaterThan(-0.06)
-    if (clear < 0.1) touching++
-  }
-  expect(touching).toBeGreaterThanOrEqual(2)
+  expect(body.y).toBe(40)
+  expect(body.vx).toBe(0)
 })
 
-// 平地停稳：姿态折叠保留落地左右——向左滑停机头朝左（旧实现强制 atan(0)=0 恒朝右）
-test('平地停稳保持来向：向左滑停机头朝左、向右滑停机头朝右', () => {
-  const ground = () => 40
-  const OPTS_G = { radius: 1, dragK: 3, gravity: 3 }
-  // 静流体建一次循环外复用（每步新建网格是纯浪费）
+// 空气耦合：水平风持续推动贴地质点（风强度决定一切，无上坡代价/墙概念）
+test('水平风推动贴地质点', () => {
   const fluid = makeCalmFluid()
-  const left = createBody(30, 39.5, OPTS_G)
-  left.vx = -8
-  for (let i = 0; i < 600; i++) stepBody(left, fluid, DT, ground, WORLD)
-  expect(Math.cos(left.angle)).toBeLessThan(-0.9)
+  fluid.setAmbient(2, 0)
+  const ground = () => 40
+  const body = createBody(30, 40, OPTS_G)
+  for (let i = 0; i < 240; i++) stepBody(body, fluid, DT, ground, WORLD)
+  expect(body.x).toBeGreaterThan(33)
+  expect(body.y).toBe(40)
+})
 
-  const right = createBody(30, 39.5, OPTS_G)
-  right.vx = 8
-  for (let i = 0; i < 600; i++) stepBody(right, fluid, DT, ground, WORLD)
-  expect(Math.cos(right.angle)).toBeGreaterThan(0.9)
+// 机头稳稳指向运动方向（drag 使速度收敛于风，故即风向）
+test('机头朝向：顺风向右飞则朝右、向左飞则朝左', () => {
+  const ground = () => 100
+  const right = makeCalmFluid()
+  right.setAmbient(6, 0)
+  const r = createBody(20, 30, OPTS_G)
+  for (let i = 0; i < 120; i++) stepBody(r, right, DT, ground, WORLD)
+  expect(Math.cos(r.angle)).toBeGreaterThan(0.9)
+
+  const left = makeCalmFluid()
+  left.setAmbient(-6, 0)
+  const l = createBody(40, 30, OPTS_G)
+  for (let i = 0; i < 120; i++) stepBody(l, left, DT, ground, WORLD)
+  expect(Math.cos(l.angle)).toBeLessThan(-0.9)
 })

@@ -81,7 +81,8 @@ export class LevelSimulation {
       power: f.power,
     }))
     this.fans = level.fans
-    this.spawnY = level.spawn.y ?? level.ground(level.spawn.x) - 1.4
+    // 质点静息即地面本身：默认出生贴地，带初速的关卡显式给 y
+    this.spawnY = level.spawn.y ?? level.ground(level.spawn.x)
     this.spawnVx = level.spawn.vx ?? 0
     this.spawnVy = level.spawn.vy ?? 0
     this.plane = createBody(level.spawn.x, this.spawnY, PLANE_PHYSICS)
@@ -114,15 +115,12 @@ export class LevelSimulation {
     }
   }
 
-  // 出生姿态复位：构造与 restart 共用（spawn 状态不变量落一处）；机头朝发射方向
+  // 出生状态复位：构造与 restart 共用（spawn 不变量落一处）；机头由 stepBody 自动追随风向
   private resetPlane() {
     this.plane.x = this.level.spawn.x
     this.plane.y = this.spawnY
     this.plane.vx = this.spawnVx
     this.plane.vy = this.spawnVy
-    const sv = Math.hypot(this.spawnVx, this.spawnVy)
-    this.plane.angle = sv > 0.01 ? Math.atan2(this.spawnVy, this.spawnVx) : 0
-    this.plane.w = 0
   }
 
   restart() {

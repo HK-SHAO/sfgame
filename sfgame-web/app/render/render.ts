@@ -191,20 +191,20 @@ export class Renderer {
     const b = this.batch
     b.reset()
     // 遮挡契约（远→近）：天空烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
-    // 太阳盘面 → 云（遮粒子与日芒）→ 地形填充（盖掉云的山体内部分，云被山体精确遮挡）→
-    // 旗杆 → 旗面/套筒/抵达圆 → 源 → 飞机拖尾 → 飞机
+    // 太阳盘面 → 云（遮粒子与日芒）→ 飞机拖尾 → 飞机 → 地形填充（盖掉云的山体内部分，
+    // 云被山体精确遮挡；飞机为质点，低飞/触地下沉部分由地面遮挡）→ 旗杆 → 旗面/套筒/抵达圆 → 源
     this.drawSunHalo(b)
     this.drawTracers(b, tracers)
     this.drawSun(b, now)
     this.drawClouds(b, scene.clouds)
+    this.drawPlaneTrail(b, sim, planeTrail)
+    this.drawPlane(b, sim)
     this.drawTerrain(b, sim, viewL, viewR, viewB)
     this.drawGoalPoles(b, sim)
     this.drawGoal(b, sim)
     this.drawFixedSources(b, sim)
     this.drawSources(b, sim, press)
     this.drawFans(b, sim)
-    this.drawPlaneTrail(b, sim, planeTrail)
-    this.drawPlane(b, sim)
     if (press && press.kind === 'place') this.drawPress(b, press, now)
     this.lastVertexCount = b.count
     this.lastUploadBytes = b.count * VERTEX_STRIDE * 4
@@ -550,34 +550,11 @@ export class Renderer {
   private static readonly PLANE_LOCAL = PLANE_LOCAL
   private planeWorld = new Float32Array(8)
   private shadowPts = new Float32Array(SHADOW_SAMPLES * 2)
-  // 纸面弯曲（数据驱动 flutter）：机头/机尾沿机身采样风速差，取代旧的 sin(clock) 假抖动
-  private static readonly SHEAR_HALF = 1.2
-  private static readonly SHEAR_BEND_K = 0.22
-  private static readonly SHEAR_BEND_MAX = 0.3
-  private planeShear = { x: 0, y: 0 }
-
-  private planeBend(sim: LevelSimulation): number {
-    const f = this.fields
-    if (!f) return 0
-    const p = sim.plane
-    const ca = Math.cos(p.angle)
-    const sa = Math.sin(p.angle)
-    const air = this.planeShear
-    const amb = this.engine.ambient
-    bilinearSample(f.u, f.v, f.t, f.nx, f.ny, f.cell, amb.x, amb.y, p.x + Renderer.SHEAR_HALF * ca, p.y + Renderer.SHEAR_HALF * sa, air)
-    const hx = air.x
-    const hy = air.y
-    bilinearSample(f.u, f.v, f.t, f.nx, f.ny, f.cell, amb.x, amb.y, p.x - Renderer.SHEAR_HALF * ca, p.y - Renderer.SHEAR_HALF * sa, air)
-    const shear = (hx - air.x) * ca + (hy - air.y) * sa
-    return Math.max(-Renderer.SHEAR_BEND_MAX, Math.min(Renderer.SHEAR_BEND_MAX, shear * Renderer.SHEAR_BEND_K))
-  }
 
   private drawPlane(b: MeshBatch, sim: LevelSimulation) {
     const p = sim.plane
-    const pitch = Math.max(-0.32, Math.min(0.32, p.vy * 0.1))
-    const rot = p.angle + pitch
-    const cos = Math.cos(rot)
-    const sin = Math.sin(rot)
+    const cos = Math.cos(p.angle)
+    const sin = Math.sin(p.angle)
     const w = this.planeWorld
     let minX = Infinity
     let maxX = -Infinity
@@ -605,10 +582,6 @@ export class Renderer {
       b.disc(pts[(SHADOW_SAMPLES - 1) * 2], pts[(SHADOW_SAMPLES - 1) * 2 + 1], halfW, halfW, 0, 8, ...INK_DARK, shA)
     }
 
-    // 机头顶点垂直机身偏移 bend：两三角共享机头与脊柱，折痕沿机身成形
-    const bend = this.planeBend(sim)
-    w[0] -= bend * sin
-    w[1] += bend * cos
     b.tri(w[0], w[1], w[2], w[3], w[4], w[5], ...PAPER, 1)
     b.tri(w[0], w[1], w[4], w[5], w[6], w[7], ...PAPER, 1)
     for (let i = 0; i < 4; i++) {

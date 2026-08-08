@@ -31,10 +31,10 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 分层不变量：`app/core/`、`app/game/`、`app/sim/` 无 DOM，可在 node 无头测试（tests 只 import game/sim/core、render/batch 与 wasm/engine 预热；core 的浏览器面必须可注入，如 url-state 的 URL 源）。DOM 仅在 `app/ui/`（玩家界面）与 `app/dev/`（开发者工具）；`app/render/` 是 WebGL 渲染层，其中 `batch.ts` 为纯计算可无头测试。
 
 - `app/wasm/` — WASM 引擎引导与实例化（单实例 = 单内存；产物 `app/wasm/sfengine.wasm`，gitignore）。流体内核与顶点批内核同模块，渲染零拷贝直读流体场（`bilinearSample` 与 wasm 采样逐位同构）
-- `app/sim/` — 物理内核（欧拉流体网格、刚体、示踪粒子、云）。流体内核为 WASM·SIMD 唯一实现：`fluid.ts`（FluidLike 接口 + WasmFluid 门面 + createFluid 工厂，可注入引擎实例），`assembly/` 为 AssemblyScript 源码；内核加载失败在 main.ts 明示无法运行，绝不静默回退
+- `app/sim/` — 物理内核（欧拉流体网格、纸飞机质点、示踪粒子、云）。流体内核为 WASM·SIMD 唯一实现：`fluid.ts`（FluidLike 接口 + WasmFluid 门面 + createFluid 工厂，可注入引擎实例），`assembly/` 为 AssemblyScript 源码；内核加载失败在 main.ts 明示无法运行，绝不静默回退
 - `app/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`state.ts`（URL 状态 schema 单例：level/sources/view）、`levels.ts`（关卡加载/分组/解锁 + lv 双形态解析 + 参考解读取）、`progress.ts`（通关记录）
 - `app/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）
-- `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面/旗杆旗面遮挡，旗/源/飞机层最前）、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `assembly/batch.ts`，静态容量零分配，可无头测试）
+- `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面遮挡；纸飞机与其拖尾画在地形前——质点飞机低飞/触地的下沉部分由地面遮挡，旗/源层最前）、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `assembly/batch.ts`，静态容量零分配，可无头测试）
 - `app/dev/` — ?dev=1 开发者工具：面板 + 性能块 + 关卡 YAML 编辑器（默认折叠）+ 开发者页面，由 app 持有跨关卡重建延续
 - `app/core/` — 固定步长循环、音效与反馈（离散反馈一律走 `feedback.ts` 门面 = `sfx.ts` 音频 + `haptics.ts` 震动唯一配对点；`music.ts` 背景音乐：`bakeScore` 纯函数乐谱可无头测试 + `MusicPlayer` stem 循环播放（合成内核在 `assembly/music.ts` 物理建模钢琴，试听 `bun run scripts/render-score.ts [seed]`）；stem 烘焙走 `music-bakery.ts`（Worker 后台烘 + 内存单槽缓存，主线程零开销；失败回退主线程分片烘）；`setFlow` 飞行风速驱动旋律层变奏；连续风声层/音乐传输由 controller 直驱 sfx）、性能治理（`governor.ts` 降级策略 / `wind.ts` 风强度与落地判定，均纯逻辑可无头测试）、通用 URL 状态模块
 

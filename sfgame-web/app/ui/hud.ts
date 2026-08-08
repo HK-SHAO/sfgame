@@ -120,8 +120,11 @@ export class SfHud extends LitElement {
         align-items: center;
         justify-content: space-between;
         gap: var(--sp-2);
-        /* 阴影物理留白（0.5625 顶 = 向上 blur−offset、0.8125 侧/底 = 全外扩），不随设计 token */
-        padding: calc(0.5625rem + env(safe-area-inset-top, 0px)) 0.8125rem 0.8125rem;
+        /* 阴影物理留白（0.5625 顶 = 向上 blur−offset、0.8125 侧/底 = 全外扩），不随设计 token；
+           横屏刘海/Dynamic Island 在侧边，须加左/右安全区 */
+        padding: calc(0.5625rem + env(safe-area-inset-top, 0px))
+          calc(0.8125rem + env(safe-area-inset-right, 0px)) 0.8125rem
+          calc(0.8125rem + env(safe-area-inset-left, 0px));
         pointer-events: none;
       }
 

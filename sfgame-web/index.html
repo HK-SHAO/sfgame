@@ -3,14 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=overlays-content, user-scalable=no"
     />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="theme-color" content="#fdf7ec" />
+    <!-- 状态栏色 = 渐变顶色：standalone 下状态栏与页面渐变无缝衔接（iOS 15+ 状态栏由 theme-color 控制） -->
+    <meta name="theme-color" content="#fff8ea" />
     <title>烧风 · 用温度创造风</title>
     <link rel="stylesheet" href="./app/styles.css" />
     <script type="module" src="./app/main.ts"></script>

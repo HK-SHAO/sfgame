@@ -48,6 +48,9 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 - 间距/圆角/控件尺寸一律用 `:root` 尺寸 token（`--sp-1..6`、`--r-sm/md/lg/xl/pill`、`--ctl-h`、`--maxw-card/dialog`、`--card-pad`、`--page-pad-x/y`、`--hud-h`、`--scroll-thumb`），**禁止新散点值**；物理计算值例外（如 hud 阴影留白）
 - **每个 Lit 组件须自声明 `box-sizing: border-box`**（全局样式不穿透 shadow DOM，缺了会右溢）
 - 居中 + 溢出兜底用子项 `margin: auto`，禁用 `place-items: center`（溢出双向裁切）
+- **暖色背景渐变单源**：token `--bg-warm`（左上光斑）/`--bg-warm-r`（右上）定义在 `styles.css` `:root`，`html,body` 兜底携带渐变（浏览器工具栏/overscroll 露白延续渐变而非纯色带），组件内引用走 `var()`（shadow DOM 继承自定义属性），禁止内联复制渐变值
+- **安全区四向齐备**：`env(safe-area-inset-top/bottom)` 之外，横屏刘海/Dynamic Island 在侧边，全宽铺满的层（hud/pageShell/.title/overlay）须同时带 left/right inset；`theme-color` 恒 = 渐变顶色 `#fff8ea`（standalone 状态栏与渐变无缝）
+- PWA 安装元数据在 `public/manifest.webmanifest` + `icon.svg`（`sips` 栅格化出 icons/ 与 apple-touch-icon.png）
 
 ## 易错点
 

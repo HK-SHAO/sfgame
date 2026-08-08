@@ -2,7 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { name } from '../../package.json'
 import { iconBack, iconDatabase } from './icons'
-import { boxReset, card, pageShell } from './shared-styles'
+import { artBg, boxReset, card, pageShell } from './shared-styles'
 
 const KEY_PREFIX = `${name}.`
 
@@ -125,6 +125,7 @@ export class SfStorage extends LitElement {
   static styles = [
     boxReset,
     pageShell,
+    artBg,
     card,
     css`
       :host {
@@ -256,11 +257,20 @@ export class SfStorage extends LitElement {
 
     .foot {
       max-width: var(--maxw-card);
-      margin: 0 auto;
+      margin: var(--sp-4) auto 0;
+      padding: var(--sp-4);
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 0.625rem;
+      /* 文字防撞背景图色：与条目卡同款雾面玻璃 */
+      background: var(--card);
+      backdrop-filter: blur(1.5rem) saturate(1.4);
+      -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      border-radius: var(--r-xl);
+      corner-shape: squircle;
+      box-shadow: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.07);
     }
 
     .clear {

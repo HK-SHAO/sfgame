@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js'
 import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, solutionsFor } from '../game/levels'
 import { progress } from '../game/progress'
 import type { LevelDef } from '../game/types'
-import { boxReset, reduceMotion, warmBg } from './shared-styles'
+import { artBg, boxReset, reduceMotion } from './shared-styles'
 import { iconGear, iconLock, iconLogo, iconRoute } from './icons'
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
@@ -107,6 +107,7 @@ export class SfTitleScreen extends LitElement {
   static styles = [
     boxReset,
     reduceMotion,
+    artBg,
     css`
       :host {
         display: block;
@@ -135,8 +136,9 @@ export class SfTitleScreen extends LitElement {
         height: 100%;
         display: flex;
         flex-direction: column;
-        padding: var(--page-pad-y) var(--page-pad-x);
-        ${warmBg}
+        /* 横屏刘海/Dynamic Island 在侧边，须加左/右安全区 */
+        padding: var(--page-pad-y) calc(var(--page-pad-x) + env(safe-area-inset-right, 0px))
+          var(--page-pad-y) calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
         overflow: auto;
         scrollbar-width: thin;
         scrollbar-color: var(--scroll-thumb) transparent;
@@ -148,13 +150,14 @@ export class SfTitleScreen extends LitElement {
         margin: auto;
         padding: var(--card-pad);
         text-align: center;
-        background: var(--card);
-        backdrop-filter: blur(1.5rem) saturate(1.4);
-        -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
+        /* 白雾玻璃：半透明白 + 轻模糊，背景图若隐若现（比其余页卡片更透） */
+        background: rgba(255, 252, 245, 0.55);
+        backdrop-filter: blur(1rem) saturate(1.3);
+        -webkit-backdrop-filter: blur(1rem) saturate(1.3);
         border: 1px solid rgba(255, 255, 255, 0.6);
         border-radius: var(--r-xl);
         corner-shape: squircle;
-        box-shadow: 0 1.125rem 2.75rem rgba(61, 52, 39, 0.1);
+        box-shadow: 0 1.125rem 2.75rem rgba(61, 52, 39, 0.14);
       }
 
       .logo svg {
@@ -205,7 +208,7 @@ export class SfTitleScreen extends LitElement {
         width: 2.125rem;
         height: 2.125rem;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.72);
+        background: rgba(255, 255, 255, 0.5);
         border: 1px solid rgba(255, 255, 255, 0.8);
         box-shadow: 0 0.125rem 0.5rem rgba(61, 52, 39, 0.07);
         color: var(--ink-soft);
@@ -258,7 +261,7 @@ export class SfTitleScreen extends LitElement {
         padding: 0.375rem var(--sp-5);
         border-radius: var(--r-lg);
         corner-shape: squircle;
-        background: rgba(255, 255, 255, 0.55);
+        background: rgba(255, 255, 255, 0.4);
         border: 1px solid rgba(255, 255, 255, 0.7);
         color: var(--ink-soft);
         transition: background 140ms ease-out, color 140ms ease-out, box-shadow 140ms ease-out;
@@ -315,7 +318,7 @@ export class SfTitleScreen extends LitElement {
       }
 
       .level.play {
-        background: rgba(255, 255, 255, 0.72);
+        background: rgba(255, 255, 255, 0.5);
         border: 1px solid rgba(255, 255, 255, 0.8);
         box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.07);
       }

@@ -46,7 +46,9 @@ export class SfStatusBar extends LitElement {
       position: fixed;
       left: 50%;
       transform: translateX(-50%);
+      /* iOS 26 横屏 home indicator 自动隐藏时 inset-bottom 突变归零：过渡平滑位移 */
       bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+      transition: bottom 180ms ease-out;
       z-index: 3;
       display: flex;
       flex-direction: column;

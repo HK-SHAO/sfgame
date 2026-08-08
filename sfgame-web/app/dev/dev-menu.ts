@@ -2,7 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { version, author, description } from '../../package.json'
 import { iconBack, iconDatabase, iconGear } from '../ui/icons'
-import { boxReset, card, pageShell } from '../ui/shared-styles'
+import { artBg, boxReset, card, pageShell } from '../ui/shared-styles'
 
 @customElement('sf-dev-menu')
 export class SfDevMenu extends LitElement {
@@ -56,6 +56,7 @@ export class SfDevMenu extends LitElement {
   static styles = [
     boxReset,
     pageShell,
+    artBg,
     card,
     css`
       :host {

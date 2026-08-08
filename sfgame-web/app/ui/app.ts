@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing, type PropertyValues, type TemplateResul
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { fb } from '../core/feedback'
+import { bgm } from '../core/bgm'
 import { LEVELS, LEVEL_GROUPS, nextInGroup, solutionsFor } from '../game/levels'
 import { progress } from '../game/progress'
 import { SfGame } from './sf-game'
@@ -187,6 +188,7 @@ export class SfApp extends LitElement {
   private cycleSpeed() {
     const steps = this.speedSteps
     this.rate = steps[(steps.indexOf(this.rate) - 1 + steps.length) % steps.length]
+    bgm.setRate(this.rate)
     fb.uiClick()
   }
 

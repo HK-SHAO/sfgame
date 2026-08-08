@@ -36,32 +36,43 @@ export const reduceMotion = css`
   }
 `
 
-// 暖色背景渐变：主页与终端页共用（左上发光）；pageShell 用右上变体（84% 10%，有意区分页面壳）
+// 暖色背景渐变：主页与终端页共用（左上发光）；pageShell 用右上变体（84% 10%，有意区分页面壳）。
+// 单源 token 定义在 styles.css :root（shadow DOM 继承自定义属性），此处仅引用
 export const warmBg = css`
-  background:
-    radial-gradient(circle at 18% 12%, rgba(255, 196, 83, 0.32), transparent 42%),
-    linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
+  background: var(--bg-warm);
+`
+
+// 全屏手绘背景图（1:1 cover，中央为安全区）：主菜单与各页面壳共用（:host 固定，滚动不随内容），
+// 渐变兜底铺满剩余区域，与图同色系无缝
+export const artBg = css`
+  :host {
+    background:
+      url('/bg-title.webp') center center / cover no-repeat,
+      var(--bg-warm);
+  }
 `
 
 export const pageShell = css`
   .page {
     height: 100%;
+    /* 背景由 artBg 提供（:host 固定不随滚动），此处须透明，否则盖住背景图 */
     overflow-y: auto;
-    padding: 0 var(--page-pad-x) calc(1.875rem + env(safe-area-inset-bottom, 0px));
+    padding: 0 calc(var(--page-pad-x) + env(safe-area-inset-right, 0px))
+      calc(1.875rem + env(safe-area-inset-bottom, 0px)) calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
     scrollbar-width: thin;
     scrollbar-color: var(--scroll-thumb) transparent;
-    background:
-      radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
-      linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
   }
 
-  /* 标题栏：sticky 悬浮 + 半透明薄雾（负 margin 顶开 page 侧 padding 通到视口边缘），内容从栏下滚过 */
+  /* 标题栏：sticky 悬浮 + 半透明薄雾（负 margin 顶开 page 侧 padding 通到视口边缘），内容从栏下滚过。
+     四值 margin 勿缩写成两值：bottom 的 --sp-4 是栏与下方内容的间距 */
   .bar {
     position: sticky;
     top: 0;
     z-index: 10;
-    margin: 0 calc(-1 * var(--page-pad-x)) var(--sp-4);
-    padding: calc(0.75rem + env(safe-area-inset-top, 0px)) var(--page-pad-x) 0.75rem;
+    margin: 0 calc(-1 * (var(--page-pad-x) + env(safe-area-inset-right, 0px))) var(--sp-4)
+      calc(-1 * (var(--page-pad-x) + env(safe-area-inset-left, 0px)));
+    padding: calc(0.75rem + env(safe-area-inset-top, 0px)) calc(var(--page-pad-x) + env(safe-area-inset-right, 0px)) 0.75rem
+      calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
     background: rgba(255, 253, 248, 0.6);
     backdrop-filter: blur(1.5rem) saturate(1.6);
     -webkit-backdrop-filter: blur(1.5rem) saturate(1.6);
@@ -121,7 +132,10 @@ export const card = css`
     max-width: var(--maxw-card);
     margin: 0 auto var(--sp-4);
     padding: var(--sp-2);
+    /* 雾面玻璃：白底 + 模糊（与 bar 同半径），背景图在卡后晕开——所有卡片统一此质感 */
     background: var(--card);
+    backdrop-filter: blur(1.5rem) saturate(1.4);
+    -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
     border: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: var(--r-lg);
     corner-shape: squircle;

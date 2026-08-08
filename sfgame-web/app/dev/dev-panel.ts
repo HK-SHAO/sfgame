@@ -31,7 +31,7 @@ export class SfDevPanel extends LitElement {
       color-scheme: light;
       position: fixed;
       top: calc(3.5625rem + env(safe-area-inset-top, 0px));
-      left: 0.8125rem;
+      left: calc(0.8125rem + env(safe-area-inset-left, 0px));
       right: auto;
       z-index: 9999;
       display: flex;
@@ -46,6 +46,8 @@ export class SfDevPanel extends LitElement {
       border-radius: var(--r-md);
       corner-shape: squircle;
       background: rgba(20, 18, 14, 0.72);
+      backdrop-filter: blur(1rem);
+      -webkit-backdrop-filter: blur(1rem);
       color: var(--dev-fg);
       touch-action: none;
       user-select: none;

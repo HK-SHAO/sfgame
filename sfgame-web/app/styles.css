@@ -30,6 +30,14 @@
   --page-pad-x: 1.125rem;
   --page-pad-y: 1.5rem;
   --scroll-thumb: rgba(61, 52, 39, 0.25);
+  /* 暖色背景渐变单源：全局（html/body 兜底）与各屏组件（warmBg/pageShell）共用同一 token，杜绝双源漂移；
+     html/body 携带渐变 → 浏览器工具栏/overscroll/滚动露白区域延续渐变而非纯色带（iOS Safari 全面屏无缝） */
+  --bg-warm:
+    radial-gradient(circle at 18% 12%, rgba(255, 196, 83, 0.32), transparent 42%),
+    linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
+  --bg-warm-r:
+    radial-gradient(circle at 84% 10%, rgba(255, 196, 83, 0.22), transparent 42%),
+    linear-gradient(180deg, #fff8ea 0%, #f8e6c4 100%);
   font-family:
     -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
     'Noto Sans SC', 'Segoe UI', system-ui, sans-serif;
@@ -46,7 +54,7 @@ body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-  background: var(--paper);
+  background: var(--bg-warm);
   color: var(--ink);
 }
 

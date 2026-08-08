@@ -13,6 +13,7 @@ description: 本项目（Lit 3 + WebGL + WASM·SIMD + vite/bun 单页游戏）�
 - 布局右溢、右侧间距消失 → A2、A4
 - 居中元素（提示条/弹层）宽度只有容器一半 → B4
 - 滚动容器内阴影被截断/缺一截 → B5
+- 栏与下方卡片间距消失、视觉贴死 → B6
 - 顶部滚不回去、底部间距不可见 → A3
 - 刷新后页面/状态丢失 → C6
 - 后退/前进"没反应"、源删不掉 → C5
@@ -114,6 +115,11 @@ canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配
 **根因**：overflow ≠ visible 的轴必裁 box-shadow（裁切边界 = 容器 padding box），`blur` 向四周扩散、不止 offset 方向（向上 = blur−offset、向下 = blur+offset）。`overflow-x: clip` + 另一轴非 clip 时 clip 被**计算为 hidden**，`overflow-clip-margin` 失效——滚动容器内阴影没有 CSS 放行魔法，只能靠留白。裁切边界在视口边缘（容器 box = 视口，如整页滚动容器）时硬边在屏幕外、不可见，属正常现象不必处理。
 **修法**：容器四边 padding ≥ 阴影外扩（offset+blur），四边都要（blur 双向扩散）；hud 同时注意 dev-panel 的 `top` 硬依赖 hud 总高（改 padding 须同步）。
 **信号**：滚动容器内带阴影元素贴边；阴影"刚冒头就被掐断"。
+
+### B6 给 margin/padding 加安全区时，多值 shorthand 被误缩成两值，间距悄悄丢失
+**症状**：header bar 与下方卡片贴死（2026-08-08 加 `env(safe-area-inset-left/right)` 后实测）：`margin: 0 calc(-1 * (var(--page-pad-x) + env(safe-area-inset-left, 0px)))` 原是 `margin: 0 calc(...) var(--sp-4)` 三值——改写时按两值收尾，bottom 的 `var(--sp-4)` 被吞（两值 = 上下 0 / 左右 calc），栏与内容的间距归零；且左右两侧误用同一 inset（横屏刘海在单侧，左/右必须各自 inset）。
+**修法**：带安全区的多值 padding/margin 一律写全四值（top/right/bottom/left），右侧用 `inset-right`、左侧用 `inset-left`；改完对含 .bar 的屏（storage/dev）探测 `card.top − bar.bottom` ≥ 设计间距。
+**信号**：任何把 `env()` 并进多值 shorthand 的编辑；布局没动过却出现"贴死/错位"。
 
 ## C. URL 状态 / 撤销重做
 

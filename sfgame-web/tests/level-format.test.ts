@@ -105,7 +105,7 @@ test('关卡图：组名与组内顺序（TS 声明，JSON 不携带）', () => 
   ])
 })
 
-test('解锁语义：每组第一关初始解锁，其余 = 完成组内前驱，跨组独立', () => {
+test('解锁语义：每组首关初始解锁；其余 = 上一关或本关有记录，跨组独立', () => {
   const done = new Set<number>()
   const completed = (id: number) => done.has(id)
   // 两组首关（1 与 6）初始皆解锁
@@ -118,6 +118,11 @@ test('解锁语义：每组第一关初始解锁，其余 = 完成组内前驱�
   expect(isUnlocked(5, completed)).toBe(false)
   done.add(4)
   expect(isUnlocked(5, completed)).toBe(true)
+  // 本关记录兜底：跳过前驱、直接有本关记录也解锁
+  done.clear()
+  done.add(3)
+  expect(isUnlocked(3, completed)).toBe(true)
+  expect(isUnlocked(2, completed)).toBe(false)
   // 不在任何组的 id 不可解锁
   expect(isUnlocked(99, completed)).toBe(false)
 })

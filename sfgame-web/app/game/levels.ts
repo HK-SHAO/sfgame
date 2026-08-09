@@ -62,12 +62,13 @@ export function nextInGroup(id: number): number | undefined {
   return i >= 0 ? g.ids[i + 1] : undefined
 }
 
-// 解锁语义：每组第一关初始解锁，其余 = 完成组内前驱；跨组独立
+// 解锁语义：每组第一关初始解锁，其余 = 上一关或本关已有过关记录；跨组独立
 export function isUnlocked(id: number, completed: (id: number) => boolean): boolean {
   const g = groupOf(id)
   if (!g) return false
   const i = g.ids.indexOf(id)
-  return i <= 0 ? i === 0 : completed(g.ids[i - 1])
+  if (i <= 0) return i === 0
+  return completed(g.ids[i - 1]) || completed(id)
 }
 
 // lv 双形态解析：数字 = 内置关卡；字符串 = URL 内联关卡 JSON（state.ts 编解码，解析失败视为无效）。

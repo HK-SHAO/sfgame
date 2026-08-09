@@ -106,7 +106,7 @@ if (args.includes('--solve')) {
   }
 }
 
-// 遗传算法：精英保留 + 锦标赛选择 + 均匀交叉 + 邻域变异，worker 并行评估；种子含已登记参考解（至少保住当前解），连续停滞重随机重启
+// 遗传算法：精英保留 + 锦标赛选择 + 均匀交叉 + 邻域变异，worker 并行评估；连续停滞重随机重启
 async function geneticSolve(
   n: number,
   budgetMs: number,
@@ -121,12 +121,7 @@ async function geneticSolve(
   const POP = 32
   const ELITE = 4
   const pool = new WorkerPool(workerCount)
-  const seeds: SourceTuple[][] = []
-  for (const s of level.json.solutions ?? []) {
-    if (s.sources.length !== n || !s.sources.every((p) => kinds.has(p.kind))) continue
-    seeds.push(s.sources.map((p) => [p.x, p.y, p.kind]))
-  }
-  let pop: SourceTuple[][] = seeds.slice(0, POP)
+  let pop: SourceTuple[][] = []
   while (pop.length < POP) pop.push(randomSources(n, spots, rng))
 
   const hall: Array<{ src: SourceTuple[]; m: CandidateMetric }> = []
@@ -162,8 +157,7 @@ async function geneticSolve(
     pop = next
     gen++
     if (++stale > 8) {
-      const keep = pop.slice(0, ELITE)
-      pop = [...keep, ...seeds.slice(0, POP - keep.length)]
+      pop = pop.slice(0, ELITE)
       while (pop.length < POP) pop.push(randomSources(n, spots, rng))
       stale = 0
       console.log(`[solve] 第 ${gen} 代 · 停滞重启（重随机）`)

@@ -6,12 +6,6 @@ export interface SourcePlacement {
   kind: SourceKind
 }
 
-export interface SolutionDef {
-  name: string
-  sources: SourcePlacement[]
-  winTime: number
-}
-
 export interface TideDef {
   period: number
   phase?: number
@@ -48,7 +42,7 @@ export interface FanDef {
   period?: number
 }
 
-// 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.json）；solutions 可选（DIY 关卡可不带，dev 参考解按钮自动跳过）
+// 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.json）；不内置参考解——玩家解法记录在本地（progress.ts，与关卡 hash 绑定）
 export interface LevelJson {
   schema: 1
   id: number
@@ -64,7 +58,6 @@ export interface LevelJson {
   ambient?: AmbientDef
   fixed?: FixedSourceDef[]
   fans?: FanDef[]
-  solutions?: SolutionDef[]
 }
 
 export interface Source {

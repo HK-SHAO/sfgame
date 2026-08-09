@@ -12,15 +12,5 @@
   "budget": { "hot": 2, "cold": 3 },
   "spawn": { "x": -5, "y": 8, "vx": 16 },
   "goals": [{ "x": 62, "r": 7.5 }],
-  "ambient": { "x": 2.6, "y": 0 },
-  "solutions": [
-    {
-      "name": "冷源双降",
-      "sources": [
-        { "x": 36, "y": 24, "kind": "cold" },
-        { "x": 45, "y": 30, "kind": "cold" }
-      ],
-      "winTime": 14.1
-    }
-  ]
+  "ambient": { "x": 2.6, "y": 0 }
 }

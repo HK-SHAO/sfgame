@@ -55,7 +55,8 @@ export const lvCodec: UrlStateCodec<LvValue> = {
 
 export const urlState = new UrlState({
   lv: lvCodec,
-  src: codecs.list<SourcePlacement>([], sourceItem, '_'),
+  // s = sources 摆法（1 字符：分享 URL 短）
+  s: codecs.list<SourcePlacement>([], sourceItem, '_'),
   v: codecs.enum<AppView>('title', ['dev', 'storage']),
   dev: codecs.bool(false),
 })

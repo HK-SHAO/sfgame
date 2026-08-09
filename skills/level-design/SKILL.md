@@ -23,17 +23,7 @@ description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计�
   "budget": { "hot": 3, "cold": 2 },
   "spawn": { "x": -4, "y": 16, "vx": 40 },
   "goals": [{ "x": 15, "r": 10 }, { "x": 52, "r": 9 }],
-  "ambient": { "x": 2.4, "y": 0 },
-  "solutions": [
-    {
-      "name": "双热源接力翻山脊",
-      "sources": [
-        { "x": 20, "y": 29.3, "kind": "hot" },
-        { "x": 50, "y": 21.3, "kind": "hot" }
-      ],
-      "winTime": 16.8
-    }
-  ]
+  "ambient": { "x": 2.4, "y": 0 }
 }
 ```
 
@@ -53,7 +43,7 @@ description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计�
 | 风扇 | `fans[]` | 定向气流 `{x, y, dir(弧度), power(注入风速)}`；可选 `swing`（摆幅 ±弧度）+ `period`（周期）= 摇头风扇 | L8 鼓风、L9 钟摆、L10 焚风 |
 | 关卡组 | `LEVEL_GROUPS` | 主页选项卡分组：**JSON 不声明归属，分组在 `app/game/levels.ts` 的 `LEVEL_GROUPS` 常量声明**（组名 + 组内 ids 顺序，组内按 id 线性解锁） | 第 1 组「长风」、第 2 组「焚风」 |
 
-参考解法（`solutions[]`）不是新原子，而是 dev 模式首页关卡项「参考解」按钮的直达摆法数据（源一次性放置）。
+关卡文件**不内置解法**（免玩家翻代码作弊）：玩家通关时其摆法自动记录在本地（progress.ts：每关 top3、与关卡内容 hash 绑定），再次进关默认预置最优解。
 
 ### 组合语法（乘法式）
 
@@ -112,13 +102,13 @@ description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计�
 cd sfgame-web
 # 无操作 150s：必须不通关（设计红线，挂机轨迹不得穿过任何抵达圆）
 bun run scripts/run-level.ts levels/level-N.json --sim 150
-# 参考解自查（可选）：手摆一版确认可通关，写入 winTime（展示用）
+# 可解性自查（可选）：手摆一版确认可通关（结果不写入关卡文件）
 bun run scripts/run-level.ts levels/level-N.json --verify 20-29.3-h,50-21.3-h
 ```
 
-## 6. 参考解搜索（多目标遗传算法，`run-level.ts --solve`）
+## 6. 解法搜索（多目标遗传算法，`run-level.ts --solve`）
 
-> 现状：求解与玩法验证交给玩家实测（#27 起），本工具保留备用；新关卡暂可只手摆一版参考解。
+> 现状：解法不随关卡发布，玩家通关自录；本工具仅供设计时自查可解性（离线，产物不入库）。
 
 搜索参考解用**遗传算法 + 多 worker 并行**（`--workers`，默认核数−1），
 优先级按老大 #10 验收第 2 条：
@@ -142,11 +132,10 @@ bun run scripts/run-level.ts levels/level-N.json --verify 20-29.3-h,50-21.3-h
 - **搜索 cap 35s**：教学关参考解应 ≤25s，35s 留足余量；新物理（#25）下贴地飞机可被风重新带飞，不再设贴地早退。
 - 候选源网格：x 每 2 单位一列，贴地/中空/高空三档高度，热冷各一；
   `--kinds h` 可只搜热源（教学主题约束，如 L1「上升风」只放热源）。
-- **种子注入**：种群首代包含 JSON 里已登记的参考解——搜索至少保住现状，
-  只做改进；连续多代无改进会停滞重启。
+- **种子注入已移除**：关卡文件不再内置解法，种群全随机起步；连续多代无改进会停滞重启。
 - 每次搜索输出**候选榜**（前 5 个互不相同的通关解），逐一 `--verify --robust`
-  复核后选入 JSON。**鲁棒性 ≥6/8（75%）才适合做教学关参考解**（G7）；
-  快而脆的解不如慢而稳的解。
+  复核确认关卡可解即可。**鲁棒性 ≥6/8（75%）的关卡才算宽容好上手**（G7）；
+  快而脆的解说明关卡对摆放过于敏感。
 - 单次精筛评估 ≈ 1–2s（60fps × cap 35s）：32 个体、8 worker 约 4s/代，
   90–120s 预算通常够用；先想清楚预算再跑，别盲目加大。
 
@@ -162,9 +151,9 @@ bun run scripts/run-level.ts levels/level-N.json --verify 20-29.3-h,50-21.3-h
 
 ## 8. 登记新关卡
 
-1. 新建 `sfgame-web/levels/level-N.json`（含 `solutions` 与实测 `winTime`；新关卡组先在 `levels.ts` 声明 `LEVEL_GROUPS` 条目）
+1. 新建 `sfgame-web/levels/level-N.json`（不含解法；新关卡组先在 `levels.ts` 声明 `LEVEL_GROUPS` 条目）
 2. 在 `app/game/levels.ts` 顶部 `import levelN from '../../levels/level-N.json?raw'`
    并加入 `LEVEL_TEXTS` 数组一行（JSON 以纯文本经 `?raw` 直读，随文件变更
    触发 vite HMR，无需构建插件）；按关卡分组把 id 加进 `LEVEL_GROUPS` 对应组，选项卡自动出现
 3. 走完第 5 节设计工作流
-4. 选关页、dev 模式参考解按钮、URL 直达（`?lv=N&src=…`）自动生效，无需额外 UI 改动
+4. 选关页与 URL 直达（`?lv=N&s=…`）自动生效，无需额外 UI 改动；玩家通关后解法自动本地记录

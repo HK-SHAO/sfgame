@@ -3,7 +3,7 @@ import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { fb } from '../core/feedback'
 import { bgm } from '../core/bgm'
-import { LEVELS, LEVEL_GROUPS, nextInGroup, solutionsFor } from '../game/levels'
+import { LEVELS, LEVEL_GROUPS, nextInGroup, levelHash } from '../game/levels'
 import { progress } from '../game/progress'
 import { SfGame, type DenyDetail } from './sf-game'
 import type { SfHud } from './hud'
@@ -57,9 +57,13 @@ export class SfApp extends LitElement {
     fb.unlock()
     // 初始加载与外部变化允许脏 lv 净化；本地写路径不净化（见 screen.ts cleanup 注释）
     this.applyScreen(screenFromUrl(true))
-    urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true)))
+    this.autofillBest()
+    urlState.onChange('lv', () => {
+      this.applyScreen(screenFromUrl(true))
+      this.autofillBest()
+    })
     urlState.onChange('v', () => this.applyScreen(screenFromUrl(true)))
-    urlState.onChange('src', (v) => {
+    urlState.onChange('s', (v) => {
       this.gameEl?.applySources(v)
       fb.uiClick()
     })
@@ -81,10 +85,31 @@ export class SfApp extends LitElement {
     }
   }
 
-  // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验），清 src（浏览器返回即复原）
+  // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验）；同内容改版重玩时预置历史最优摆法
   private onDevOverride = (text: string) => {
     urlState.set('lv', text)
-    urlState.clear('src')
+    this.enterLevel()
+    this.applyScreen(screenFromUrl())
+  }
+
+  private bestEntry() {
+    const h = levelHash(urlState.get('lv'))
+    return h ? progress.best(h)[0] : undefined
+  }
+
+  // 进关卡：有记录最优解 → 预置其摆法（回顾即进入），否则清旧摆法
+  private enterLevel() {
+    const best = this.bestEntry()
+    if (best && best.sources.length > 0) urlState.set('s', best.sources)
+    else urlState.clear('s')
+  }
+
+  // 外部进入（初始加载/popstate）URL 无摆法 → 补最优解；replace：派生默认不进历史
+  private autofillBest() {
+    if (this.screen !== 'game' || urlState.has('s')) return
+    const best = this.bestEntry()
+    if (!best || best.sources.length === 0) return
+    urlState.set('s', best.sources, { replace: true })
     this.applyScreen(screenFromUrl())
   }
 
@@ -120,7 +145,7 @@ export class SfApp extends LitElement {
   private startGame(id: number) {
     fb.uiEnter()
     urlState.set('lv', id)
-    urlState.clear('src')
+    this.enterLevel()
     this.applyScreen(screenFromUrl())
   }
 
@@ -130,7 +155,7 @@ export class SfApp extends LitElement {
     fb.uiEnter()
     // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
     urlState.set('lv', next)
-    urlState.clear('src')
+    this.enterLevel()
     this.applyScreen(screenFromUrl())
   }
 
@@ -144,7 +169,7 @@ export class SfApp extends LitElement {
   private backToTitle() {
     fb.uiBack()
     urlState.clear('lv')
-    urlState.clear('src')
+    urlState.clear('s')
     urlState.clear('v')
     this.applyScreen(screenFromUrl())
   }
@@ -158,17 +183,6 @@ export class SfApp extends LitElement {
   private openDev() {
     fb.uiEnter()
     urlState.set('v', 'dev')
-    this.applyScreen(screenFromUrl())
-  }
-
-  // dev 模式：关卡项上的参考解按钮——直达该关第一个注册解的摆法（省掉解法参考页）
-  private openSolution(level: LevelDef) {
-    const sol = solutionsFor(level.id)[0]
-    if (!sol) return
-    fb.uiEnter()
-    urlState.set('lv', level.id)
-    urlState.set('src', sol.sources)
-    urlState.clear('v')
     this.applyScreen(screenFromUrl())
   }
 
@@ -209,10 +223,12 @@ export class SfApp extends LitElement {
   }
 
   private recordWin() {
-    this.winRank = progress.record(this.activeLevel.id, {
+    const h = levelHash(urlState.get('lv'))
+    if (!h) return
+    this.winRank = progress.record(h, {
       time: this.hud.time,
       extra: this.hud.extra,
-      sources: urlState.get('src'),
+      sources: urlState.get('s'),
     })
   }
 
@@ -222,8 +238,8 @@ export class SfApp extends LitElement {
   }
 
   private onSourcesChange(e: CustomEvent<SourcePlacement[]>) {
-    if (e.detail.length === 0) urlState.clear('src')
-    else urlState.set('src', e.detail)
+    if (e.detail.length === 0) urlState.clear('s')
+    else urlState.set('s', e.detail)
   }
 
   protected override render() {
@@ -244,7 +260,6 @@ export class SfApp extends LitElement {
         .activeGroup=${this.activeGroup}
         @group=${this.onGroup}
         @start=${(e: CustomEvent<number>) => this.startGame(e.detail)}
-        @solution=${(e: CustomEvent<LevelDef>) => this.openSolution(e.detail)}
         @dev-page=${this.openDev}
       ></sf-title-screen>`
     }
@@ -253,7 +268,8 @@ export class SfApp extends LitElement {
 
   private renderGame() {
     const won = this.hud.phase === 'won'
-    const bestTotal = won ? progress.best(this.activeLevel.id)[0]?.total : undefined
+    const h = levelHash(urlState.get('lv'))
+    const bestTotal = won && h ? progress.best(h)[0]?.total : undefined
     const hasNext = nextInGroup(this.activeLevel.id) !== undefined
     return html`
       <main class="game">

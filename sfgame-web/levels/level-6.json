@@ -13,15 +13,5 @@
   "spawn": { "x": -5, "y": 12, "vx": 26 },
   "goals": [{ "x": 66, "r": 8 }],
   "ambient": { "x": 0.8, "y": 0 },
-  "fixed": [{ "x": 46, "y": 27, "kind": "hot" }],
-  "solutions": [
-    {
-      "name": "双热接力翻双崖",
-      "sources": [
-        { "x": 30, "y": 40, "kind": "hot" },
-        { "x": 52, "y": 26, "kind": "hot" }
-      ],
-      "winTime": 27
-    }
-  ]
+  "fixed": [{ "x": 46, "y": 27, "kind": "hot" }]
 }

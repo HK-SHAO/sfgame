@@ -1,6 +1,6 @@
 import { levelFromJson, parseLevelText } from './level-format'
 import type { LvValue } from './state'
-import type { LevelDef, LevelJson, SolutionDef } from './types'
+import type { LevelDef, LevelJson } from './types'
 // 关卡 JSON 经 ?raw 直读（vite 原生支持、随文件变更触发 HMR），解析在运行时统一走 parseLevelText——无需虚拟模块/构建插件
 import level1 from '../../levels/level-1.json?raw'
 import level2 from '../../levels/level-2.json?raw'
@@ -71,7 +71,7 @@ export function isUnlocked(id: number, completed: (id: number) => boolean): bool
 }
 
 // lv 双形态解析：数字 = 内置关卡；字符串 = URL 内联关卡 JSON（state.ts 编解码，解析失败视为无效）。
-// 数字分支走 LEVELS_BY_ID（O(1)，与 solutionsFor 同源）；字符串为外部输入必须完整校验
+// 数字分支走 LEVELS_BY_ID（O(1)）；字符串为外部输入必须完整校验
 export function resolveLevel(lv: LvValue): LevelDef | undefined {
   if (typeof lv === 'number') return LEVELS_BY_ID.get(lv)
   if (typeof lv === 'string') {
@@ -84,7 +84,19 @@ export function resolveLevel(lv: LvValue): LevelDef | undefined {
   return undefined
 }
 
-// 参考解数据源：dev 模式首页关卡项直达摆法；可通关性与 winTime 由玩家实测
-export function solutionsFor(levelId: number): SolutionDef[] {
-  return LEVELS_BY_ID.get(levelId)?.json.solutions ?? []
+// FNV-1a 32bit：关卡内容 → 短 hash（base36）。玩家解法记录据此绑定（progress.ts）：
+// 关卡改版 hash 变旧解自然失效；内联 DIY 关卡同 id 不同内容互不串号
+function fnv1a(text: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(36)
+}
+
+// 内置关卡 hash 源 = 关卡文件原文（LEVEL_SOURCES）；内联 = URL 里的 JSON 文本本身
+export function levelHash(lv: LvValue): string | undefined {
+  const text = typeof lv === 'number' ? LEVEL_SOURCES.get(lv) : lv ?? undefined
+  return text ? fnv1a(text) : undefined
 }

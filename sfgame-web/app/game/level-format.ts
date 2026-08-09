@@ -18,7 +18,6 @@ interface Ctx {
   errs: string[]
   wMax: number
   hMax: number
-  budget: { hot: number; cold: number } | undefined
 }
 
 const fail = (ctx: Ctx, msg: string) => ctx.errs.push(`${ctx.id} ${msg}`)
@@ -100,40 +99,6 @@ function checkFansList(j: unknown, ctx: Ctx) {
   }
 }
 
-function checkSolutionsList(j: unknown, ctx: Ctx) {
-  if (!Array.isArray(j)) {
-    fail(ctx, 'solutions 必须为数组')
-    return
-  }
-  for (let i = 0; i < j.length; i++) {
-    const sol = j[i]
-    if (
-      !sol ||
-      typeof sol.name !== 'string' ||
-      sol.name.length === 0 ||
-      !Array.isArray(sol.sources) ||
-      !isFin(sol.winTime) ||
-      sol.winTime <= 0
-    ) {
-      fail(ctx, `solutions[${i}] 需含非空 name、sources 数组与正数 winTime`)
-      continue
-    }
-    let hot = 0
-    let cold = 0
-    for (const src of sol.sources) {
-      if (!src || !isFin(src.x) || !isFin(src.y) || (src.kind !== 'hot' && src.kind !== 'cold')) {
-        fail(ctx, `solutions[${i}] 源需为 {x,y,kind:'hot'|'cold'}`)
-        continue
-      }
-      if (src.kind === 'hot') hot++
-      else cold++
-    }
-    if (ctx.budget && (hot > ctx.budget.hot || cold > ctx.budget.cold)) {
-      fail(ctx, `solutions[${i}] 源数量超出预算`)
-    }
-  }
-}
-
 // 返回错误清单（空 = 合法），只列事实不猜意图、不抛错
 export function validateLevelJson(raw: unknown): string[] {
   const errs: string[] = []
@@ -144,7 +109,6 @@ export function validateLevelJson(raw: unknown): string[] {
     errs,
     wMax: 0,
     hMax: 0,
-    budget: undefined,
   }
 
   if (j.schema !== LEVEL_SCHEMA) fail(ctx, `schema 必须为 ${LEVEL_SCHEMA}`)
@@ -183,8 +147,6 @@ export function validateLevelJson(raw: unknown): string[] {
   const b = j.budget
   if (!b || !isInt(b.hot) || b.hot < 0 || !isInt(b.cold) || b.cold < 0) {
     fail(ctx, 'budget.hot/cold 必须为非负整数')
-  } else {
-    ctx.budget = b
   }
 
   const s = j.spawn
@@ -212,7 +174,6 @@ export function validateLevelJson(raw: unknown): string[] {
 
   if (j.fixed !== undefined) checkFixedList(j.fixed, ctx)
   if (j.fans !== undefined) checkFansList(j.fans, ctx)
-  if (j.solutions !== undefined) checkSolutionsList(j.solutions, ctx)
 
   return errs
 }

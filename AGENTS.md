@@ -32,7 +32,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 - `app/wasm/` — WASM 引擎引导与实例化（单实例 = 单内存；产物 `app/wasm/sfengine.wasm`，gitignore）。流体内核与顶点批内核同模块，渲染零拷贝直读流体场（`bilinearSample` 与 wasm 采样逐位同构）
 - `app/sim/` — 物理内核（欧拉流体网格、纸飞机质点、示踪粒子、云）。纸飞机物理参数归口 `bodies.ts`（全游戏唯一刚体，不按实例配置）：悬停风速 HOVER_WIND = gravity/dragK 是"风 vs 重力孰大"唯一调参口径，落地不弹跳；无墙——地面是唯一边界，飞机可上天/飞出地图（用 groundExt 延展地面接住，风采样越界 clamp），飞丢即玩家自担。流体内核为 WASM·SIMD 唯一实现：`fluid.ts`（FluidLike 接口 + WasmFluid 门面 + createFluid 工厂，可注入引擎实例），`assembly/` 为 AssemblyScript 源码；内核加载失败在 main.ts 明示无法运行，绝不静默回退。环境风 = 预烘焙位流基场（地形变更时解一次 Laplace，贴地绕流/顺坡爬升）× 强度，采样时线性叠加，不进 step 流水线（潮汐 = 强度时间序列，线性叠加保幅保相）。流体域 = 地图外扩边距（`FLUID_MARGIN=10` 世界单位，左/右/上；世界↔网格换算含 origin 偏移，`buildSolidMask`/`bilinearSample` 均须带）+ 边距带 sponge 吸收层（外流能量就地衰减，防封闭盒熵增）；vorticity confinement 已移除（=0，反耗散风格化项，人工搅动源）——冷热源是熵整形装置（冷减热增），不削弱
-- `app/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`state.ts`（URL 状态 schema 单例：level/sources/view）、`levels.ts`（关卡加载/分组/解锁 + lv 双形态解析 + 参考解读取）、`progress.ts`（通关记录）
+- `app/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`state.ts`（URL 状态 schema 单例：lv/s/v/dev）、`levels.ts`（关卡加载/分组/解锁 + lv 双形态解析 + 关卡内容 hash）、`progress.ts`（通关记录：每关 top3 解法与关卡 hash 绑定，进关默认预置最优解）
 - `app/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）
 - `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面遮挡；纸飞机与其拖尾在画面顶层，不被地面遮挡，画在旗/源/风扇之后）、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `assembly/batch.ts`，静态容量零分配，可无头测试）
 - `app/dev/` — ?dev=1 开发者工具：面板 + 性能块 + 关卡 JSON 编辑器（默认折叠）+ 开发者页面，由 app 持有跨关卡重建延续
@@ -58,8 +58,8 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 ## 玩法不变量（回归测试守护，别破坏）
 
-- 零操作挂机不能通关：抵达圆（虚线圆 = 检测圆）内滑行与飞行同等计数，故各关卡挂机轨迹必须不穿过任何抵达圆（设计红线，新关卡须用 `run-level.ts --sim` 自查；#18 起不再设自动回归）。**#25/#27 起解法与玩法验证交给玩家实测**：参考解只作为 dev 模式首页关卡项的直达摆法数据，`winTime` 不再由测试守护（solutions.test.ts 只查有解且不超预算）
-- 参考解须"基本全程飞行"（贴地累计 ≤1.5s），坐标 1 位小数（URL 可放置），鲁棒性 ≥75%（见 `skills/level-design/SKILL.md` §6；该条为求解偏好，玩家求解不受此限）
+- 零操作挂机不能通关：抵达圆（虚线圆 = 检测圆）内滑行与飞行同等计数，故各关卡挂机轨迹必须不穿过任何抵达圆（设计红线，新关卡须用 `run-level.ts --sim` 自查；#18 起不再设自动回归）。**解法不随关卡文件发布**（免翻代码作弊）：玩家通关即记录其摆法（progress.ts：每关 top3、与关卡内容 FNV hash 绑定、localStorage 持久化），再次进关默认预置最优解（回顾即进入，无需解按钮）
+- 求解器偏好（`run-level.ts --solve` 离线工具，产物不入库）：基本全程飞行（贴地累计 ≤1.5s），坐标 1 位小数（URL 可放置），鲁棒性 ≥75%（见 `skills/level-design/SKILL.md` §6）
 - 右键 = 放冷源：`input.ts` 的 `onDown` 只处理 `e.button === 0`，右键走 contextmenu
 
 ## 验证策略

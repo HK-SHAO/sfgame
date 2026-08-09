@@ -13,12 +13,5 @@
   "spawn": { "x": -5, "y": 18, "vx": 26 },
   "goals": [{ "x": 54, "r": 7 }],
   "ambient": { "x": 1.8, "y": 0 },
-  "fans": [{ "x": 24, "y": 26, "dir": 0, "power": 5 }],
-  "solutions": [
-    {
-      "name": "热托入风渡沟壑",
-      "sources": [{ "x": 30, "y": 28, "kind": "hot" }],
-      "winTime": 44
-    }
-  ]
+  "fans": [{ "x": 24, "y": 26, "dir": 0, "power": 5 }]
 }

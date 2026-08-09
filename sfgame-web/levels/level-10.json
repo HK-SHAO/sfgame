@@ -17,15 +17,5 @@
   ],
   "ambient": { "x": 0.4, "y": 0 },
   "fixed": [{ "x": 30, "y": 30, "kind": "hot" }],
-  "fans": [{ "x": 20, "y": 30, "dir": 0.35, "power": 2.5 }],
-  "solutions": [
-    {
-      "name": "火扇成焚风",
-      "sources": [
-        { "x": 36, "y": 40, "kind": "hot" },
-        { "x": 66, "y": 30, "kind": "cold" }
-      ],
-      "winTime": 30
-    }
-  ]
+  "fans": [{ "x": 20, "y": 30, "dir": 0.35, "power": 2.5 }]
 }

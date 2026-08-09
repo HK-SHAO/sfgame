@@ -13,12 +13,5 @@
   "spawn": { "x": -5, "y": 18, "vx": 26 },
   "goals": [{ "x": 53, "r": 8 }],
   "ambient": { "x": 1.8, "y": 0 },
-  "fixed": [{ "x": 53, "y": 8, "kind": "cold" }],
-  "solutions": [
-    {
-      "name": "热托冷压上丘",
-      "sources": [{ "x": 48, "y": 38, "kind": "hot" }],
-      "winTime": 11.5
-    }
-  ]
+  "fixed": [{ "x": 53, "y": 8, "kind": "cold" }]
 }

@@ -12,15 +12,5 @@
   "budget": { "hot": 4, "cold": 2 },
   "spawn": { "x": -6, "y": 33, "vx": 40 },
   "goals": [{ "x": 58, "r": 7.5 }],
-  "ambient": { "x": 1.8, "y": 0 },
-  "solutions": [
-    {
-      "name": "冷压热托",
-      "sources": [
-        { "x": 38, "y": 45.4, "kind": "hot" },
-        { "x": 50, "y": 21.3, "kind": "cold" }
-      ],
-      "winTime": 16.9
-    }
-  ]
+  "ambient": { "x": 1.8, "y": 0 }
 }

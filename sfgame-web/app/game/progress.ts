@@ -1,9 +1,10 @@
 import type { SourcePlacement } from './types'
 import { name } from '../../package.json'
 
-// localStorage 进度载荷带版本（.progress.v1），解析容错：损坏/未知版本 → 空进度绝不抛错；键前缀跟随 package.json name（存储管理页据此识别，勿改）
+// localStorage 进度载荷带版本（.progress.v2），解析容错：损坏/未知版本 → 空进度绝不抛错；键前缀跟随 package.json name（存储管理页据此识别，勿改）。
+// 键 = 关卡内容 hash（levels.ts levelHash）：关卡改版即失效，内联 DIY 关卡互不串号
 export const PROGRESS_TOP_N = 3
-export const STORAGE_KEY = `${name}.progress.v1`
+export const STORAGE_KEY = `${name}.progress.v2`
 
 export interface ScoreEntry {
   time: number
@@ -19,7 +20,7 @@ export interface ProgressStorage {
 }
 
 interface ProgressJson {
-  v: 1
+  v: 2
   levels: Record<string, ScoreEntry[]>
 }
 
@@ -47,7 +48,7 @@ function parseEntry(raw: unknown): ScoreEntry | null {
 }
 
 function parseProgress(raw: string | null): ProgressJson {
-  const empty: ProgressJson = { v: 1, levels: {} }
+  const empty: ProgressJson = { v: 2, levels: {} }
   if (!raw) return empty
   let data: unknown
   try {
@@ -57,7 +58,7 @@ function parseProgress(raw: string | null): ProgressJson {
   }
   if (!data || typeof data !== 'object') return empty
   const d = data as { v?: unknown; levels?: unknown }
-  if (d.v !== 1 || !d.levels || typeof d.levels !== 'object') return empty
+  if (d.v !== 2 || !d.levels || typeof d.levels !== 'object') return empty
   const levels: Record<string, ScoreEntry[]> = {}
   for (const [id, list] of Object.entries(d.levels as Record<string, unknown>)) {
     if (!Array.isArray(list)) continue
@@ -68,7 +69,7 @@ function parseProgress(raw: string | null): ProgressJson {
     }
     if (entries.length > 0) levels[id] = entries
   }
-  return { v: 1, levels }
+  return { v: 2, levels }
 }
 
 function sortEntries(entries: ScoreEntry[]): ScoreEntry[] {
@@ -103,20 +104,20 @@ export class PlayerProgress {
     this.data = parseProgress(storage.get())
   }
 
-  record(levelId: number, entry: Omit<ScoreEntry, 'total' | 'at'> & { at?: number }): number {
+  record(levelHash: string, entry: Omit<ScoreEntry, 'total' | 'at'> & { at?: number }): number {
     const full: ScoreEntry = { ...entry, total: entry.time + entry.extra, at: entry.at ?? Date.now() }
-    const list = sortEntries([...(this.data.levels[String(levelId)] ?? []), full]).slice(0, PROGRESS_TOP_N)
-    this.data.levels[String(levelId)] = list
+    const list = sortEntries([...(this.data.levels[levelHash] ?? []), full]).slice(0, PROGRESS_TOP_N)
+    this.data.levels[levelHash] = list
     this.storage.set(JSON.stringify(this.data))
     return list.indexOf(full)
   }
 
-  best(levelId: number): ScoreEntry[] {
-    return this.data.levels[String(levelId)] ?? []
+  best(levelHash: string): ScoreEntry[] {
+    return this.data.levels[levelHash] ?? []
   }
 
-  completed(levelId: number): boolean {
-    return this.best(levelId).length > 0
+  completed(levelHash: string): boolean {
+    return this.best(levelHash).length > 0
   }
 }
 

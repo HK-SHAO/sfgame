@@ -12,12 +12,5 @@
   "budget": { "hot": 2, "cold": 2 },
   "spawn": { "x": -4, "y": 30, "vx": 30 },
   "goals": [{ "x": 42, "r": 10 }],
-  "ambient": { "x": 0.8, "y": 0, "tide": { "period": 18, "ampX": 2.8 } },
-  "solutions": [
-    {
-      "name": "孤山热源",
-      "sources": [{ "x": 32, "y": 44, "kind": "hot" }],
-      "winTime": 11.5
-    }
-  ]
+  "ambient": { "x": 0.8, "y": 0, "tide": { "period": 18, "ampX": 2.8 } }
 }

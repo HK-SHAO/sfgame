@@ -1,10 +1,10 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, solutionsFor } from '../game/levels'
+import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash } from '../game/levels'
 import { progress } from '../game/progress'
 import type { LevelDef } from '../game/types'
 import { artBg, boxReset, reduceMotion } from './shared-styles'
-import { iconGear, iconLock, iconLogo, iconRoute } from './icons'
+import { iconGear, iconLock, iconLogo } from './icons'
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
 @customElement('sf-title-screen')
@@ -14,10 +14,6 @@ export class SfTitleScreen extends LitElement {
 
   private startLevel(id: number) {
     this.dispatchEvent(new CustomEvent<number>('start', { detail: id }))
-  }
-
-  private openSolution(level: LevelDef) {
-    this.dispatchEvent(new CustomEvent<LevelDef>('solution', { detail: level }))
   }
 
   protected override render() {
@@ -48,11 +44,9 @@ export class SfTitleScreen extends LitElement {
               .map((id) => LEVELS_BY_ID.get(id))
               .filter((l): l is LevelDef => l !== undefined)
               .map((l) => {
-                // dev 模式全关卡可玩（含未解锁），参考解按钮与卡片并排（内容模型：交互元素不得嵌套 button）
-                const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(id))
-                const hasSol = solutionsFor(l.id).length > 0
-              return html`
-                <div class="level-row">
+                // dev 模式全关卡可玩（含未解锁）；解锁按关卡 hash 的通关记录判定
+                const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash(id) ?? ''))
+                return html`
                   <button
                     class="level play ${locked ? 'locked' : ''}"
                     ?disabled=${locked}
@@ -66,20 +60,8 @@ export class SfTitleScreen extends LitElement {
                     </span>
                     <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
                   </button>
-                  ${this.dev
-                    ? html`<button
-                        class="sol-chip"
-                        ?disabled=${!hasSol}
-                        aria-label=${hasSol ? `第 ${l.id} 关参考解` : `第 ${l.id} 关暂无参考解`}
-                        title=${hasSol ? '参考解' : '暂无参考解'}
-                        @click=${() => this.openSolution(l)}
-                      >
-                        ${iconRoute}
-                      </button>`
-                    : nothing}
-                </div>
-              `
-            })}
+                `
+              })}
             ${LEVELS.length === 0 ? html`<p class="no-levels">暂无可用关卡</p>` : nothing}
           </nav>
 
@@ -186,63 +168,6 @@ export class SfTitleScreen extends LitElement {
         flex-direction: column;
         gap: var(--sp-2);
         text-align: left;
-      }
-
-      /* dev 模式参考解：与关卡卡片并排的圆钮（行内 flex 对齐） */
-      .level-row {
-        display: flex;
-        align-items: center;
-        gap: var(--sp-2);
-      }
-
-      .level-row .level {
-        flex: 1;
-        min-width: 0;
-      }
-
-      .sol-chip {
-        flex: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 2.125rem;
-        height: 2.125rem;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.8);
-        box-shadow: 0 0.125rem 0.5rem rgba(61, 52, 39, 0.07);
-        color: var(--ink-soft);
-        cursor: pointer;
-        transition: color 120ms ease-out, background 120ms ease-out, transform 100ms ease-out;
-      }
-
-      .sol-chip:hover {
-        color: var(--ink);
-        background: #fff;
-      }
-
-      .sol-chip:active {
-        transform: scale(0.94);
-      }
-
-      .sol-chip:disabled {
-        opacity: 0.45;
-        cursor: not-allowed;
-        box-shadow: none;
-      }
-
-      .sol-chip:disabled:hover {
-        color: var(--ink-soft);
-        background: rgba(255, 255, 255, 0.72);
-      }
-
-      .sol-chip:disabled:active {
-        transform: none;
-      }
-
-      .sol-chip svg {
-        width: 1.06rem;
-        height: 1.06rem;
       }
 
       .groups {

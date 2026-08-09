@@ -22,7 +22,7 @@ export function deriveScreen(v: AppView, lv: LvValue, sources: SourcePlacement[]
 // cleanup 仅外部 URL 变化路径开启（初始加载/popstate）：此时 values 已与 URL 同步，has() 的判定才是准确的。
 // 本地写路径（flush 是微任务、URL 还没变）若开启会把 backToTitle 的 push 批翻转成 replace（批模式由最后一次调用决定）
 export function screenFromUrl(cleanup = false): ScreenState {
-  const s = deriveScreen(urlState.get('v'), urlState.get('lv'), urlState.get('src'))
+  const s = deriveScreen(urlState.get('v'), urlState.get('lv'), urlState.get('s'))
   if (cleanup && s.screen === 'title' && urlState.has('lv')) {
     // 非法 lv 净化：参数存在但解析失败（越界 id/损坏内联）→ replace 移除，不留脏参数
     urlState.clear('lv', { replace: true })

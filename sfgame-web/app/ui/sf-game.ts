@@ -129,6 +129,10 @@ export class SfGame extends LitElement {
         height: 100%;
         display: block;
         touch-action: none;
+        /* 画布区域禁止选择/长按系统菜单 */
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
         /* WebGL 兜底底色：缓冲未初始化时不黑屏 */
         background: #fff8ea;
       }

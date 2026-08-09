@@ -68,6 +68,8 @@ export interface Source {
   x: number
   y: number
   born: number
+  // 墙钟出生时刻：渲染生长动画用（暂停/冻结时 sim 时钟不走，born 差值恒 0 会隐形）
+  wallBorn: number
   // 仅固定源携带：注入强度倍数（玩家源无此字段，恒默认 1）
   power?: number
 }

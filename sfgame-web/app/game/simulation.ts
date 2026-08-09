@@ -83,6 +83,7 @@ export class LevelSimulation {
       x: f.x,
       y: f.y,
       born: -1,
+      wallBorn: 0,
       power: f.power,
     }))
     this.fans = level.fans
@@ -141,8 +142,11 @@ export class LevelSimulation {
     this.visited.fill(false)
     this.visitedCount = 0
     this.paused = false
-    // 源在新的一局重放生长动画：born 归零（否则 time < born，渲染 pop 为负 → 源隐形）
-    for (const s of this.sources) s.born = 0
+    // 源在新的一局重放生长动画：born 归零（否则 time < born，渲染 pop 为负 → 源隐形）；wallBorn 重置为当前墙钟
+    for (const s of this.sources) {
+      s.born = 0
+      s.wallBorn = performance.now()
+    }
     this.resetPlane()
   }
 
@@ -181,7 +185,7 @@ export class LevelSimulation {
     // 点在地面/物体上时，吸附到贴地高度——"在脚下放源"是核心交互，不应拒绝
     const cy = Math.min(y, this.level.ground(x) - GROUND_SNAP_LIFT)
     if (!this.canPlaceAt(x, cy)) return null
-    const source: Source = { id: this.nextId++, kind, x, y: cy, born: this.time }
+    const source: Source = { id: this.nextId++, kind, x, y: cy, born: this.time, wallBorn: performance.now() }
     this.sources.push(source)
     this.charge(kind, 1)
     return source

@@ -58,11 +58,7 @@ export class SfApp extends LitElement {
     fb.unlock()
     // 初始加载与外部变化允许脏 lv 净化；本地写路径不净化（见 screen.ts cleanup 注释）
     this.applyScreen(screenFromUrl(true))
-    this.autofillBest()
-    urlState.onChange('lv', () => {
-      this.applyScreen(screenFromUrl(true))
-      this.autofillBest()
-    })
+    urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true)))
     urlState.onChange('v', () => this.applyScreen(screenFromUrl(true)))
     urlState.onChange('s', (v) => {
       this.gameEl?.applySources(v)
@@ -86,31 +82,10 @@ export class SfApp extends LitElement {
     }
   }
 
-  // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验）；同内容改版重玩时预置历史最优摆法
+  // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验）；旧摆法不随关卡继承
   private onDevOverride = (text: string) => {
     urlState.set('lv', text)
-    this.enterLevel()
-    this.applyScreen(screenFromUrl())
-  }
-
-  private bestEntry() {
-    const h = levelHash(urlState.get('lv'))
-    return h ? progress.best(h)[0] : undefined
-  }
-
-  // 进关卡：有记录最优解 → 预置其摆法（回顾即进入），否则清旧摆法
-  private enterLevel() {
-    const best = this.bestEntry()
-    if (best && best.sources.length > 0) urlState.set('s', best.sources)
-    else urlState.clear('s')
-  }
-
-  // 外部进入（初始加载/popstate）URL 无摆法 → 补最优解；replace：派生默认不进历史
-  private autofillBest() {
-    if (this.screen !== 'game' || urlState.has('s')) return
-    const best = this.bestEntry()
-    if (!best || best.sources.length === 0) return
-    urlState.set('s', best.sources, { replace: true })
+    urlState.clear('s')
     this.applyScreen(screenFromUrl())
   }
 
@@ -146,7 +121,7 @@ export class SfApp extends LitElement {
   private startGame(id: number) {
     fb.uiEnter()
     urlState.set('lv', id)
-    this.enterLevel()
+    urlState.clear('s')
     this.applyScreen(screenFromUrl())
   }
 
@@ -156,7 +131,7 @@ export class SfApp extends LitElement {
     fb.uiEnter()
     // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
     urlState.set('lv', next)
-    this.enterLevel()
+    urlState.clear('s')
     this.applyScreen(screenFromUrl())
   }
 
@@ -236,7 +211,6 @@ export class SfApp extends LitElement {
     this.winRank = progress.record(h, {
       time: this.hud.time,
       extra: this.hud.extra,
-      sources: urlState.get('s'),
     })
   }
 
@@ -281,7 +255,7 @@ export class SfApp extends LitElement {
   private renderGame() {
     const won = this.hud.phase === 'won'
     const h = levelHash(urlState.get('lv'))
-    const bestTotal = won && h ? progress.best(h)[0]?.total : undefined
+    const bestTotal = won && h ? progress.best(h)?.total : undefined
     const hasNext = nextLevel(this.activeLevel.id) !== undefined
     return html`
       <main class="game">

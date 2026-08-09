@@ -199,7 +199,7 @@ export class Renderer {
     this.drawGoalPoles(b, sim)
     this.drawGoal(b, sim)
     this.drawFixedSources(b, sim)
-    this.drawSources(b, sim, press)
+    this.drawSources(b, sim, press, now)
     this.drawFans(b, sim)
     this.drawPlaneTrail(b, sim, planeTrail)
     this.drawPlane(b, sim)
@@ -390,10 +390,11 @@ export class Renderer {
     b.disc(x, y, 0.2, 0.2, 0, 10, ...COLD, 0.9)
   }
 
-  private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null) {
+  private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null, now: number) {
     for (const s of sim.sources) {
       const grabbed = press?.kind === 'remove' && press.sourceId === s.id
-      const pop = Math.max(0, 1 - Math.exp(-(sim.time - s.born) * SOURCE_POP_RATE))
+      // 生长动画按墙钟推进：暂停/冻结时 sim 时钟不走，born 差值恒 0 会隐形
+      const pop = Math.max(0, 1 - Math.exp(-(now - s.wallBorn) * SOURCE_POP_RATE))
       const pulse = 1 + 0.05 * Math.sin(sim.time * 4 + s.id * 1.7)
       const c = s.kind === 'hot' ? HOT : COLD
 

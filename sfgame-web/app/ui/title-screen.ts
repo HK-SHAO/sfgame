@@ -54,8 +54,8 @@ export class SfTitleScreen extends LitElement {
               .map((l) => {
                 // dev 模式全关卡可玩（含未解锁）；解锁按关卡 hash 的通关记录判定
                 const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash(id) ?? ''))
-                // 最优成绩 = 通关记录中合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
-                const best = progress.best(levelHash(l.id) ?? '')[0]
+                // 最优成绩 = 通关记录合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
+                const best = progress.best(levelHash(l.id) ?? '')
                 // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变
                 const no = String(l.id).padStart(2, '0')
                 return html`

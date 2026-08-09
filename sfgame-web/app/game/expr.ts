@@ -184,43 +184,55 @@ class Parser {
   }
 }
 
-function evalNode(n: Node, x: number): number {
+type Compiled = (x: number) => number
+
+// 节点 → 闭包：求值零分配（树解释器的 call 分支每次 .map 新建数组，热路径地形每 tick/帧数百次求值）。
+// scratch 每 call 节点独享复用，嵌套调用各持各的，无冲突
+function compileNode(n: Node): Compiled {
   switch (n.k) {
-    case 'num':
-      return n.v
+    case 'num': {
+      const v = n.v
+      return () => v
+    }
     case 'x':
-      return x
-    case 'neg':
-      return -evalNode(n.a, x)
+      return (x) => x
+    case 'neg': {
+      const a = compileNode(n.a)
+      return (x) => -a(x)
+    }
     case 'bin': {
-      const a = evalNode(n.a, x)
-      const b = evalNode(n.b, x)
+      const a = compileNode(n.a)
+      const b = compileNode(n.b)
       switch (n.op) {
         case '+':
-          return a + b
+          return (x) => a(x) + b(x)
         case '-':
-          return a - b
+          return (x) => a(x) - b(x)
         case '*':
-          return a * b
+          return (x) => a(x) * b(x)
         case '/':
-          return a / b
+          return (x) => a(x) / b(x)
         case '%':
-          return a % b
+          return (x) => a(x) % b(x)
         case '^':
-          return Math.pow(a, b)
+          return (x) => Math.pow(a(x), b(x))
       }
       throw new ExprError(`未知运算符 ${n.op}`)
     }
     case 'call': {
       const f = FUNCS[n.fn]
       if (!f) throw new ExprError(`未知函数 ${n.fn}`)
-      return f(n.args.map((a) => evalNode(a, x)), x)
+      const args = n.args.map(compileNode)
+      const scratch = new Array<number>(args.length)
+      return (x) => {
+        for (let i = 0; i < args.length; i++) scratch[i] = args[i](x)
+        return f(scratch, x)
+      }
     }
   }
 }
 
 // 语法错误在关卡加载期抛出，而非模拟中
 export function compileExpr(src: string): (x: number) => number {
-  const tree = new Parser(src).parse()
-  return (x) => evalNode(tree, x)
+  return compileNode(new Parser(src).parse())
 }

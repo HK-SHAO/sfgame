@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { bilinearSample, createFluid, type FluidConfig } from '../app/sim/fluid'
+import { createEngine } from '../app/wasm/engine'
 
 const CFG: FluidConfig = {
   nx: 48,
@@ -56,9 +57,10 @@ test('超编译期容量拒绝创建（无静默回退）', () => {
   expect(() => createFluid({ ...CFG, nx: 400, ny: 300 })).toThrow()
 })
 
-// 渲染零拷贝采样与 wasm 采样逐位一致（共享内存路径的防回归证明）
-test('bilinearSample 与 wasm sampleVelocity/sampleTemp 逐位一致', () => {
-  const f = createFluid(CFG)
+// 零拷贝采样与内核导出路径逐位一致（门面已改走 bilinearSample，内核导出作基准防回归）
+test('门面 sampleVelocity 与内核导出 sampleVelocity 逐位一致', () => {
+  const engine = createEngine()
+  const f = createFluid(CFG, engine)
   f.setAmbient(0.3, -0.2)
   for (let i = 0; i < 120; i++) {
     f.addHeat(36, 38, 16 * DT)
@@ -74,6 +76,9 @@ test('bilinearSample 与 wasm sampleVelocity/sampleTemp 逐位一致', () => {
     f.sampleVelocity(px, py, out2)
     expect(out1.x).toBe(out2.x)
     expect(out1.y).toBe(out2.y)
+    engine.ex.sampleVelocity(px, py)
+    expect(out2.x).toBe(engine.ex.outX())
+    expect(out2.y).toBe(engine.ex.outY())
     expect(temp).toBe(f.sampleTemp(px, py))
   }
 })

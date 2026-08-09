@@ -7,10 +7,15 @@ const CAPACITY = 196608
 const PTS_CAP = 2048
 const FADE_CAP = 1024
 const MITER_LIMIT = 4
+// 示踪粒子批量缓冲：定长记录 [r,g,b,np,headA] + 每点 [x,y,fade]，宿主直写后单次调用 tessellate
+const TRACER_CAP = 400
+const TRACER_MAX_PTS = 25
+const TRACER_STRIDE = 5 + TRACER_MAX_PTS * 3
 
 const data = new Float32Array(CAPACITY * VERTEX_STRIDE)
 const ptsBuf = new Float32Array(PTS_CAP)
 const fadeBuf = new Float32Array(FADE_CAP)
+const tracerBuf = new Float32Array(TRACER_CAP * TRACER_STRIDE)
 const gradRing = new Float32Array(8)
 
 let count: i32 = 0
@@ -32,6 +37,15 @@ export function bPtsBuf(): usize {
 }
 export function bFadeBuf(): usize {
   return fadeBuf.dataStart
+}
+export function bTracerBuf(): usize {
+  return tracerBuf.dataStart
+}
+export function bTracerCap(): i32 {
+  return TRACER_CAP
+}
+export function bTracerStride(): i32 {
+  return TRACER_STRIDE
 }
 export function bCount(): i32 {
   return count
@@ -238,6 +252,51 @@ export function bPolyline(n: i32, w: f64, r: f64, g: f64, bl: f64, a: f64): void
 
 export function bPolylineFade(n: i32, w: f64, r: f64, g: f64, bl: f64): void {
   miter(n, w, r, g, bl, 0, true)
+}
+
+// 地形填充批量：ptsBuf 存折线点列（n 个 float），相邻点对各展 2 三角填到 viewB——
+// 单调用替代逐段 bTri（视域宽时每帧数百次跨界）
+export function bTerrainFill(n: i32, viewB: f64, r: f64, g: f64, bl: f64, a: f64): void {
+  const segs = n / 2 - 1
+  if (segs < 1) return
+  if (count + segs * 6 > CAPACITY) return
+  for (let i = 0; i + 3 < n; i += 2) {
+    const ax = <f64>ptsBuf[i]
+    const ay = <f64>ptsBuf[i + 1]
+    const bx = <f64>ptsBuf[i + 2]
+    const by = <f64>ptsBuf[i + 3]
+    push(ax, ay, r, g, bl, a)
+    push(bx, by, r, g, bl, a)
+    push(ax, viewB, r, g, bl, a)
+    push(bx, by, r, g, bl, a)
+    push(bx, viewB, r, g, bl, a)
+    push(ax, viewB, r, g, bl, a)
+  }
+}
+
+// 示踪粒子批量：宿主把可见粒子写入 tracerBuf（定长记录），单调用完成全部拖尾 tessellate + 头部圆盘，
+// 替代逐粒子 polylineFade + disc（每帧约 800 次跨界 → 1 次）
+export function bTracers(count: i32, w: f64, headR: f64): void {
+  for (let i = 0; i < count && i < TRACER_CAP; i++) {
+    const off = i * TRACER_STRIDE
+    const r = <f64>tracerBuf[off]
+    const g = <f64>tracerBuf[off + 1]
+    const bl = <f64>tracerBuf[off + 2]
+    const np = <i32>tracerBuf[off + 3]
+    const headA = <f64>tracerBuf[off + 4]
+    if (np <= 0) continue
+    if (np >= 2) {
+      for (let k = 0; k < np; k++) {
+        ptsBuf[k * 2] = tracerBuf[off + 5 + k * 3]
+        ptsBuf[k * 2 + 1] = tracerBuf[off + 6 + k * 3]
+        fadeBuf[k] = tracerBuf[off + 7 + k * 3]
+      }
+      miter(np * 2, w, r, g, bl, 0, true)
+    }
+    const hx = <f64>tracerBuf[off + 5 + (np - 1) * 3]
+    const hy = <f64>tracerBuf[off + 6 + (np - 1) * 3]
+    disc(hx, hy, headR, headR, 0, 10, r, g, bl, headA)
+  }
 }
 
 export function bDiscGrad(

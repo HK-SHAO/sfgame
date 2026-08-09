@@ -10,6 +10,7 @@ export class MeshBatch {
   private view: Float32Array
   private ptsView: Float32Array
   private fadeView: Float32Array
+  private tracerView: Float32Array
 
   constructor(engine = createEngine()) {
     const ex = engine.ex
@@ -18,6 +19,7 @@ export class MeshBatch {
     this.view = new Float32Array(buf, ex.bData(), ex.bCapacity() * VERTEX_STRIDE)
     this.ptsView = new Float32Array(buf, ex.bPtsBuf(), ex.bPtsCap())
     this.fadeView = new Float32Array(buf, ex.bFadeBuf(), ex.bFadeCap())
+    this.tracerView = new Float32Array(buf, ex.bTracerBuf(), ex.bTracerCap() * ex.bTracerStride())
   }
 
   get data(): Float32Array {
@@ -74,6 +76,29 @@ export class MeshBatch {
     this.ptsView.set(pts.subarray(0, n))
     this.fadeView.set(alpha.subarray(0, n / 2))
     this.ex.bPolylineFade(n, w, r, g, b)
+  }
+
+  // 地形填充：点列拷入暂存区后单调用展三角（替代逐段 tri 的数百次跨界）
+  terrainFill(pts: Float32Array, n: number, viewB: number, r: number, g: number, b: number, a: number) {
+    this.ptsView.set(pts.subarray(0, n))
+    this.ex.bTerrainFill(n, viewB, r, g, b, a)
+  }
+
+  // 示踪粒子批量缓冲：宿主直写定长记录（见 assembly/batch.ts 布局）后 tracers() 单调用 tessellate
+  get tracerData(): Float32Array {
+    return this.tracerView
+  }
+
+  get tracerStride(): number {
+    return this.ex.bTracerStride()
+  }
+
+  get tracerCap(): number {
+    return this.ex.bTracerCap()
+  }
+
+  tracers(count: number, w: number, headR: number) {
+    this.ex.bTracers(count, w, headR)
   }
 
   disc(

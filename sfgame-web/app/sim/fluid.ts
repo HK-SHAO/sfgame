@@ -117,6 +117,12 @@ export class WasmFluid implements FluidLike {
   private ex: EngineHandle['ex']
   private engine: EngineHandle
   private solidView: Uint8Array
+  // 采样热路径零拷贝字段视图（构造期建一次；内存静态定型，视图恒定）
+  private u: Float32Array
+  private v: Float32Array
+  private t: Float32Array
+  private fxU: Float32Array
+  private fxV: Float32Array
 
   static create(cfg: FluidConfig, engine = createEngine()): WasmFluid | null {
     try {
@@ -152,7 +158,14 @@ export class WasmFluid implements FluidLike {
     this.cell = cfg.cell
     this.engine = engine
     this.ex = engine.ex
-    this.solidView = new Uint8Array(engine.memory.buffer, engine.ex.solidBuf(), cfg.nx * cfg.ny)
+    const buf = engine.memory.buffer
+    const n = cfg.nx * cfg.ny
+    this.u = new Float32Array(buf, engine.ex.fieldU(), n)
+    this.v = new Float32Array(buf, engine.ex.fieldV(), n)
+    this.t = new Float32Array(buf, engine.ex.fieldT(), n)
+    this.fxU = new Float32Array(buf, engine.ex.fieldFxU(), n)
+    this.fxV = new Float32Array(buf, engine.ex.fieldFxV(), n)
+    this.solidView = new Uint8Array(buf, engine.ex.solidBuf(), cfg.nx * cfg.ny)
   }
 
   clear() {
@@ -180,10 +193,16 @@ export class WasmFluid implements FluidLike {
     this.ex.addForce(wx, wy, fx, fy, amount, radius)
   }
 
+  // 零拷贝直读共享内存：与内核导出 sampleVelocity 逐位同构（bilinearSample），
+  // 免掉每采样 3 次跨界调用（热路径：粒子/探针/飞机每 tick 四百余次采样）
   sampleVelocity(wx: number, wy: number, out: Vec2) {
-    this.ex.sampleVelocity(wx, wy)
-    out.x = this.ex.outX()
-    out.y = this.ex.outY()
+    bilinearSample(
+      this.u, this.v, this.t, this.fxU, this.fxV,
+      this.nx, this.ny, this.cell,
+      this.engine.origin.x, this.engine.origin.y,
+      this.engine.ambient.x, this.engine.ambient.y,
+      wx, wy, out,
+    )
   }
 
   sampleTemp(wx: number, wy: number): number {
@@ -194,17 +213,9 @@ export class WasmFluid implements FluidLike {
     this.ex.step(dt)
   }
 
-  // 调试/测试直读内核场（内存无增长，视图恒定）
+  // 调试/测试直读内核场（内存无增长，视图恒定；与构造期缓存同视图）
   fieldViews(): { u: Float32Array; v: Float32Array; t: Float32Array; fxU: Float32Array; fxV: Float32Array } {
-    const n = this.nx * this.ny
-    const buf = this.engine.memory.buffer
-    return {
-      u: new Float32Array(buf, this.ex.fieldU(), n),
-      v: new Float32Array(buf, this.ex.fieldV(), n),
-      t: new Float32Array(buf, this.ex.fieldT(), n),
-      fxU: new Float32Array(buf, this.ex.fieldFxU(), n),
-      fxV: new Float32Array(buf, this.ex.fieldFxV(), n),
-    }
+    return { u: this.u, v: this.v, t: this.t, fxU: this.fxU, fxV: this.fxV }
   }
 }
 

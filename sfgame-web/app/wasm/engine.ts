@@ -39,9 +39,12 @@ export interface BatchExports {
   bCapacity(): number
   bPtsCap(): number
   bFadeCap(): number
+  bTracerCap(): number
+  bTracerStride(): number
   bData(): number
   bPtsBuf(): number
   bFadeBuf(): number
+  bTracerBuf(): number
   bCount(): number
   bReset(): void
   bTri(
@@ -60,6 +63,8 @@ export interface BatchExports {
   ): void
   bPolyline(n: number, w: number, r: number, g: number, b: number, a: number): void
   bPolylineFade(n: number, w: number, r: number, g: number, b: number): void
+  bTerrainFill(n: number, viewB: number, r: number, g: number, b: number, a: number): void
+  bTracers(count: number, w: number, headR: number): void
   bDisc(
     cx: number, cy: number, rx: number, ry: number, rot: number, seg: number,
     r: number, g: number, b: number, a: number,

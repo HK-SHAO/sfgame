@@ -124,8 +124,12 @@ export class Renderer {
   private ox = 0
   private oy = 0
   private terrainPts = new Float32Array(256)
-  private tracerEnv = new Float32Array(0)
-  private tracerColor = new Float32Array(0)
+  private terrainN = 0
+  // 地形折线缓存：地面静态，点列只在视域/关卡变化时重烘（否则每帧数百次地面表达式求值白费）；
+  // 每帧仍需重发（遮挡契约：地形填充盖住漂移的云），缓存只免求值不免 tessellation
+  private terrainGround: ((x: number) => number) | null = null
+  private terrainViewL = Number.NaN
+  private terrainViewR = Number.NaN
   private bgDirty = true
   lastVertexCount = 0
   lastUploadBytes = 0
@@ -224,6 +228,20 @@ export class Renderer {
 
   private drawTerrain(b: MeshBatch, sim: LevelSimulation, viewL: number, viewR: number, viewB: number) {
     const ground = sim.level.ground
+    if (ground !== this.terrainGround || viewL !== this.terrainViewL || viewR !== this.terrainViewR) {
+      this.bakeTerrain(ground, viewL, viewR)
+      this.terrainGround = ground
+      this.terrainViewL = viewL
+      this.terrainViewR = viewR
+    }
+    const pts = this.terrainPts
+    const n = this.terrainN
+    b.terrainFill(pts, n, viewB, ...GROUND_FILL, 1)
+    b.polyline(pts, n, 0.5, ...GROUND_EDGE, 1)
+  }
+
+  // 自适应采样烘焙地形点列（弦中点-曲线偏差加密）；视域含 letterbox 带（x 可 <0 / >w），与旧逻辑同语义直评 ground
+  private bakeTerrain(ground: (x: number) => number, viewL: number, viewR: number) {
     const need = Math.ceil((viewR - viewL) / TERRAIN_STEP + 3) * 2
     if (this.terrainPts.length < need) this.terrainPts = new Float32Array(need)
     const pts = this.terrainPts
@@ -253,16 +271,7 @@ export class Renderer {
       pts[n++] = viewR
       pts[n++] = ground(viewR)
     }
-
-    for (let i = 0; i + 3 < n; i += 2) {
-      const ax = pts[i]
-      const ay = pts[i + 1]
-      const bx = pts[i + 2]
-      const by = pts[i + 3]
-      b.tri(ax, ay, bx, by, ax, viewB, ...GROUND_FILL, 1)
-      b.tri(bx, by, bx, viewB, ax, viewB, ...GROUND_FILL, 1)
-    }
-    b.polyline(pts, n, 0.5, ...GROUND_EDGE, 1)
+    this.terrainN = n
   }
 
   private drawSunHalo(b: MeshBatch) {
@@ -293,10 +302,11 @@ export class Renderer {
   }
 
   private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {
-    for (const g of sim.level.goals) {
-      const gy = sim.level.ground(g.x)
+    const goals = sim.level.goals
+    for (let i = 0; i < goals.length; i++) {
+      const gy = sim.goalGroundY[i]
       // 底端从 gy - POLE_W/2 起画：圆头帽尖正好落在地面线上（地形填充画在其后，杆身不埋地）
-      b.stroke(g.x, gy - POLE_W / 2, g.x, gy - POLE_HEIGHT, POLE_W, ...FLAG_POLE, 1, true)
+      b.stroke(goals[i].x, gy - POLE_W / 2, goals[i].x, gy - POLE_HEIGHT, POLE_W, ...FLAG_POLE, 1, true)
     }
   }
 
@@ -306,7 +316,7 @@ export class Renderer {
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]
       if (sim.visited[i]) continue
-      const gy = sim.level.ground(g.x)
+      const gy = sim.goalGroundY[i]
       const flagTop = gy - POLE_HEIGHT
 
       b.dashRing(g.x, gy - GOAL_LIFT, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
@@ -342,8 +352,6 @@ export class Renderer {
   private flagX = new Float32Array(0)
   private flagY = new Float32Array(0)
   private flagT = new Float32Array(0)
-  private trailPts = new Float32Array(0)
-  private trailFade = new Float32Array(0)
 
   private ensureFlagState(n: number) {
     if (this.flagX.length >= n) return
@@ -469,68 +477,56 @@ export class Renderer {
     const f = this.fields!
     const amb = this.engine.ambient
     const org = this.engine.origin
-    if (this.tracerEnv.length < count) {
-      this.tracerEnv = new Float32Array(count)
-      this.tracerColor = new Float32Array(count * 5)
-    }
-    const envs = this.tracerEnv
-    const colors = this.tracerColor
-
-    for (let i = 0; i < count; i++) {
+    // 可见粒子直写内核批量缓冲（定长记录），末尾单调用 tessellate：每帧跨界从 ~800 次降到 1 次
+    const buf = b.tracerData
+    const stride = b.tracerStride
+    const cap = b.tracerCap
+    const now = tracers.time
+    let m = 0
+    for (let i = 0; i < count && m < cap; i++) {
       const env = tracers.envelope(i)
-      if (env <= VISIBLE_ALPHA) {
-        envs[i] = 0
-        continue
-      }
+      if (env <= VISIBLE_ALPHA) continue
       // 零拷贝采样：直读共享内存流体场（环境风 = 基场×强度，与 wasm 采样同构）
       const temp = bilinearSample(f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell, org.x, org.y, amb.x, amb.y, tracers.x[i], tracers.y[i], air)
       const sp2 = air.x * air.x + air.y * air.y
-      envs[i] = env
       const u = Math.tanh(Math.abs(temp) / AIR_SOFT)
       const to = temp >= 0 ? HOT : COLD
-      const c0 = i * 5
-      colors[c0] = mix(AIR_AMBIENT[0], to[0], u)
-      colors[c0 + 1] = mix(AIR_AMBIENT[1], to[1], u)
-      colors[c0 + 2] = mix(AIR_AMBIENT[2], to[2], u)
-      colors[c0 + 3] = mix(HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, u)
-      colors[c0 + 4] = mix(LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED, u)
+      const cr = mix(AIR_AMBIENT[0], to[0], u)
+      const cg = mix(AIR_AMBIENT[1], to[1], u)
+      const cb = mix(AIR_AMBIENT[2], to[2], u)
+      const headAlpha = mix(HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, u) * env
+      const lineAlpha = mix(LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED, u)
 
+      const off = m * stride
+      buf[off] = cr
+      buf[off + 1] = cg
+      buf[off + 2] = cb
+      buf[off + 4] = headAlpha
+      let np = 0
       const n = trailN[i]
-      if (n === 0) continue
-      const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
-      const base = i * trailLen
-      const now = tracers.time
-      const np = n + 1
-      if (this.trailPts.length < np * 2) {
-        this.trailPts = new Float32Array(np * 2)
-        this.trailFade = new Float32Array(np)
+      if (n > 0) {
+        const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
+        const base = i * trailLen
+        for (let k = 0; k < n; k++) {
+          const po = off + 5 + np * 3
+          buf[po] = trailX[base + k]
+          buf[po + 1] = trailY[base + k]
+          // trailT 以 tracers.time（sim 时间）写入，淡出用同钟读，避免倍速下与 wall clock 漂移
+          const a = fadeRetention(now, trailT[base + k], TRAIL_FADE_T) * env * gust
+          const tail = tailFade(k, TRACER_TAIL_SEGS)
+          buf[po + 2] = a > 0 ? Math.min(1, a) * lineAlpha * tail : 0
+          np++
+        }
       }
-      const pts = this.trailPts
-      const fade = this.trailFade
-      for (let k = 0; k < n; k++) {
-        pts[k * 2] = trailX[base + k]
-        pts[k * 2 + 1] = trailY[base + k]
-        // trailT 以 tracers.time（sim 时间）写入，淡出用同钟读，避免倍速下与 wall clock 漂移
-        const a = fadeRetention(now, trailT[base + k], TRAIL_FADE_T) * env * gust
-        const tail = tailFade(k, TRACER_TAIL_SEGS)
-        fade[k] = a > 0 ? Math.min(1, a) * colors[c0 + 4] * tail : 0
-      }
-      pts[n * 2] = tracers.x[i]
-      pts[n * 2 + 1] = tracers.y[i]
-      fade[n] = colors[c0 + 3] * env
-      b.polylineFade(pts, np * 2, TRACER_LINE_WIDTH, colors[c0], colors[c0 + 1], colors[c0 + 2], fade)
+      const po = off + 5 + np * 3
+      buf[po] = tracers.x[i]
+      buf[po + 1] = tracers.y[i]
+      buf[po + 2] = headAlpha
+      np++
+      buf[off + 3] = np
+      m++
     }
-
-    for (let i = 0; i < count; i++) {
-      const env = envs[i]
-      if (env <= 0) continue
-      const c0 = i * 5
-      b.disc(
-        tracers.x[i], tracers.y[i],
-        TRACER_HEAD_RADIUS, TRACER_HEAD_RADIUS, 0, 10,
-        colors[c0], colors[c0 + 1], colors[c0 + 2], colors[c0 + 3] * env,
-      )
-    }
+    b.tracers(m, TRACER_LINE_WIDTH, TRACER_HEAD_RADIUS)
   }
 
   private drawPlaneTrail(b: MeshBatch, sim: LevelSimulation, trail: Trail) {

@@ -48,6 +48,36 @@ test('polylineFade：逐顶点 alpha 随数组生效', () => {
   expect(vertex(b, 1)[5]).toBeCloseTo(0.75, 5)
 })
 
+test('terrainFill：批量展三角与逐段 tri 逐顶点一致', () => {
+  const b = new MeshBatch()
+  const pts = new Float32Array([0, 1, 2, 0.5, 5, 2])
+  b.terrainFill(pts, 6, 10, 0.5, 0.6, 0.7, 1)
+  const ref = new MeshBatch()
+  ref.tri(0, 1, 2, 0.5, 0, 10, 0.5, 0.6, 0.7, 1)
+  ref.tri(2, 0.5, 2, 10, 0, 10, 0.5, 0.6, 0.7, 1)
+  ref.tri(2, 0.5, 5, 2, 2, 10, 0.5, 0.6, 0.7, 1)
+  ref.tri(5, 2, 5, 10, 2, 10, 0.5, 0.6, 0.7, 1)
+  expect(b.count).toBe(ref.count)
+  for (let k = 0; k < b.count; k++) expect(vertex(b, k)).toEqual(vertex(ref, k))
+})
+
+test('tracers 批量：单调用输出与 polylineFade + disc 逐顶点一致', () => {
+  const b = new MeshBatch()
+  const buf = b.tracerData
+  // 单粒子定长记录：3 点（2 拖尾 + 头部）
+  buf[0] = 1; buf[1] = 0; buf[2] = 0
+  buf[3] = 3; buf[4] = 0.8
+  buf[5] = 0; buf[6] = 0; buf[7] = 0.1
+  buf[8] = 2; buf[9] = 0; buf[10] = 0.5
+  buf[11] = 4; buf[12] = 0; buf[13] = 0.8
+  b.tracers(1, 0.5, 0.3)
+  const ref = new MeshBatch()
+  ref.polylineFade(new Float32Array([0, 0, 2, 0, 4, 0]), 6, 0.5, 1, 0, 0, new Float32Array([0.1, 0.5, 0.8]))
+  ref.disc(4, 0, 0.3, 0.3, 0, 10, 1, 0, 0, 0.8)
+  expect(b.count).toBe(ref.count)
+  for (let k = 0; k < b.count; k++) expect(vertex(b, k)).toEqual(vertex(ref, k))
+})
+
 test('静态容量：写满后整体丢弃图元不越界，reset 复用缓冲', () => {
   const b = new MeshBatch()
   const cap = b.capacity

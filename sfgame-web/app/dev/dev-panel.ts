@@ -12,8 +12,8 @@ export class SfDevPanel extends LitElement {
   // 增量跟手（不依赖 movementX 兼容性）
   private prevX = 0
   private prevY = 0
-  private gapX = 13
-  private gapY = 9
+  private gapX = 0
+  private gapY = 0
   private originX = 0
   private originY = 0
 
@@ -30,15 +30,17 @@ export class SfDevPanel extends LitElement {
 
       color-scheme: light;
       position: fixed;
-      top: calc(3.5625rem + env(safe-area-inset-top, 0px));
-      left: calc(0.8125rem + env(safe-area-inset-left, 0px));
+      /* 默认左下角：不遮 HUD 与画面上半部；间距对齐 hud 边距 + 安全区 */
+      top: auto;
+      bottom: calc(0.5625rem + env(safe-area-inset-bottom, 0px));
+      left: calc(0.5625rem + env(safe-area-inset-left, 0px));
       right: auto;
       z-index: 9999;
       display: flex;
       flex-direction: column;
       gap: var(--sp-1);
       width: min(20rem, calc(100vw - 1.25rem));
-      max-height: calc(100dvh - 4.5rem - env(safe-area-inset-top, 0px));
+      max-height: calc(100dvh - 1.375rem - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
       overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-color: rgba(255, 233, 201, 0.25) transparent;
@@ -46,7 +48,6 @@ export class SfDevPanel extends LitElement {
       border-radius: var(--r-md);
       corner-shape: squircle;
       background: rgba(20, 18, 14, 0.72);
-      backdrop-filter: blur(1rem);
       -webkit-backdrop-filter: blur(1rem);
       color: var(--dev-fg);
       touch-action: none;
@@ -110,7 +111,9 @@ export class SfDevPanel extends LitElement {
       this.originY = r.top
       this.style.left = `${r.left}px`
       this.style.top = `${r.top}px`
+      // 锁定左上锚点供拖拽用：不清 bottom 会与 top 同时约束拉伸高度
       this.style.right = 'auto'
+      this.style.bottom = 'auto'
     })
   }
 
@@ -169,8 +172,8 @@ export class SfDevPanel extends LitElement {
 
   private updateGap() {
     const fz = parseFloat(getComputedStyle(document.documentElement).fontSize)
-    // 贴边间隙与 hud 边距对齐（0.8125 侧 = hud 横向 padding、0.5625 顶 = hud 顶部 padding）
-    this.gapX = 0.8125 * fz
+    // 贴边间隙与 hud 边距对齐（侧 = hud 横向 padding、0.5625 顶 = hud 顶部 padding）
+    this.gapX = 0.5625 * fz
     this.gapY = 0.5625 * fz
   }
 

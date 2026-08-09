@@ -51,11 +51,19 @@ export class SfHud extends LitElement {
           </button>
         </div>
         <div class="hud-right">
-          <span class="chip hot ${this.hud.hotLeft === 0 ? 'empty' : ''}" title="剩余热源">
-            ${iconFlame}<span class="lbl">热源</span><b>${this.hud.hotLeft === Infinity ? '∞' : this.hud.hotLeft}</b>
+          <span
+            class="chip hot ${this.hud.hotLeft === 0 ? 'empty' : ''}"
+            role="status"
+            aria-label="剩余热源 ${this.hud.hotLeft === Infinity ? '无限' : this.hud.hotLeft}"
+          >
+            ${iconFlame}<b>${this.hud.hotLeft === Infinity ? '∞' : this.hud.hotLeft}</b>
           </span>
-          <span class="chip cold ${this.hud.coldLeft === 0 ? 'empty' : ''}" title="剩余冷源">
-            ${iconSnow}<span class="lbl">冷源</span><b>${this.hud.coldLeft === Infinity ? '∞' : this.hud.coldLeft}</b>
+          <span
+            class="chip cold ${this.hud.coldLeft === 0 ? 'empty' : ''}"
+            role="status"
+            aria-label="剩余冷源 ${this.hud.coldLeft === Infinity ? '无限' : this.hud.coldLeft}"
+          >
+            ${iconSnow}<b>${this.hud.coldLeft === Infinity ? '∞' : this.hud.coldLeft}</b>
           </span>
           <button
             class="icon-btn pause"
@@ -120,11 +128,9 @@ export class SfHud extends LitElement {
         align-items: center;
         justify-content: space-between;
         gap: var(--sp-2);
-        /* 阴影物理留白（0.5625 顶 = 向上 blur−offset、0.8125 侧/底 = 全外扩），不随设计 token；
-           横屏刘海/Dynamic Island 在侧边，须加左/右安全区 */
         padding: calc(0.5625rem + env(safe-area-inset-top, 0px))
-          calc(0.8125rem + env(safe-area-inset-right, 0px)) 0.8125rem
-          calc(0.8125rem + env(safe-area-inset-left, 0px));
+          calc(0.5625rem + env(safe-area-inset-right, 0px)) 0.5625rem
+          calc(0.5625rem + env(safe-area-inset-left, 0px));
         pointer-events: none;
       }
 

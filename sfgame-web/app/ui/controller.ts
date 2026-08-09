@@ -1,5 +1,6 @@
 import { GameLoop } from '../core/loop'
 import { sfx } from '../core/sfx'
+import { bgm } from '../core/bgm'
 import { fb } from '../core/feedback'
 import { PerformanceGovernor, DPR_TIERS } from '../core/governor'
 import { buildWindProbes, isLanding, sampleWind } from '../core/wind'
@@ -137,10 +138,14 @@ export class GameController {
     this.ro?.disconnect()
     this.ro = null
     sfx.fadeOutWind()
+    // 离关解除乐暂停：暂停状态下回主页不能把 BGM 永远留在停态
+    bgm.setPaused(false)
   }
 
   restart() {
     this.sim.restart()
+    // restart 已清 paused，乐同步恢复
+    bgm.setPaused(false)
     this.planeTrail.clear()
     this.press = null
     this.lastPhase = 'playing'
@@ -150,6 +155,7 @@ export class GameController {
   togglePause() {
     this.sim.setPaused(!this.sim.paused)
     if (this.sim.paused) sfx.fadeOutWind()
+    bgm.setPaused(this.sim.paused)
     fb.pause(this.sim.paused)
     this.pushHud()
   }

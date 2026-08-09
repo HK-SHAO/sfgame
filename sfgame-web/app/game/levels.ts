@@ -54,12 +54,10 @@ function groupOf(id: number): LevelGroup | undefined {
   return LEVEL_GROUPS.find((g) => g.ids.includes(id))
 }
 
-// 组内下一关（组尾无下一关）
-export function nextInGroup(id: number): number | undefined {
-  const g = groupOf(id)
-  if (!g) return undefined
-  const i = g.ids.indexOf(id)
-  return i >= 0 ? g.ids[i + 1] : undefined
+// 下一关：组内顺延，组尾跨入下一组首关（线性 = LEVELS 组序 + 组内序），最后一关无下一关
+export function nextLevel(id: number): number | undefined {
+  const idx = LEVELS.findIndex((l) => l.id === id)
+  return idx >= 0 ? LEVELS[idx + 1]?.id : undefined
 }
 
 // 解锁语义：每组第一关初始解锁，其余 = 上一关或本关已有过关记录；跨组独立

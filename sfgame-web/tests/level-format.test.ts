@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { compileExpr, ExprError } from '../app/game/expr'
 import { parseLevelText, validateLevelJson } from '../app/game/level-format'
-import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, isUnlocked, nextInGroup } from '../app/game/levels'
+import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, isUnlocked, nextLevel } from '../app/game/levels'
 
 test('表达式求值：四则/幂/函数/x 变量，语法错误抛 ExprError', () => {
   expect(compileExpr('x + 2')(3)).toBe(5)
@@ -127,12 +127,12 @@ test('解锁语义：每组首关初始解锁；其余 = 上一关或本关有�
   expect(isUnlocked(99, completed)).toBe(false)
 })
 
-test('组内导航：nextInGroup 组尾无下一关', () => {
-  expect(nextInGroup(1)).toBe(2)
-  expect(nextInGroup(5)).toBeUndefined()
-  expect(nextInGroup(6)).toBe(7)
-  expect(nextInGroup(10)).toBeUndefined()
-  expect(nextInGroup(99)).toBeUndefined()
+test('下一关导航：组内顺延，组尾跨入下一组首关，最后一关无下一关', () => {
+  expect(nextLevel(1)).toBe(2)
+  expect(nextLevel(5)).toBe(6)
+  expect(nextLevel(6)).toBe(7)
+  expect(nextLevel(10)).toBeUndefined()
+  expect(nextLevel(99)).toBeUndefined()
 })
 
 test('新原子校验：fixed/fans 合法放行、非法被拒', () => {

@@ -3,7 +3,7 @@ import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { fb } from '../core/feedback'
 import { bgm } from '../core/bgm'
-import { LEVELS, LEVEL_GROUPS, nextInGroup, levelHash } from '../game/levels'
+import { LEVELS, LEVEL_GROUPS, nextLevel, levelHash } from '../game/levels'
 import { progress } from '../game/progress'
 import { SfGame, type DenyDetail } from './sf-game'
 import type { SfHud } from './hud'
@@ -151,7 +151,7 @@ export class SfApp extends LitElement {
   }
 
   private playNext() {
-    const next = nextInGroup(this.activeLevel.id)
+    const next = nextLevel(this.activeLevel.id)
     if (next === undefined) return
     fb.uiEnter()
     // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
@@ -282,7 +282,7 @@ export class SfApp extends LitElement {
     const won = this.hud.phase === 'won'
     const h = levelHash(urlState.get('lv'))
     const bestTotal = won && h ? progress.best(h)[0]?.total : undefined
-    const hasNext = nextInGroup(this.activeLevel.id) !== undefined
+    const hasNext = nextLevel(this.activeLevel.id) !== undefined
     return html`
       <main class="game">
         ${keyed(

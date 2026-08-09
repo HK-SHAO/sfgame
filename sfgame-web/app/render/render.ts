@@ -569,8 +569,10 @@ export class Renderer {
       if (w[i * 2] < minX) minX = w[i * 2]
       if (w[i * 2] > maxX) maxX = w[i * 2]
     }
-    // 影子 = 机身轮廓的垂直投影：采样范围取顶点 x 跨度，陡坡上不沿坡面"飘"到机身之上
-    const alt = sim.level.ground(p.x) - p.y
+    // 影子 = 机身轮廓的垂直投影：采样范围取顶点 x 跨度，陡坡上不沿坡面"飘"到机身之上；
+    // 投影点钳制在飞机高度以下（groundExt 而非 level.ground：飞机可飞出地图）——
+    // 否则崖壁地形高于机身时影子会画到飞机上方
+    const alt = sim.groundExt(p.x) - p.y
     const shA = SHADOW_MAX_ALPHA - alt * SHADOW_FADE
     if (shA > 0) {
       const pts = this.shadowPts
@@ -578,7 +580,7 @@ export class Renderer {
       for (let k = 0; k < SHADOW_SAMPLES; k++) {
         const sx = minX + ((maxX - minX) * k) / (SHADOW_SAMPLES - 1)
         pts[k * 2] = sx
-        pts[k * 2 + 1] = sim.level.ground(sx)
+        pts[k * 2 + 1] = Math.max(sim.groundExt(sx), p.y)
       }
       b.polyline(pts, SHADOW_SAMPLES * 2, SHADOW_W, ...INK_DARK, shA)
       // 两端圆盘收圆（与内核 round stroke 同构：半径 = 线宽一半）

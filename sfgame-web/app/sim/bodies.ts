@@ -15,8 +15,9 @@ export interface Body {
 // 纸飞机物理（全游戏唯一刚体，参数归口于此，不按实例配置）：
 // HOVER_WIND 是"风力 vs 重力孰大"的唯一调参口径——上升风超过它抬升、不足下落（终端坠落速度同值）
 const HOVER_WIND = 1.0
-// 风耦合强度（1/s）：对风的响应时间 = 1/DRAG_K，越大越"轻"
-const DRAG_K = 3.0
+// 风耦合强度（1/s），响应时间 = 1/DRAG_K。按真实纸飞机估算：~3g、滑翔 ~5m/s、
+// 升阻比 ~5 → 减速度 ~2m/s² → 滑翔惯性段 τ≈1s（越小越有惯性）
+const DRAG_K = 1.0
 const GRAVITY = DRAG_K * HOVER_WIND
 // 纸面滑动摩擦系数 μ：接触帧以恒定减速度 μ·g 线性减速到停
 const GROUND_FRICTION_MU = 0.3

@@ -8,6 +8,7 @@ import {
   loadLevel,
   mulberry32,
   spotGrid,
+  WorkerPool,
   type CandidateMetric,
   type SourceTuple,
 } from './solve-lib'
@@ -106,6 +107,138 @@ if (args.includes('--solve')) {
   }
 }
 
+// —— 解精炼：以玩家解为种子的坐标下降局部搜索 ——
+// 目标字典序：通关 → 总路程最短 → 总耗时（含罚时 4s/源）最短 → 耗时 → 贴地。
+// 邻域 = 单源单轴 ±step（粗到细）+ 删一源；memo 缓存去重评、worker 并行、改进即打印
+const SOURCE_PENALTY_S = 4
+const REFINE_STEPS = [2, 1, 0.5, 0.2, 0.1]
+
+interface Refined {
+  src: SourceTuple[]
+  m: CandidateMetric
+}
+
+function refineBetter(a: Refined, b: Refined): boolean {
+  if (a.m.won !== b.m.won) return a.m.won
+  if (!a.m.won) return a.m.progress > b.m.progress
+  if (a.m.pathLen !== b.m.pathLen) return a.m.pathLen < b.m.pathLen
+  const ta = a.m.time + SOURCE_PENALTY_S * a.src.length
+  const tb = b.m.time + SOURCE_PENALTY_S * b.src.length
+  if (ta !== tb) return ta < tb
+  if (a.m.time !== b.m.time) return a.m.time < b.m.time
+  return a.m.groundTime < b.m.groundTime
+}
+
+// 缓存键：排序规范化（同一多重集同键）+ 1 位小数（URL 可放置形态）
+function srcKeySorted(src: SourceTuple[]): string {
+  return src
+    .map((s) => `${+s[0].toFixed(1)},${+s[1].toFixed(1)},${s[2]}`)
+    .sort()
+    .join('_')
+}
+
+function fmtSrcUrl(src: SourceTuple[]): string {
+  return src.map((s) => `${+s[0].toFixed(1)}-${+s[1].toFixed(1)}-${s[2] === 'hot' ? 'h' : 'c'}`).join('_')
+}
+
+function fmtTotal(src: SourceTuple[], m: CandidateMetric): string {
+  const p = SOURCE_PENALTY_S * src.length
+  return `${fmt(m)} · 总耗时 ${(m.time + p).toFixed(1)}s（含罚时 +${p}s）`
+}
+
+function refineNeighbors(src: SourceTuple[], step: number): SourceTuple[][] {
+  const out: SourceTuple[][] = []
+  for (let i = 0; i < src.length; i++) {
+    const [x, y, k] = src[i]
+    for (const [dx, dy] of [
+      [step, 0],
+      [-step, 0],
+      [0, step],
+      [0, -step],
+    ]) {
+      const nx = +(x + dx).toFixed(1)
+      const ny = +(y + dy).toFixed(1)
+      // 先裁剪到 spawn 同界，减少注定放置失败的浪费评估
+      if (nx < -20 || nx > level.world.w + 20 || ny < -20 || ny > level.world.h + 20) continue
+      out.push(src.map((s, j) => (j === i ? ([nx, ny, k] as SourceTuple) : s)))
+    }
+    if (src.length > 1) out.push(src.filter((_, j) => j !== i))
+  }
+  return out
+}
+
+async function refineSolution(start: SourceTuple[], cap: number, budgetMs: number, workerCount: number): Promise<void> {
+  const t0 = performance.now()
+  const deadline = t0 + budgetMs
+  const pool = new WorkerPool(levelFile, workerCount)
+  const cache = new Map<string, CandidateMetric>()
+  let evalCount = 0
+  // 缓存门控：只对未见过的摆法发起并行评估，其余直取缓存
+  const evalMany = async (list: SourceTuple[][]): Promise<CandidateMetric[]> => {
+    const fresh = list.filter((s) => !cache.has(srcKeySorted(s)))
+    if (fresh.length > 0) {
+      const ms = await pool.evaluate(fresh, cap)
+      fresh.forEach((s, i) => cache.set(srcKeySorted(s), ms[i]))
+      evalCount += fresh.length
+    }
+    return list.map((s) => cache.get(srcKeySorted(s))!)
+  }
+
+  if (start.length === 0) {
+    console.log('[refine] 基线无源：无坐标可动、无源可删，无优化空间')
+    await pool.close()
+    return
+  }
+  const [m0] = await evalMany([start])
+  let cur: Refined = { src: start, m: m0 }
+  const base = cur
+  console.log(`[refine] 基线：${fmtTotal(cur.src, cur.m)}`)
+  if (!cur.m.won) {
+    console.log(`[refine] 基线在 cap=${cap}s 内未通关（玩家实局可能依赖飞行中放置的时序，无头评估源在 t=0 全放）——按进展序继续搜索，直到爬进通关`)
+  }
+
+  for (const step of REFINE_STEPS) {
+    let moved = true
+    while (moved && performance.now() < deadline) {
+      moved = false
+      const cands = refineNeighbors(cur.src, step)
+      const ms = await evalMany(cands)
+      let best = cur
+      for (let i = 0; i < cands.length; i++) {
+        const e: Refined = { src: cands[i], m: ms[i] }
+        if (refineBetter(e, best)) best = e
+      }
+      if (best !== cur) {
+        cur = best
+        moved = true
+        console.log(`[refine] 步长 ${step} 改进：${fmtSrcUrl(cur.src)} → ${fmtTotal(cur.src, cur.m)}`)
+      }
+    }
+  }
+  await pool.close()
+
+  console.log(`[refine] 完成：${evalCount} 次评估 · ${((performance.now() - t0) / 1000).toFixed(0)}s · 步长 ${REFINE_STEPS.join('/')}`)
+  if (cur === base) {
+    console.log('[refine] 未找到优于基线的摆法（邻域内已局部最优）')
+  } else {
+    console.log(`[refine] 路程 ${base.m.pathLen.toFixed(1)} → ${cur.m.pathLen.toFixed(1)}，总耗时 ${(base.m.time + SOURCE_PENALTY_S * base.src.length).toFixed(1)}s → ${(cur.m.time + SOURCE_PENALTY_S * cur.src.length).toFixed(1)}s`)
+  }
+  console.log(`[refine] 最优摆法（URL s= 形态）：${fmtSrcUrl(cur.src)}`)
+  console.log(`[refine] 最优摆法（--verify 逗号形态）：${cur.src.map((s) => `${+s[0].toFixed(1)}-${+s[1].toFixed(1)}-${s[2][0]}`).join(',')}`)
+}
+
+// 入口放在定义之后：顶层 const（SOURCE_PENALTY_S 等）不提升，提前触发会 TDZ
+if (args.includes('--refine')) {
+  const start = parseSources(opt('--refine'))
+  const cap = Number(opt('--refine-cap', '90'))
+  const budgetMs = Number(opt('--refine-ms', '180000'))
+  const workers = Math.min(
+    Number(opt('--workers', String(Math.max(1, availableParallelism() - 1)))),
+    availableParallelism(),
+  )
+  await refineSolution(start, cap, budgetMs, workers)
+}
+
 // 遗传算法：精英保留 + 锦标赛选择 + 均匀交叉 + 邻域变异，worker 并行评估；连续停滞重随机重启
 async function geneticSolve(
   n: number,
@@ -120,7 +253,7 @@ async function geneticSolve(
   const spots = spotGrid(level).filter((s) => kinds.has(s[2]))
   const POP = 32
   const ELITE = 4
-  const pool = new WorkerPool(workerCount)
+  const pool = new WorkerPool(levelFile, workerCount)
   let pop: SourceTuple[][] = []
   while (pop.length < POP) pop.push(randomSources(n, spots, rng))
 
@@ -216,110 +349,4 @@ function child(
     c.push(s)
   }
   return c
-}
-
-const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0 }
-
-class WorkerPool {
-  private procs: Array<{ proc: import('bun').Subprocess; buf: string; idle: boolean; jobId: number }> = []
-  private queue: Array<{ src: SourceTuple[]; resolve: (m: CandidateMetric) => void }> = []
-  private closed = false
-
-  constructor(count: number) {
-    for (let i = 0; i < count; i++) this.spawn()
-  }
-
-  private spawn() {
-    const proc = Bun.spawn([process.execPath, `${import.meta.dir}/solve-worker.ts`, levelFile], {
-      cwd: import.meta.dir,
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const w = { proc, buf: '', idle: true, jobId: 0 }
-    this.procs.push(w)
-    // worker 意外退出：丢弃其在途任务（按失败计）并补起替身——否则在途 Promise 永不 resolve，evaluate 无声挂死
-    void proc.exited.then(() => {
-      if (this.closed) return
-      const i = this.procs.indexOf(w)
-      if (i >= 0) this.procs.splice(i, 1)
-      if (w.jobId > 0 && this.pending.has(w.jobId)) {
-        this.pending.get(w.jobId)!(FALLBACK_METRIC)
-        this.pending.delete(w.jobId)
-      }
-      this.spawn()
-      this.pump()
-    }).catch(() => {})
-    const decoder = new TextDecoder()
-    void (async () => {
-      if (proc.stderr) {
-        for await (const chunk of proc.stderr) {
-          process.stderr.write(new TextDecoder().decode(chunk))
-        }
-      }
-    })()
-    void (async () => {
-      for await (const chunk of proc.stdout) {
-        w.buf += decoder.decode(chunk)
-        let nl: number
-        while ((nl = w.buf.indexOf('\n')) >= 0) {
-          const line = w.buf.slice(0, nl).trim()
-          w.buf = w.buf.slice(nl + 1)
-          if (!line) continue
-          try {
-            const msg = JSON.parse(line) as { id: number; m: CandidateMetric }
-            if (this.pending.has(msg.id)) {
-              this.pending.get(msg.id)!(msg.m)
-              this.pending.delete(msg.id)
-            }
-          } catch {
-          }
-          w.idle = true
-          this.pump()
-        }
-      }
-    })()
-    this.pump()
-  }
-
-  private pending = new Map<number, (m: CandidateMetric) => void>()
-  private nextId = 0
-
-  private pump() {
-    for (const w of this.procs) {
-      if (!w.idle || this.queue.length === 0) continue
-      const job = this.queue.shift()!
-      const id = ++this.nextId
-      w.idle = false
-      w.jobId = id
-      this.pending.set(id, job.resolve)
-      if (w.proc.stdin && typeof w.proc.stdin !== 'number') {
-        w.proc.stdin.write(`${JSON.stringify({ id, src: job.src })}\n`)
-        w.proc.stdin.flush()
-      }
-    }
-  }
-
-  evaluate(list: SourceTuple[][]): Promise<CandidateMetric[]> {
-    const out = new Array<CandidateMetric>(list.length)
-    return new Promise((resolveAll) => {
-      let done = 0
-      for (let i = 0; i < list.length; i++) {
-        this.queue.push({
-          src: list[i],
-          resolve: (m) => {
-            out[i] = m
-            if (++done === list.length) resolveAll(out)
-          },
-        })
-      }
-      this.pump()
-    })
-  }
-
-  async close() {
-    this.closed = true
-    for (const w of this.procs) w.proc.kill()
-    this.procs = []
-  }
 }

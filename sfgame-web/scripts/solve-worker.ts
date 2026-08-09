@@ -13,6 +13,8 @@ const level = loadLevel(file)
 interface Job {
   id: number
   src: SourceTuple[]
+  // 可选：--refine 下发长 cap（既有解耗时可能超 35s）；缺省 35s 快筛
+  cap?: number
 }
 
 const rl = createInterface({ input: process.stdin })
@@ -24,7 +26,7 @@ for await (const line of rl) {
   } catch {
     continue
   }
-  // cap 35s：参考解实测 ≤24s，留足余量；新物理（#25）下贴地可被风重新带飞，不再设贴地早退
-  const m: CandidateMetric = evalCandidate(level, job.src, { dt: FINE_DT, cap: 35 })
+  // cap 缺省 35s：参考解实测 ≤24s，留足余量；新物理（#25）下贴地可被风重新带飞，不再设贴地早退
+  const m: CandidateMetric = evalCandidate(level, job.src, { dt: FINE_DT, cap: job.cap ?? 35 })
   console.log(JSON.stringify({ id: job.id, m }))
 }

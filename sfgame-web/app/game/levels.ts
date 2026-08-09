@@ -12,8 +12,16 @@ import level7 from '../../levels/level-7.json?raw'
 import level8 from '../../levels/level-8.json?raw'
 import level9 from '../../levels/level-9.json?raw'
 import level10 from '../../levels/level-10.json?raw'
+import level11 from '../../levels/level-11.json?raw'
+import level12 from '../../levels/level-12.json?raw'
+import level13 from '../../levels/level-13.json?raw'
+import level14 from '../../levels/level-14.json?raw'
+import level15 from '../../levels/level-15.json?raw'
 
-const LEVEL_TEXTS = [level1, level2, level3, level4, level5, level6, level7, level8, level9, level10]
+const LEVEL_TEXTS = [
+  level1, level2, level3, level4, level5, level6, level7, level8, level9, level10,
+  level11, level12, level13, level14, level15,
+]
 
 // 关卡图（主页选项卡 + 解锁/导航的单一事实来源）：组内顺序 = ids 数组顺序，
 // JSON 只承载关卡内容，不再声明归属
@@ -25,6 +33,8 @@ export interface LevelGroup {
 export const LEVEL_GROUPS: LevelGroup[] = [
   { name: '长风', ids: [1, 2, 3, 4, 5] },
   { name: '焚风', ids: [6, 7, 8, 9, 10] },
+  // 第三组：既有图调参的硬核重编（环境温度原子主登场），组内按难度升序
+  { name: '烈风', ids: [11, 12, 13, 14, 15] },
 ]
 
 // 逐关容错加载：坏关卡只进 LEVEL_ERRORS 清单，绝不抛错——模块加载抛错会让整个 bundle 求值失败 → 应用白屏

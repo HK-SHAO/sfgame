@@ -89,7 +89,7 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
 })
 
 test('仓库关卡全部合法，协议一致且可往返序列化', () => {
-  expect(LEVELS.map((l) => l.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  expect(LEVELS.map((l) => l.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
   expect(LEVEL_ERRORS).toEqual([])
   for (const l of LEVELS) {
     expect(l.schema).toBe(1)
@@ -102,6 +102,7 @@ test('关卡图：组名与组内顺序（TS 声明，JSON 不携带）', () => 
   expect(LEVEL_GROUPS.map((g) => [g.name, [...g.ids]])).toEqual([
     ['长风', [1, 2, 3, 4, 5]],
     ['焚风', [6, 7, 8, 9, 10]],
+    ['烈风', [11, 12, 13, 14, 15]],
   ])
 })
 
@@ -131,7 +132,9 @@ test('下一关导航：组内顺延，组尾跨入下一组首关，最后一�
   expect(nextLevel(1)).toBe(2)
   expect(nextLevel(5)).toBe(6)
   expect(nextLevel(6)).toBe(7)
-  expect(nextLevel(10)).toBeUndefined()
+  expect(nextLevel(10)).toBe(11)
+  expect(nextLevel(14)).toBe(15)
+  expect(nextLevel(15)).toBeUndefined()
   expect(nextLevel(99)).toBeUndefined()
 })
 

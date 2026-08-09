@@ -119,3 +119,114 @@ export function mulberry32(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
+
+export const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0 }
+
+// 并行评估子进程池：stdin/stdout 逐行 JSON；worker 意外退出时在途任务按失败计并补起替身（否则 Promise 永不 resolve 无声挂死）。
+// cap 随任务下发：--solve 用 35s 快筛，--refine 用长 cap（既有解耗时可能超 35s）
+export class WorkerPool {
+  private procs: Array<{ proc: import('bun').Subprocess; buf: string; idle: boolean; jobId: number }> = []
+  private queue: Array<{ src: SourceTuple[]; cap?: number; resolve: (m: CandidateMetric) => void }> = []
+  private closed = false
+  private levelFile: string
+
+  constructor(levelFile: string, count: number) {
+    this.levelFile = levelFile
+    for (let i = 0; i < count; i++) this.spawn()
+  }
+
+  private spawn() {
+    const proc = Bun.spawn([process.execPath, `${import.meta.dir}/solve-worker.ts`, this.levelFile], {
+      cwd: import.meta.dir,
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const w = { proc, buf: '', idle: true, jobId: 0 }
+    this.procs.push(w)
+    void proc.exited.then(() => {
+      if (this.closed) return
+      const i = this.procs.indexOf(w)
+      if (i >= 0) this.procs.splice(i, 1)
+      if (w.jobId > 0 && this.pending.has(w.jobId)) {
+        this.pending.get(w.jobId)!(FALLBACK_METRIC)
+        this.pending.delete(w.jobId)
+      }
+      this.spawn()
+      this.pump()
+    }).catch(() => {})
+    const decoder = new TextDecoder()
+    void (async () => {
+      if (proc.stderr) {
+        for await (const chunk of proc.stderr) {
+          process.stderr.write(new TextDecoder().decode(chunk))
+        }
+      }
+    })()
+    void (async () => {
+      for await (const chunk of proc.stdout) {
+        w.buf += decoder.decode(chunk)
+        let nl: number
+        while ((nl = w.buf.indexOf('\n')) >= 0) {
+          const line = w.buf.slice(0, nl).trim()
+          w.buf = w.buf.slice(nl + 1)
+          if (!line) continue
+          try {
+            const msg = JSON.parse(line) as { id: number; m: CandidateMetric }
+            if (this.pending.has(msg.id)) {
+              this.pending.get(msg.id)!(msg.m)
+              this.pending.delete(msg.id)
+            }
+          } catch {
+          }
+          w.idle = true
+          this.pump()
+        }
+      }
+    })()
+    this.pump()
+  }
+
+  private pending = new Map<number, (m: CandidateMetric) => void>()
+  private nextId = 0
+
+  private pump() {
+    for (const w of this.procs) {
+      if (!w.idle || this.queue.length === 0) continue
+      const job = this.queue.shift()!
+      const id = ++this.nextId
+      w.idle = false
+      w.jobId = id
+      this.pending.set(id, job.resolve)
+      if (w.proc.stdin && typeof w.proc.stdin !== 'number') {
+        w.proc.stdin.write(`${JSON.stringify({ id, src: job.src, cap: job.cap })}\n`)
+        w.proc.stdin.flush()
+      }
+    }
+  }
+
+  evaluate(list: SourceTuple[][], cap?: number): Promise<CandidateMetric[]> {
+    if (list.length === 0) return Promise.resolve([])
+    const out = new Array<CandidateMetric>(list.length)
+    return new Promise((resolveAll) => {
+      let done = 0
+      for (let i = 0; i < list.length; i++) {
+        this.queue.push({
+          src: list[i],
+          cap,
+          resolve: (m) => {
+            out[i] = m
+            if (++done === list.length) resolveAll(out)
+          },
+        })
+      }
+      this.pump()
+    })
+  }
+
+  async close() {
+    this.closed = true
+    for (const w of this.procs) w.proc.kill()
+    this.procs = []
+  }
+}

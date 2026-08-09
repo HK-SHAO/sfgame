@@ -65,8 +65,6 @@ export class SfWinOverlay extends LitElement {
         calc(var(--page-pad-y) + env(safe-area-inset-bottom, 0px))
         calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
       background: var(--scrim);
-      backdrop-filter: var(--blur-glass);
-      -webkit-backdrop-filter: var(--blur-glass);
       animation: fade 260ms ease-out;
     }
 

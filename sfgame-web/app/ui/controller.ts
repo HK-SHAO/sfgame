@@ -74,8 +74,8 @@ export class GameController {
     this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })
     // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降 dpr（所有平台同一策略）
     this.governor = new PerformanceGovernor(DPR_TIERS)
-    // 示踪粒子用延展地面：可随流体飞出地图，在外扩边距末端才清理
-    this.tracers = new Tracers(TRACER_COUNT, this.world, this.sim.groundExt, TRAIL_LEN, FLUID_MARGIN)
+    // 示踪粒子用延展地面：可随流体飞出地图，在外扩边距末端才清理（内核驻 wasm，同引擎实例）
+    this.tracers = new Tracers(this.engine, TRACER_COUNT, this.world, this.sim.groundExt, TRAIL_LEN, FLUID_MARGIN)
     this.clouds = new Clouds(level.id, this.world, this.ground)
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
@@ -228,7 +228,7 @@ export class GameController {
       const vyBefore = p.vy
 
       this.sim.step(dt)
-      this.tracers.step(dt, this.sim.fluid, this.sim.sources)
+      this.tracers.step(dt, this.sim.sources)
       this.clouds.step(dt, this.sim.fluid)
       this.planeTrail.push(p.x, p.y, this.sim.time)
 

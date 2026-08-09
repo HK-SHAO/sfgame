@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash } from '../game/levels'
 import { progress } from '../game/progress'
+import { formatTime } from '../game/timer'
 import type { LevelDef } from '../game/types'
 import { artBg, boxReset, reduceMotion } from './shared-styles'
 import { iconGear, iconLock, iconLogo } from './icons'
@@ -37,6 +38,9 @@ export class SfTitleScreen extends LitElement {
                 </button>
               `,
             )}
+            <button class="group-tab soon" disabled aria-label="更多关卡，敬请期待">
+              <span class="gname">期待</span>
+            </button>
           </nav>
 
           <nav class="levels" aria-label="关卡列表">
@@ -46,6 +50,8 @@ export class SfTitleScreen extends LitElement {
               .map((l) => {
                 // dev 模式全关卡可玩（含未解锁）；解锁按关卡 hash 的通关记录判定
                 const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash(id) ?? ''))
+                // 最优成绩 = 通关记录中合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
+                const best = progress.best(levelHash(l.id) ?? '')[0]
                 return html`
                   <button
                     class="level play ${locked ? 'locked' : ''}"
@@ -58,6 +64,7 @@ export class SfTitleScreen extends LitElement {
                       <span class="name">${l.name}</span>
                       <span class="concept">${l.tagline}</span>
                     </span>
+                    ${best ? html`<span class="best">最佳 ${formatTime(best.total)}</span>` : nothing}
                     <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
                   </button>
                 `
@@ -204,6 +211,13 @@ export class SfTitleScreen extends LitElement {
         box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.09);
       }
 
+      /* 未来关卡占位：灰调不可点，与其余 tab 同形同间距 */
+      .group-tab.soon {
+        opacity: 0.45;
+        cursor: default;
+        box-shadow: none;
+      }
+
       .no-levels {
         margin: var(--sp-3) 0 0;
         color: var(--ink-soft);
@@ -301,6 +315,18 @@ export class SfTitleScreen extends LitElement {
         line-height: 1;
         color: var(--hot);
         font-weight: 600;
+      }
+
+      /* 最佳成绩徽章：仅有关卡记录时出现（与结算面板同口径），绿系呼应"纪录"语义 */
+      .level .best {
+        flex: none;
+        padding: 0.1875rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--goal);
+        background: rgba(47, 191, 113, 0.12);
+        border-radius: var(--r-pill);
       }
 
       .level .go svg {

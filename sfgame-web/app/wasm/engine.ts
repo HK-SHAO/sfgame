@@ -93,7 +93,27 @@ export interface BatchExports {
   ): void
 }
 
-export interface EngineExports extends FluidExports, BatchExports {
+export interface TracerExports {
+  tracersInit(
+    count: number, trailLen: number, worldW: number, margin: number, lutStep: number, seed: number,
+  ): number
+  tracersStep(dt: number, srcCount: number): void
+  tTime(): number
+  tXBuf(): number
+  tYBuf(): number
+  tLifeBuf(): number
+  tMaxLifeBuf(): number
+  tTrailXBuf(): number
+  tTrailYBuf(): number
+  tTrailTBuf(): number
+  tTrailNBuf(): number
+  tLutBuf(): number
+  tLutCap(): number
+  tSrcBuf(): number
+  tSrcCap(): number
+}
+
+export interface EngineExports extends FluidExports, BatchExports, TracerExports {
   memory: WebAssembly.Memory
 }
 

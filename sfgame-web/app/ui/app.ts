@@ -193,10 +193,11 @@ export class SfApp extends LitElement {
     this.applyScreen(screenFromUrl())
   }
 
-  // replace：切换不进历史（后退不会"撤销切换"）
+  // replace：切换不进历史（后退不会"撤销切换"）；关闭即清参——dev=0 不落 URL（参数存在即暴露开发者模式入口）
   private toggleDev(e: CustomEvent<boolean>) {
     this.dev = e.detail
-    urlState.set('dev', e.detail, { replace: true })
+    if (e.detail) urlState.set('dev', true, { replace: true })
+    else urlState.clear('dev', { replace: true })
     fb.uiClick()
   }
 
@@ -255,7 +256,8 @@ export class SfApp extends LitElement {
     else if (this.screen === 'dev') {
       content = html`<sf-dev-menu
         .dev=${this.dev}
-        @back=${this.goBack}
+        // dev 页返回固定回主页并保留当前 dev：history.back 会穿越 replace 之前的旧条目（携带旧 dev 值，已关闭的开发者模式会"复活"）
+        @back=${this.backToTitle}
         @open-storage=${this.openStorage}
         @toggle-dev=${this.toggleDev}
       ></sf-dev-menu>`

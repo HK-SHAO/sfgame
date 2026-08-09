@@ -1,6 +1,6 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { iconBack, iconDatabase, iconGear } from '../ui/icons'
+import { iconDatabase, iconGear, iconHome } from '../ui/icons'
 import { artBg, boxReset, card, pageShell } from '../ui/shared-styles'
 import '../ui/about-card'
 
@@ -17,7 +17,7 @@ export class SfDevMenu extends LitElement {
       <main class="page">
         <header class="bar">
           <div class="bar-inner">
-            <button class="icon-btn" @click=${this.onBack} aria-label="返回">${iconBack}</button>
+            <button class="icon-btn" @click=${this.onBack} aria-label="回到主页">${iconHome}</button>
             <div class="head-text">
               <h1>开发者页面</h1>
             </div>

@@ -3,7 +3,7 @@ import { createFluid } from '../sim/fluid'
 import type { EngineHandle } from '../wasm/engine'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import { GOAL_LIFT, type SourceKind } from '../sim/types'
-import { penaltySeconds } from './timer'
+import { totalPenaltySeconds } from './timer'
 import type { FanDef, HudState, LevelDef, Source, SourcePlacement } from './types'
 
 const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell' | 'margin'> = {
@@ -44,6 +44,8 @@ export class LevelSimulation {
   sources: Source[] = []
   phase: 'playing' | 'won' = 'playing'
   time = 0
+  // 贴地累计秒数（离地 <1，与求解器 groundTime 同口径）：罚时 = 源罚 + 贴地罚，随物理时间实时累计
+  groundedTime = 0
   visited: boolean[]
   visitedCount = 0
   paused = false
@@ -121,7 +123,7 @@ export class LevelSimulation {
       hotLeft: this.hotLeft,
       coldLeft: this.coldLeft,
       time: this.time,
-      extra: penaltySeconds(this.sources.length),
+      extra: totalPenaltySeconds(this.sources.length, this.groundedTime),
       sources: this.sources.length,
       paused: this.paused,
     }
@@ -139,6 +141,7 @@ export class LevelSimulation {
     this.fluid.clear()
     this.phase = 'playing'
     this.time = 0
+    this.groundedTime = 0
     this.visited.fill(false)
     this.visitedCount = 0
     this.paused = false
@@ -233,6 +236,7 @@ export class LevelSimulation {
     this.fluid.step(dt)
     // groundExt 而非 level.ground：飞机可飞出地图，延展地面保证地图外同样"不入地"
     stepBody(this.plane, this.fluid, dt, this.groundExt)
+    if (this.level.ground(this.plane.x) - this.plane.y < 1) this.groundedTime += dt
     this.checkGoals()
   }
 

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { GROUND_PENALTY_RATE, SOURCE_PENALTY } from '../app/game/timer'
 import { levelFromJson, parseLevelText } from '../app/game/level-format'
 import { LevelSimulation } from '../app/game/simulation'
 import type { LevelDef } from '../app/game/types'
@@ -23,6 +24,8 @@ export interface CandidateMetric {
   pathLen: number
   groundTime: number
   progress: number
+  // 源个数：耗时优先级按"总耗时 = time + 罚时×源数"排序，评估时带上以便跨源数比较
+  sources: number
 }
 
 export function loadLevel(file: string): LevelDef {
@@ -46,7 +49,7 @@ export function evalCandidate(
   for (const [x, y, k] of src) {
     const placed = sim.placeSource(Math.round(x * 10) / 10, Math.round(y * 10) / 10, k)
     if (!placed) {
-      return { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0 }
+      return { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0, sources: src.length }
     }
   }
   let pathLen = 0
@@ -67,7 +70,7 @@ export function evalCandidate(
     px = p.x
     py = p.y
     if (sim.phase === 'won') {
-      return { won: true, time: stepStart, pathLen, groundTime, progress: level.goals.length }
+      return { won: true, time: stepStart, pathLen, groundTime, progress: level.goals.length, sources: src.length }
     }
   }
   return {
@@ -76,23 +79,22 @@ export function evalCandidate(
     pathLen,
     groundTime,
     progress: sim.visitedCount * 1000 + Math.min(sim.plane.x, level.world.w),
+    sources: src.length,
   }
 }
 
-// 贴地 ≤1.5s 视为"基本全程飞行"（纯路程优先实测选出贴地爬行/慢速病理解）；飞行门槛后用 路程+TIME_WEIGHT×耗时 排序（1s ≈ 0.8 世界单位）
-export const GROUND_COMFORT_MAX = 1.5
-export const TIME_WEIGHT = 0.8
+// 解质量只看总耗时（与游戏罚时同源，见 app/game/timer.ts）：总耗时 = 通关时间 + 源罚 4s/个 + 贴地罚 1s/s。
+// 贴地罚时是"软成本"：爬行解物理上就慢，贴地秒数再逐秒加罚，无需硬性飞行门槛
+export function totalTime(m: CandidateMetric): number {
+  return m.time + SOURCE_PENALTY * m.sources + GROUND_PENALTY_RATE * m.groundTime
+}
 
 export function better(a: CandidateMetric, b: CandidateMetric): boolean {
   if (a.won !== b.won) return a.won
   if (a.won) {
-    const aFly = a.groundTime <= GROUND_COMFORT_MAX
-    const bFly = b.groundTime <= GROUND_COMFORT_MAX
-    if (aFly !== bFly) return aFly
-    const qa = a.pathLen + TIME_WEIGHT * a.time
-    const qb = b.pathLen + TIME_WEIGHT * b.time
-    if (qa !== qb) return qa < qb
-    if (a.groundTime !== b.groundTime) return a.groundTime < b.groundTime
+    const ta = totalTime(a)
+    const tb = totalTime(b)
+    if (ta !== tb) return ta < tb
     return a.time < b.time
   }
   return a.progress > b.progress
@@ -120,7 +122,7 @@ export function mulberry32(seed: number) {
   }
 }
 
-export const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0 }
+export const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0, sources: 0 }
 
 // 并行评估子进程池：stdin/stdout 逐行 JSON；worker 意外退出时在途任务按失败计并补起替身（否则 Promise 永不 resolve 无声挂死）。
 // cap 随任务下发：--solve 用 35s 快筛，--refine 用长 cap（既有解耗时可能超 35s）

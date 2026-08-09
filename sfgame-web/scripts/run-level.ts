@@ -9,6 +9,7 @@ import {
   loadLevel,
   mulberry32,
   spotGrid,
+  totalTime,
   WorkerPool,
   type CandidateMetric,
   type SourceTuple,
@@ -44,7 +45,7 @@ function parseSources(raw: string): SourceTuple[] {
 
 function fmt(m: CandidateMetric): string {
   return m.won
-    ? `通关 ${m.time.toFixed(1)}s · 路程 ${m.pathLen.toFixed(1)} · 贴地 ${m.groundTime.toFixed(1)}s`
+    ? `通关 ${m.time.toFixed(1)}s · 贴地 ${m.groundTime.toFixed(1)}s · 总耗时 ${totalTime(m).toFixed(1)}s`
     : `未通关（进展 ${m.progress}，贴地 ${m.groundTime.toFixed(1)}s）`
 }
 
@@ -92,6 +93,8 @@ if (args.includes('--verify-known')) {
 if (args.includes('--solve')) {
   const n = Number(opt('--solve', '1'))
   const budgetMs = Number(opt('--budget-ms', '45000'))
+  // 粗筛 cap：耗时优先级下参考解可超 35s（11-15 关要求 ≥60s），快筛默认 90s 留足余量
+  const solveCap = Number(opt('--solve-cap', '90'))
   const workers = Math.min(
     Number(opt('--workers', String(Math.max(1, availableParallelism() - 1)))),
     availableParallelism(),
@@ -103,7 +106,7 @@ if (args.includes('--solve')) {
       .filter((k) => k === 'h' || k === 'c')
       .map((k) => (k === 'h' ? 'hot' : 'cold')),
   ) as Set<'hot' | 'cold'>
-  const { best, hall } = await geneticSolve(n, budgetMs, workers, rng, kinds)
+  const { best, hall } = await geneticSolve(n, budgetMs, workers, rng, kinds, solveCap)
   if (best && best.m.won) {
     const fine = evalCandidate(level, best.src, { dt: FINE_DT, cap: 120 })
     console.log(`[solve] 最优（${workers} worker 并行）：${best.src.map((s) => `${s[0]}-${s[1]}-${s[2][0]}`).join(',')}`)
@@ -120,9 +123,8 @@ if (args.includes('--solve')) {
 }
 
 // —— 解精炼：以玩家解为种子的坐标下降局部搜索 ——
-// 目标字典序：通关 → 总路程最短 → 总耗时（含罚时 4s/源）最短 → 耗时 → 贴地。
+// 目标字典序：通关 → 总耗时（通关时间 + 源罚 4s/个 + 贴地罚 1s/s）最短 → 耗时；路程不参与排序。
 // 邻域 = 单源单轴 ±step（粗到细）+ 删一源；memo 缓存去重评、worker 并行、改进即打印
-const SOURCE_PENALTY_S = 4
 const REFINE_STEPS = [2, 1, 0.5, 0.2, 0.1]
 
 interface Refined {
@@ -133,12 +135,10 @@ interface Refined {
 function refineBetter(a: Refined, b: Refined): boolean {
   if (a.m.won !== b.m.won) return a.m.won
   if (!a.m.won) return a.m.progress > b.m.progress
-  if (a.m.pathLen !== b.m.pathLen) return a.m.pathLen < b.m.pathLen
-  const ta = a.m.time + SOURCE_PENALTY_S * a.src.length
-  const tb = b.m.time + SOURCE_PENALTY_S * b.src.length
+  const ta = totalTime(a.m)
+  const tb = totalTime(b.m)
   if (ta !== tb) return ta < tb
-  if (a.m.time !== b.m.time) return a.m.time < b.m.time
-  return a.m.groundTime < b.m.groundTime
+  return a.m.time < b.m.time
 }
 
 // 缓存键：排序规范化（同一多重集同键）+ 1 位小数（URL 可放置形态）
@@ -154,8 +154,7 @@ function fmtSrcUrl(src: SourceTuple[]): string {
 }
 
 function fmtTotal(src: SourceTuple[], m: CandidateMetric): string {
-  const p = SOURCE_PENALTY_S * src.length
-  return `${fmt(m)} · 总耗时 ${(m.time + p).toFixed(1)}s（含罚时 +${p}s）`
+  return `${fmt(m)} · 罚时 ${(totalTime(m) - m.time).toFixed(1)}s（源 ${src.length} 个 + 贴地 ${m.groundTime.toFixed(1)}s）`
 }
 
 function refineNeighbors(src: SourceTuple[], step: number): SourceTuple[][] {
@@ -185,7 +184,7 @@ async function refineSolution(start: SourceTuple[], cap: number, budgetMs: numbe
   const pool = new WorkerPool(levelFile, workerCount)
   const cache = new Map<string, CandidateMetric>()
   let evalCount = 0
-  // 缓存门控：只对未见过的摆法发起并行评估，其余直取缓存
+  // 缓存门控：只评估未见过的摆法
   const evalMany = async (list: SourceTuple[][]): Promise<CandidateMetric[]> => {
     const fresh = list.filter((s) => !cache.has(srcKeySorted(s)))
     if (fresh.length > 0) {
@@ -233,13 +232,13 @@ async function refineSolution(start: SourceTuple[], cap: number, budgetMs: numbe
   if (cur === base) {
     console.log('[refine] 未找到优于基线的摆法（邻域内已局部最优）')
   } else {
-    console.log(`[refine] 路程 ${base.m.pathLen.toFixed(1)} → ${cur.m.pathLen.toFixed(1)}，总耗时 ${(base.m.time + SOURCE_PENALTY_S * base.src.length).toFixed(1)}s → ${(cur.m.time + SOURCE_PENALTY_S * cur.src.length).toFixed(1)}s`)
+    console.log(`[refine] 总耗时 ${totalTime(base.m).toFixed(1)}s → ${totalTime(cur.m).toFixed(1)}s`)
   }
   console.log(`[refine] 最优摆法（URL s= 形态）：${fmtSrcUrl(cur.src)}`)
   console.log(`[refine] 最优摆法（--verify 逗号形态）：${cur.src.map((s) => `${+s[0].toFixed(1)}-${+s[1].toFixed(1)}-${s[2][0]}`).join(',')}`)
 }
 
-// 入口放在定义之后：顶层 const（SOURCE_PENALTY_S 等）不提升，提前触发会 TDZ
+// 入口放在定义之后：顶层 const/import 不提升，提前触发会 TDZ
 if (args.includes('--refine')) {
   const raw = opt('--refine')
   // 无参（或后跟其他选项）时以 known-solutions.ts 登记解为种子，继续优化
@@ -260,6 +259,7 @@ async function geneticSolve(
   workerCount: number,
   rng: () => number,
   kinds: Set<'hot' | 'cold'>,
+  solveCap: number,
 ): Promise<{
   best: { src: SourceTuple[]; m: CandidateMetric } | null
   hall: Array<{ src: SourceTuple[]; m: CandidateMetric }>
@@ -281,7 +281,7 @@ async function geneticSolve(
   let stale = 0
 
   while (performance.now() < deadline) {
-    const metrics = await pool.evaluate(pop)
+    const metrics = await pool.evaluate(pop, solveCap)
     for (let i = 0; i < POP; i++) {
       const entry = { src: pop[i], m: metrics[i] }
       if (!best || better(metrics[i], best.m)) {

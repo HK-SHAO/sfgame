@@ -56,6 +56,14 @@ export class SfTitleScreen extends LitElement {
                 const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash(id) ?? ''))
                 // 最优成绩 = 通关记录合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
                 const best = progress.best(levelHash(l.id) ?? '')
+                // 耗时评级（≤30 绿 / ≤60 黄 / >60 红）：emoji 直观表意（🏆 纪录 / 🙂 尚可 / 🐌 缓慢）
+                const grade = best
+                  ? best.total > 60
+                    ? { cls: 'poor', emoji: '🐌' }
+                    : best.total > 30
+                      ? { cls: 'fair', emoji: '🙂' }
+                      : { cls: 'good', emoji: '🏆' }
+                  : null
                 // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变
                 const no = String(l.id).padStart(2, '0')
                 return html`
@@ -70,7 +78,9 @@ export class SfTitleScreen extends LitElement {
                       <span class="name">${l.name}</span>
                       <span class="concept">${l.tagline}</span>
                     </span>
-                    ${best ? html`<span class="best">最佳 ${formatTime(best.total)}</span>` : nothing}
+                    ${best && grade
+                      ? html`<span class="best ${grade.cls}" title="最佳耗时">${formatTime(best.total)} ${grade.emoji}</span>`
+                      : nothing}
                     <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
                   </button>
                 `
@@ -323,16 +333,29 @@ export class SfTitleScreen extends LitElement {
         font-weight: 600;
       }
 
-      /* 最佳成绩徽章：仅有关卡记录时出现；绿系呼应"纪录"语义 */
+      /* 最佳成绩徽章：仅有关卡记录时出现；耗时评级配色（优秀绿 = 纪录语义 / 一般琥珀 / 不优秀红） */
       .level .best {
         flex: none;
         padding: 0.1875rem 0.5rem;
         font-size: 0.75rem;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
+        border-radius: var(--r-pill);
+      }
+
+      .level .best.good {
         color: var(--goal);
         background: rgba(47, 191, 113, 0.12);
-        border-radius: var(--r-pill);
+      }
+
+      .level .best.fair {
+        color: #c08a17;
+        background: rgba(224, 163, 61, 0.14);
+      }
+
+      .level .best.poor {
+        color: var(--hot);
+        background: rgba(255, 90, 60, 0.12);
       }
 
       .level .go svg {

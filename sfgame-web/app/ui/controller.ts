@@ -13,7 +13,7 @@ import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from '../render/render'
 import { createEngine, type EngineHandle } from '../wasm/engine'
-import { penaltySeconds } from '../game/timer'
+import { totalPenaltySeconds } from '../game/timer'
 import type { PerfRecorder } from '../dev/devtools'
 
 const PLANE_TRAIL_MAX_POINTS = 150
@@ -271,8 +271,8 @@ export class GameController {
       press: this.press,
       now: performance.now(),
     })
-    // 每帧直推：文本不变时组件内短路，零开销
-    this.events.onStatus(this.sim.time, penaltySeconds(this.sim.sources.length))
+    // 每帧直推：文本不变时组件内短路，零开销；罚时含贴地累计（贴地时 extra 随物理时间增长）
+    this.events.onStatus(this.sim.time, totalPenaltySeconds(this.sim.sources.length, this.sim.groundedTime))
     this.devTools?.record({
       tickMs: this.tickMs,
       batchMs: performance.now() - t0,

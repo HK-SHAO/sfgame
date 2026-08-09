@@ -11,7 +11,7 @@
   "ground": { "expr": "42 - 12*ss((x-14)/5)*ss((26-x)/5) - 16*ss((x-46)/6)*ss((60-x)/6)" },
   "budget": { "hot": 1, "cold": 2 },
   "spawn": { "x": -5, "y": 18, "vx": 26 },
-  "goals": [{ "x": 53, "r": 8 }],
+  "goals": [{ "x": 62, "r": 6 }],
   "ambient": { "x": 1.8, "y": 0 },
-  "fixed": [{ "x": 53, "y": 8, "kind": "cold" }]
+  "fixed": [{ "x": 23, "y": 8, "kind": "cold" }]
 }

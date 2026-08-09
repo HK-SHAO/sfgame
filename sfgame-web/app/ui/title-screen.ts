@@ -57,14 +57,16 @@ export class SfTitleScreen extends LitElement {
                 const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash(id) ?? ''))
                 // 最优成绩 = 通关记录中合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
                 const best = progress.best(levelHash(l.id) ?? '')[0]
+                // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变
+                const no = String(l.id).padStart(2, '0')
                 return html`
                   <button
                     class="level play ${locked ? 'locked' : ''}"
                     ?disabled=${locked}
-                    aria-label=${locked ? `第 ${l.id} 关（未解锁）` : `进入第 ${l.id} 关`}
+                    aria-label=${locked ? `第 ${no} 关（未解锁）` : `进入第 ${no} 关`}
                     @click=${() => this.startLevel(l.id)}
                   >
-                    <span class="no">第 ${l.id} 关</span>
+                    <span class="no">第 ${no} 关</span>
                     <span class="meta">
                       <span class="name">${l.name}</span>
                       <span class="concept">${l.tagline}</span>
@@ -273,7 +275,9 @@ export class SfTitleScreen extends LitElement {
         flex: none;
         font-size: 0.75rem;
         color: var(--ink-soft);
-        width: 2.75rem;
+        /* 双位补零后「第 01 关」仍不换行（0.75rem × 5 字符） */
+        width: 3.25rem;
+        white-space: nowrap;
       }
 
       .level.locked {

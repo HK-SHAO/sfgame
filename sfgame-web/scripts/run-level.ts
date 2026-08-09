@@ -1,5 +1,6 @@
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
+import { KNOWN_SOLUTIONS } from './known-solutions'
 import {
   better,
   evalCandidate,
@@ -74,6 +75,17 @@ if (args.includes('--verify')) {
     }
     const total = sources.length * moves.length
     console.log(`扰动鲁棒性：${ok}/${total}（${((ok / total) * 100).toFixed(0)}%）${failed.length > 0 ? `，失败摆法：${failed.join(' ')}` : ''}`)
+  }
+}
+
+// 已知解回归验证：scripts/known-solutions.ts 序列化的解必须仍通关（物理/关卡改动后跑一遍）
+if (args.includes('--verify-known')) {
+  const sources = KNOWN_SOLUTIONS[level.id]
+  if (sources === undefined) {
+    console.log(`关卡 ${level.id} 未登记已知解`)
+  } else {
+    const m = evalCandidate(level, sources, { dt: FINE_DT, cap: 120 })
+    console.log(`已知解（${sources.length === 0 ? '无源' : fmtSrcUrl(sources)}）：${fmt(m)}`)
   }
 }
 
@@ -229,7 +241,9 @@ async function refineSolution(start: SourceTuple[], cap: number, budgetMs: numbe
 
 // 入口放在定义之后：顶层 const（SOURCE_PENALTY_S 等）不提升，提前触发会 TDZ
 if (args.includes('--refine')) {
-  const start = parseSources(opt('--refine'))
+  const raw = opt('--refine')
+  // 无参（或后跟其他选项）时以 known-solutions.ts 登记解为种子，继续优化
+  const start = raw && !raw.startsWith('--') ? parseSources(raw) : (KNOWN_SOLUTIONS[level.id] ?? [])
   const cap = Number(opt('--refine-cap', '90'))
   const budgetMs = Number(opt('--refine-ms', '180000'))
   const workers = Math.min(

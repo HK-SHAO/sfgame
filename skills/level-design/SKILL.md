@@ -114,8 +114,11 @@ cd sfgame-web
 bun run scripts/run-level.ts levels/level-N.json --sim 150
 # 可解性自查（可选）：手摆一版确认可通关（结果不写入关卡文件）
 bun run scripts/run-level.ts levels/level-N.json --verify 20-29.3-h,50-21.3-h
-# 解精炼（可选）：以已知解为种子坐标下降，路程/总耗时压到局部最优，见 §7
+# 解精炼（可选）：以已知解为种子坐标下降，路程/总耗时压到局部最优，见 §7；无参时自动以登记解为种子
 bun run scripts/run-level.ts levels/level-N.json --refine 20-29.3-h,50-21.3-h
+# 已知解回归验证：scripts/known-solutions.ts 登记了全部 15 关的解（精筛验证过、坐标 1 位小数），
+# 物理/关卡改动后跑一遍，全部应仍通关
+bun run scripts/run-level.ts levels/level-N.json --verify-known
 ```
 
 **用调参破坏挂机时别单点碰运气**：挂机通关与否对参数非单调（实测同一风扇档 temp=-0.2 破坏挂机、-0.3 反而又通关）；用参数扫描把候选档全验一遍，选**全档失效**的鲁棒组合（辅助脚本 `scripts/tune-scan.ts`：批量改 ambient.temp/风扇功率后跑挂机）。
@@ -190,4 +193,5 @@ bun run scripts/run-level.ts levels/level-N.json --refine 20-29.3-h,50-21.3-h [-
    触发 vite HMR，无需构建插件）；按关卡分组把 id 加进 `LEVEL_GROUPS` 对应组，选项卡自动出现
 3. 同步 `tests/level-format.test.ts` 的 id/组枚举（新关卡组加组名断言）
 4. 走完第 5 节设计工作流
-5. 选关页与 URL 直达（`?lv=N&s=…`）自动生效，无需额外 UI 改动；玩家通关后解法自动本地记录
+5. 把自查通过的解登记进 `scripts/known-solutions.ts`（回归基线 + 后续优化种子）
+6. 选关页与 URL 直达（`?lv=N&s=…`）自动生效，无需额外 UI 改动；玩家通关后解法自动本地记录

@@ -22,7 +22,7 @@ export class SfTitleScreen extends LitElement {
     return html`
       <main class="title">
         <section class="title-card">
-          <!-- 品牌组合图（透明 PNG，含 LOGO/大标题/副标题）：替代原 logo+h1+tagline -->
+          <!-- 品牌组合图（透明 webp，含 LOGO/大标题/副标题）：替代原 logo+h1+tagline -->
           <img
             class="brand"
             src="./logo-title.webp"

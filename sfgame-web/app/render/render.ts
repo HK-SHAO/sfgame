@@ -91,7 +91,8 @@ const FAN_SPIN_RATE = 8
 const FAN_ELLIPSE_K = 0.5
 const FLAG_RESPONSE_BASE = 1.2
 const FLAG_RESPONSE_WIND = 3
-const POLE_HEIGHT = 5.7
+// 旗杆高：原 5.7 的约 2/3（目标区压低，避免遮挡视线；旗面仍从杆顶垂挂）
+const POLE_HEIGHT = 3.8
 const POLE_W = 0.34
 const POLE_FABRIC_LEN = 1.8
 const SLEEVE_W = 0.4
@@ -103,13 +104,6 @@ const TERRAIN_MAX_STEP = 2
 // 弦中点-曲线偏差容差（弦偏差自适应采样）：曲线在段内弓起超过此值即加密发射——
 // 陡坡上小角度误差×长弦=巨大垂直偏差（旧"角度变化"判据在 L4 转角偏差达 1.5 单位）
 const TERRAIN_DEV_TOL = 0.02
-
-// 影子：机身轮廓的垂直投影——沿地表采样暗色折线（贴地形、永不探出地表，高空仍可见）；
-// 两端圆盘收圆
-const SHADOW_SAMPLES = 5
-const SHADOW_W = 0.4
-const SHADOW_MAX_ALPHA = 0.3
-const SHADOW_FADE = 0.004
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement
@@ -550,39 +544,16 @@ export class Renderer {
 
   private static readonly PLANE_LOCAL = PLANE_LOCAL
   private planeWorld = new Float32Array(8)
-  private shadowPts = new Float32Array(SHADOW_SAMPLES * 2)
 
   private drawPlane(b: MeshBatch, sim: LevelSimulation) {
     const p = sim.plane
     const cos = Math.cos(p.angle)
     const sin = Math.sin(p.angle)
     const w = this.planeWorld
-    let minX = Infinity
-    let maxX = -Infinity
     for (let i = 0; i < 4; i++) {
       const [lx, ly] = Renderer.PLANE_LOCAL[i]
       w[i * 2] = p.x + lx * cos - ly * sin
       w[i * 2 + 1] = p.y + lx * sin + ly * cos
-      if (w[i * 2] < minX) minX = w[i * 2]
-      if (w[i * 2] > maxX) maxX = w[i * 2]
-    }
-    // 影子 = 机身轮廓的垂直投影：采样范围取顶点 x 跨度，陡坡上不沿坡面"飘"到机身之上；
-    // 投影点钳制在飞机高度以下（groundExt 而非 level.ground：飞机可飞出地图）——
-    // 否则崖壁地形高于机身时影子会画到飞机上方
-    const alt = sim.groundExt(p.x) - p.y
-    const shA = SHADOW_MAX_ALPHA - alt * SHADOW_FADE
-    if (shA > 0) {
-      const pts = this.shadowPts
-      const halfW = SHADOW_W / 2
-      for (let k = 0; k < SHADOW_SAMPLES; k++) {
-        const sx = minX + ((maxX - minX) * k) / (SHADOW_SAMPLES - 1)
-        pts[k * 2] = sx
-        pts[k * 2 + 1] = Math.max(sim.groundExt(sx), p.y)
-      }
-      b.polyline(pts, SHADOW_SAMPLES * 2, SHADOW_W, ...INK_DARK, shA)
-      // 两端圆盘收圆（与内核 round stroke 同构：半径 = 线宽一半）
-      b.disc(pts[0], pts[1], halfW, halfW, 0, 8, ...INK_DARK, shA)
-      b.disc(pts[(SHADOW_SAMPLES - 1) * 2], pts[(SHADOW_SAMPLES - 1) * 2 + 1], halfW, halfW, 0, 8, ...INK_DARK, shA)
     }
 
     b.tri(w[0], w[1], w[2], w[3], w[4], w[5], ...PAPER, 1)

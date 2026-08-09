@@ -254,9 +254,9 @@ export class SfApp extends LitElement {
     let content: TemplateResult
     if (this.screen === 'game') content = this.renderGame()
     else if (this.screen === 'dev') {
+      // dev 页返回固定回主页并保留当前 dev：history.back 会穿越 replace 之前的旧条目（携带旧 dev 值，已关闭的开发者模式会"复活"）
       content = html`<sf-dev-menu
         .dev=${this.dev}
-        // dev 页返回固定回主页并保留当前 dev：history.back 会穿越 replace 之前的旧条目（携带旧 dev 值，已关闭的开发者模式会"复活"）
         @back=${this.backToTitle}
         @open-storage=${this.openStorage}
         @toggle-dev=${this.toggleDev}

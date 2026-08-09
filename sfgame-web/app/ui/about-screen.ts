@@ -4,7 +4,7 @@ import { iconBack } from './icons'
 import { artBg, boxReset, pageShell } from './shared-styles'
 import './about-card'
 
-// 关于页：与 dev/存储页同构（pageShell 玻璃栏 + artBg），内容全部来自 sf-about-card
+// 关于页：与 dev/存储页同构，内容全部来自 sf-about-card
 @customElement('sf-about')
 export class SfAboutScreen extends LitElement {
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))

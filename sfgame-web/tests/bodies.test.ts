@@ -29,7 +29,7 @@ test('飞出地图：不受边界拦截，延展地面仍接住它', () => {
   const ground = () => 40
   for (let i = 0; i < 120; i++) stepBody(body, fluid, DT, ground)
   expect(body.x).toBeGreaterThan(76) // 已越过地图右缘
-  expect(body.y).toBe(40) // 地图外延展地面仍接住它（不穿地）
+  expect(body.y).toBe(40) // 延展地面接住，不穿地
 })
 
 // 悬停阈值 HOVER_WIND = 1.0：上升风超过它才抬升，不足则继续下落

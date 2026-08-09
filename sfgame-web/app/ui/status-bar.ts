@@ -2,8 +2,7 @@ import { LitElement, css, html, type PropertyValues } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { formatPenalty, formatTime } from '../game/timer'
 
-// 声明式状态条：属性每帧由 sf-game 驱动（时间持续增长），shouldUpdate 内格式化比对短路，
-// 文本未变零渲染成本（等价旧命令式 refresh 的字符串缓存）
+// 声明式状态条：属性每帧由 sf-game 驱动，shouldUpdate 内格式化比对短路，文本未变零渲染成本
 @customElement('sf-status')
 export class SfStatusBar extends LitElement {
   @property({ type: Number }) levelId = 0

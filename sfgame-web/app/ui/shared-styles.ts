@@ -43,9 +43,8 @@ export const warmBg = css`
   background: var(--bg-warm);
 `
 
-// 全屏手绘背景图（1:1 cover，中央为安全区）：主菜单与各页面壳共用（:host 固定，滚动不随内容），
-// 渐变兜底铺满剩余区域，与图同色系无缝；图以 ?url 导入——JS 字符串里的 url() vite 不重写，会留绝对路径
-// （unsafeCSS 只包内部受控 URL 常量，非外部输入，无注入面）
+// 全屏手绘背景图（1:1 cover，中央为安全区）：主菜单与各页面壳共用（:host 固定，滚动不随内容）；
+// 图以 ?url 导入——JS 字符串里的 url() vite 不重写会留绝对路径（unsafeCSS 包受控常量，无注入面）
 export const artBg = css`
   :host {
     background:

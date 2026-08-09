@@ -7,7 +7,6 @@ import { iconAlert, iconChevron } from '../ui/icons'
 
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {
-  // 生效回调（DevTools 注入）：内联关卡 JSON 交 app 压 URL——读（urlState/levelSource）在本组件、写收敛到 app
   onApply?: (json: string) => void
   @state() private expanded = false
   @state() private editorText = ''
@@ -49,7 +48,7 @@ export class SfLevelEditor extends LitElement {
       background: var(--dev-hover);
     }
 
-    /* 折叠图标与面板头部图标同规格（0.75rem 描边 chevron），展开旋转 90° */
+    /* 折叠图标与面板头部图标同规格；展开旋转 90° */
     .toggle svg {
       flex: none;
       width: 0.75rem;
@@ -109,7 +108,7 @@ export class SfLevelEditor extends LitElement {
       background: var(--dev-hover);
     }
 
-    /* 校验失败容器：警示图标 + 文字，独立于编辑区成块；下间距隔开按钮行 */
+    /* 校验失败容器：独立成块，下间距隔开按钮行 */
     .error {
       display: flex;
       align-items: flex-start;
@@ -194,7 +193,7 @@ export class SfLevelEditor extends LitElement {
 
   private confirm() {
     try {
-      // parseLevelText 已校验+返回 LevelJson，直接序列化交 app 压 URL（回调由 DevTools 注入，读/写收敛到 app 一处）
+      // parseLevelText 已校验，直接序列化交 app 压 URL
       const json = JSON.stringify(parseLevelText(this.editorText))
       this.onApply?.(json)
       this.error = ''

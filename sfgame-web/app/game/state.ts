@@ -26,7 +26,7 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
 export type AppView = 'title' | 'dev' | 'storage' | 'about'
 
 // lv 双形态：整数 = 内置关卡 id；内联关卡 JSON（dev 编辑生效即压入 URL，见 level-editor.ts）。
-// 形态自判别无需前缀：id 为纯数字，base64url 必含字母（`eyJ` = `{"` 的固定编码，肉眼可辨）。
+// 形态自判别无需前缀：id 为纯数字，base64url 必含字母（`eyI` = `{"` 的固定编码，肉眼可辨）。
 export type LvValue = number | string | null
 
 export const lvCodec: UrlStateCodec<LvValue> = {

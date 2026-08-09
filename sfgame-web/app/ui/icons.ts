@@ -1,11 +1,11 @@
 import { html } from 'lit'
 
+// 火焰本体偏窄（x 6-18 vs 其余图标 4.5-19.5）：绕中心拉宽补齐视觉体量
 export const iconFlame = html`<svg
   viewBox="0 0 24 24"
   fill="currentColor"
   aria-hidden="true"
 >
-  <!-- 路径本体偏窄（x 6-18 vs 其余图标 4.5-19.5），绕中心拉宽补齐视觉体量 -->
   <g transform="translate(12 12) scale(1.17 1.03) translate(-12 -12)">
     <path
       d="M12 4.98c2.4 2.62 6 4.92 6 8.53a6 6 0 0 1-12 0c0-1.31.5-2.54 1.4-3.61.8.98 1.9 1.72 3 1.97-.8-2.38.1-4.92 1.6-6.89z"
@@ -13,6 +13,7 @@ export const iconFlame = html`<svg
   </g>
 </svg>`
 
+// 雪花本体偏小（x 6.15-17.85）：等比放大对齐其余图标占位，等比保证描边不变形
 export const iconSnow = html`<svg
   viewBox="0 0 24 24"
   fill="none"
@@ -21,7 +22,6 @@ export const iconSnow = html`<svg
   stroke-linecap="round"
   aria-hidden="true"
 >
-  <!-- 雪花本体偏小（x 6.15-17.85），绕中心等比放大对齐其余图标占位；等比保证描边不变形 -->
   <g transform="translate(12 12) scale(1.15) translate(-12 -12)">
     <line x1="12" y1="5.25" x2="12" y2="18.75" />
     <line x1="6.15" y1="8.63" x2="17.85" y2="15.38" />

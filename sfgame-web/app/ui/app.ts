@@ -76,7 +76,7 @@ export class SfApp extends LitElement {
     super.disconnectedCallback()
   }
 
-  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续，便于连续迭代
+  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续
   private syncDevTools() {
     if (this.screen === 'game' && this.dev) {
       if (!this.devTools) this.devTools = new DevTools({ onApply: this.onDevOverride })
@@ -288,7 +288,7 @@ export class SfApp extends LitElement {
         ${keyed(
           // keyed 按对象身份重建：关卡内容变化时必须重建 sf-game
           this.activeLevel,
-          // 事件名用字面量：Lit 模板不支持动态事件名（@${expr} 静默失效）；协议定义见 sf-game.ts 的 HUD_CHANGE/DENY/SRC_CHANGE
+          // 事件名用字面量：Lit 模板不支持动态事件名（@${expr} 静默失效）
           html`<sf-game
             .level=${this.activeLevel}
             .initialSources=${this.initialSources}

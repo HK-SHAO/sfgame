@@ -3,8 +3,7 @@ import { customElement } from 'lit/decorators.js'
 import { author, description, version } from '../../package.json'
 import { boxReset, card } from './shared-styles'
 
-// 关于卡片：dev 页与独立关于页共用（信息单源，避免双处漂移）；
-// 品牌组合图（透明 PNG 含 LOGO/标题/副标题）小号展示，内容左对齐
+// 关于卡片：dev 页与独立关于页共用（信息单源，避免双处漂移）；品牌组合图小号展示
 @customElement('sf-about-card')
 export class SfAboutCard extends LitElement {
   protected override render() {

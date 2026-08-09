@@ -22,7 +22,6 @@ export class SfTitleScreen extends LitElement {
     return html`
       <main class="title">
         <section class="title-card">
-          <!-- 品牌组合图（透明 webp，含 LOGO/大标题/副标题）：替代原 logo+h1+tagline -->
           <img
             class="brand"
             src="./logo-title.webp"
@@ -324,7 +323,7 @@ export class SfTitleScreen extends LitElement {
         font-weight: 600;
       }
 
-      /* 最佳成绩徽章：仅有关卡记录时出现（与结算面板同口径），绿系呼应"纪录"语义 */
+      /* 最佳成绩徽章：仅有关卡记录时出现；绿系呼应"纪录"语义 */
       .level .best {
         flex: none;
         padding: 0.1875rem 0.5rem;

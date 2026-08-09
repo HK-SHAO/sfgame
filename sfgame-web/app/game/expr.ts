@@ -12,7 +12,6 @@ const smoothstepCurve = (t: number) => {
   return c * c * (3 - 2 * c)
 }
 
-// 参数个数守卫（bump/gauss/smoothstep 等固定 arity 函数共用）
 const expectArgs = (args: unknown[], n: number, name: string) => {
   if (args.length !== n) throw new ExprError(`${name} 需 ${n} 参`)
 }

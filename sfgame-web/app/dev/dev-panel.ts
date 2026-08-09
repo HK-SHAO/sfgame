@@ -24,7 +24,7 @@ export class SfDevPanel extends LitElement {
     :host {
       position: fixed;
       inset: 0;
-      /* 四周间距/安全区全由外边距让开：面板内部坐标从 0 起，天然避让刘海/Home 指示条 */
+      /* 间距/安全区全由外边距让开（见组件级注释）：内部坐标从 0 起 */
       margin: calc(var(--dev-gap) + env(safe-area-inset-top, 0px))
         calc(var(--dev-gap) + env(safe-area-inset-right, 0px))
         calc(var(--dev-gap) + env(safe-area-inset-bottom, 0px))
@@ -201,7 +201,7 @@ export class SfDevPanel extends LitElement {
 
   private onWinResize = () => {
     if (this.dragging || !this.ready) return
-    // 容器尺寸随外边距/根字号自适应，只需按新边界重贴
+    // 外边距/根字号变化只改边界，按新边界重贴即可
     this.snapToEdge()
   }
 

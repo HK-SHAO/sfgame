@@ -108,7 +108,7 @@ export class LevelSimulation {
     return this.unlimited ? Infinity : this.level.budget.cold - this.usedCold
   }
 
-  // 源计数增减（热/冷双分支，place 与 remove 共用的唯一落点）
+  // 源计数增减：place 与 remove 共用的唯一落点
   private charge(kind: SourceKind, delta: number) {
     if (kind === 'hot') this.usedHot += delta
     else this.usedCold += delta
@@ -261,7 +261,7 @@ export class LevelSimulation {
   }
 }
 
-// 摇头风扇当前朝向：dir 为基线，swing 摆幅按 period 正弦摆动（纯函数，模拟与渲染共用）
+// 摇头风扇当前朝向：纯函数，模拟与渲染共用
 export function fanDirection(f: FanDef, t: number): number {
   if (f.swing === undefined || f.period === undefined || f.swing <= 0) return f.dir
   return f.dir + f.swing * Math.sin((Math.PI * 2 * t) / f.period)

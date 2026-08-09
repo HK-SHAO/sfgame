@@ -17,9 +17,8 @@ export interface DenyDetail {
   clientY: number
 }
 
-// HUD 状态经事件派发；状态条由 onStatus 直推 @state（值不变短路零开销）。
-// 两者都只能在更新周期外发生：start/applySources 内含同步 render（onStatus 直写）与事件派发，
-// 须等 updateComplete（首轮 update 完成）后再启动，否则 firstUpdated 同步链内写 @state 触发 change-in-update
+// HUD 经事件派发、状态条直推 @state：都须在更新周期外（start/applySources 内含同步 render 与事件派发），
+// 否则 firstUpdated 同步链内写 @state 触发 change-in-update
 @customElement('sf-game')
 export class SfGame extends LitElement {
   @property({ attribute: false }) level: LevelDef | null = null
@@ -27,7 +26,7 @@ export class SfGame extends LitElement {
   @property({ attribute: false }) rate = 1
   @property({ attribute: false }) devTools: PerfRecorder | null = null
 
-  // 状态条数据：controller 每帧经 onStatus 回调直推（rAF 内、更新周期外，无 change-in-update）
+  // 状态条数据：onStatus 每帧直推（rAF 内、更新周期外）
   @state() private statusTime = 0
   @state() private statusPenalty = 0
 
@@ -38,7 +37,7 @@ export class SfGame extends LitElement {
 
   private controller: GameController | null = null
 
-  // 波纹跟随点击：client 坐标 → 宿主相对坐标，动画结束后隐藏（单节点 animate 复用）
+  // 波纹跟随点击：client 坐标 → 宿主相对坐标（单节点 animate 复用）
   private showDeny(clientX: number, clientY: number) {
     const host = this.getBoundingClientRect()
     this.denyRing.style.left = `${clientX - host.left}px`
@@ -71,8 +70,8 @@ export class SfGame extends LitElement {
         this.statusPenalty = extra
       },
     }, this, this.devTools)
-    // 首轮 update 完成后再启动：start() 内 fit 会同步 render → onStatus 直写 @state，
-    // 在 firstUpdated 同步链内值变化会触发 change-in-update（如 URL 带源直达时罚时 0→4）
+    // 首轮 update 完成后再启动：start 内 fit 同步 render → onStatus 直写 @state，
+    // firstUpdated 链内值变触发 change-in-update（如 URL 带源直达罚时 0→4）
     void this.updateComplete.then(() => {
       this.controller?.applySources(this.initialSources, true)
       this.controller?.start()
@@ -134,7 +133,7 @@ export class SfGame extends LitElement {
         background: #fff8ea;
       }
 
-      /* 放置被拒的统一波纹：绝对定位单节点，随点击移动，不拦截指针 */
+      /* 放置被拒波纹：单节点，不拦截指针 */
       .deny-ring {
         position: absolute;
         left: 0;

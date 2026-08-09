@@ -29,7 +29,6 @@ export class PerformanceGovernor {
     return this._dprTier
   }
 
-  // 每帧上报成本与速率；持续超预算时返回应降的档，无动作为 null
   record(costMs: number, rate: number): boolean {
     this.frameEma =
       this.frameEma === 0 ? costMs : this.frameEma * this.emaSmooth + costMs * (1 - this.emaSmooth)

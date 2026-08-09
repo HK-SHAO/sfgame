@@ -26,7 +26,7 @@ export interface GoalDef {
   r: number
 }
 
-// 关卡自带、玩家不可移除/撤销的热冷源（不占预算）；kind 枚举同玩家源；power 可选（默认 1，强度倍数，语义对齐 FanDef.power）
+// 关卡自带、玩家不可移除/撤销的热冷源（不占预算）；power 可选（默认 1，强度倍数）
 export interface FixedSourceDef {
   x: number
   y: number

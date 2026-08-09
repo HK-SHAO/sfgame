@@ -25,7 +25,7 @@ type RGB = readonly [number, number, number]
 // 轨迹尾段渐变：靠近起点的采样点线性减淡（头实尾虚）
 const tailFade = (k: number, segs: number) => (k < segs ? k / segs : 1)
 
-// 颜色线性插值（drawTracers 5 处 lerp 共用；模块级无闭包，每帧零开销）
+// 颜色插值（5 处共用）：模块级无闭包，每帧零开销
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 
 // 云的单个凸起盘（底盘外的装饰凸起；与底盘同色渐变，交叠处无缝）
@@ -70,8 +70,7 @@ const LINE_ALPHA_AMBIENT = 0.18
 const LINE_ALPHA_COLORED = 0.42
 const TRACER_LINE_WIDTH = 0.3
 const TRACER_HEAD_RADIUS = 0.3
-// 拖尾尾端空间淡出段数（采样距 × 段数 = 淡出长度）：保证最旧端 alpha 恒为 0，
-// 避免缓冲写满/时间淡出未尽时线段末端出现可见切口
+// 拖尾尾端空间淡出段数（采样距 × 段数 = 淡出长度）：保证最旧端 alpha 恒为 0，避免线段末端可见切口
 const TRACER_TAIL_SEGS = 5
 const PLANE_TRAIL_TAIL_SEGS = 8
 const PLANE_TRAIL_WIDTH = 0.36
@@ -101,7 +100,7 @@ const SLEEVE_LEN = POLE_FABRIC_LEN + POLE_W / 2 - SLEEVE_W / 2
 
 const TERRAIN_STEP = 0.25
 const TERRAIN_MAX_STEP = 2
-// 弦中点-曲线偏差容差（弦偏差自适应采样）：曲线在段内弓起超过此值即加密发射——
+// 弦中点-曲线偏差容差（弦偏差自适应采样）：曲线弓起超此值即加密发射——
 // 陡坡上小角度误差×长弦=巨大垂直偏差（旧"角度变化"判据在 L4 转角偏差达 1.5 单位）
 const TERRAIN_DEV_TOL = 0.02
 
@@ -120,7 +119,7 @@ export class Renderer {
   private terrainPts = new Float32Array(256)
   private terrainN = 0
   // 地形折线缓存：地面静态，点列只在视域/关卡变化时重烘（否则每帧数百次地面表达式求值白费）；
-  // 每帧仍需重发（遮挡契约：地形填充盖住漂移的云），缓存只免求值不免 tessellation
+  // 每帧仍需重发（地形填充盖住漂移的云），缓存只免求值不免 tessellation
   private terrainGround: ((x: number) => number) | null = null
   private terrainViewL = Number.NaN
   private terrainViewR = Number.NaN

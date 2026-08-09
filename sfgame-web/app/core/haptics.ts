@@ -1,5 +1,4 @@
-// 震动反馈（Vibration API，仅 Android 系可用；iOS Safari 不支持 → 特性检测后静默 no-op）
-// 无状态实现，零内存负担；只服务游戏内物理事件，UI 导航点击不震（高频震动即噪音）
+// 震动反馈（Vibration API，仅 Android 可用；iOS 不支持 → 特性检测 no-op）；UI 导航不震（高频震动即噪音）
 class Haptics {
   muted = false
 

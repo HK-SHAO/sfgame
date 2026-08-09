@@ -23,8 +23,7 @@ const LEVEL_TEXTS = [
   level11, level12, level13, level14, level15,
 ]
 
-// 关卡图（主页选项卡 + 解锁/导航的单一事实来源）：组内顺序 = ids 数组顺序，
-// JSON 只承载关卡内容，不再声明归属
+// 关卡图（主页选项卡 + 解锁/导航的单一事实来源）：JSON 不声明归属，组内顺序 = ids 数组顺序
 export interface LevelGroup {
   name: string
   ids: readonly number[]
@@ -55,7 +54,7 @@ for (const text of LEVEL_TEXTS) {
   }
 }
 
-// 按图序展开：组序 + 组内序（缺关卡跳过），与解锁/导航顺序一致
+// 按图序展开（缺关卡跳过）：与解锁/导航顺序一致
 export const LEVELS: LevelDef[] = LEVEL_GROUPS.flatMap((g) =>
   g.ids.map((id) => LEVELS_BY_ID.get(id)).filter((l): l is LevelDef => l !== undefined),
 )
@@ -64,7 +63,7 @@ function groupOf(id: number): LevelGroup | undefined {
   return LEVEL_GROUPS.find((g) => g.ids.includes(id))
 }
 
-// 下一关：组内顺延，组尾跨入下一组首关（线性 = LEVELS 组序 + 组内序），最后一关无下一关
+// 下一关：组内顺延，组尾跨入下一组首关，最后一关无下一关
 export function nextLevel(id: number): number | undefined {
   const idx = LEVELS.findIndex((l) => l.id === id)
   return idx >= 0 ? LEVELS[idx + 1]?.id : undefined
@@ -79,8 +78,7 @@ export function isUnlocked(id: number, completed: (id: number) => boolean): bool
   return completed(g.ids[i - 1]) || completed(id)
 }
 
-// lv 双形态解析：数字 = 内置关卡；字符串 = URL 内联关卡 JSON（state.ts 编解码，解析失败视为无效）。
-// 数字分支走 LEVELS_BY_ID（O(1)）；字符串为外部输入必须完整校验
+// lv 双形态解析：数字 = 内置关卡；字符串 = URL 内联 JSON（解析失败视为无效，外部输入须完整校验）
 export function resolveLevel(lv: LvValue): LevelDef | undefined {
   if (typeof lv === 'number') return LEVELS_BY_ID.get(lv)
   if (typeof lv === 'string') {

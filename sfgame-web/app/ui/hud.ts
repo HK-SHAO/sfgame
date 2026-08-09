@@ -5,7 +5,7 @@ import type { SourceKind } from '../sim/types'
 import { boxReset, reduceMotion } from './shared-styles'
 import { iconFlame, iconHome, iconPause, iconPlay, iconReset, iconSnow, iconSoundOff, iconSoundOn } from './icons'
 
-// 游戏 HUD 头：从 app.ts 拆出（热冷余量、主页/暂停/速率/重置/声音按钮 + deny 抖动动画）
+// 游戏 HUD 头：从 app.ts 拆出（热冷余量 + 主页/暂停/速率/重置/声音按钮 + deny 抖动）
 @customElement('sf-hud')
 export class SfHud extends LitElement {
   @property({ attribute: false }) hud: HudState = {
@@ -24,7 +24,7 @@ export class SfHud extends LitElement {
     return this.rate < 1 ? '0.5×' : `${this.rate}×`
   }
 
-  // 放置被拒的抖动提示：目标在 hud 内，动画就地执行
+  // 放置被拒抖动：目标在 hud 内，动画就地执行
   deny(kind: SourceKind) {
     void this.updateComplete.then(() => {
       const el = this.renderRoot.querySelector<HTMLElement>(`.chip.${kind}`)

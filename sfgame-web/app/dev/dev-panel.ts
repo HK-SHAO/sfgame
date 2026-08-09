@@ -48,7 +48,6 @@ export class SfDevPanel extends LitElement {
       border-radius: var(--r-md);
       corner-shape: squircle;
       background: rgba(20, 18, 14, 0.72);
-      -webkit-backdrop-filter: blur(1rem);
       color: var(--dev-fg);
       touch-action: none;
       user-select: none;

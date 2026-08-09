@@ -265,8 +265,8 @@ export class SfStorage extends LitElement {
       gap: 0.625rem;
       /* 文字防撞背景图色：与条目卡同款雾面玻璃 */
       background: var(--card);
-      backdrop-filter: blur(1.5rem) saturate(1.4);
-      -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
+      backdrop-filter: var(--blur-glass);
+      -webkit-backdrop-filter: var(--blur-glass);
       border: 1px solid rgba(255, 255, 255, 0.6);
       border-radius: var(--r-xl);
       corner-shape: squircle;

@@ -169,8 +169,8 @@ export class SfHud extends LitElement {
         border-radius: var(--r-md);
         corner-shape: squircle;
         background: rgba(255, 253, 248, 0.66);
-        backdrop-filter: blur(1rem) saturate(1.5);
-        -webkit-backdrop-filter: blur(1rem) saturate(1.5);
+        backdrop-filter: var(--blur-glass);
+        -webkit-backdrop-filter: var(--blur-glass);
         border: 1px solid rgba(255, 255, 255, 0.55);
         box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
         color: var(--ink);
@@ -195,8 +195,8 @@ export class SfHud extends LitElement {
         border-radius: var(--r-md);
         corner-shape: squircle;
         background: rgba(255, 253, 248, 0.66);
-        backdrop-filter: blur(1rem) saturate(1.5);
-        -webkit-backdrop-filter: blur(1rem) saturate(1.5);
+        backdrop-filter: var(--blur-glass);
+        -webkit-backdrop-filter: var(--blur-glass);
         border: 1px solid rgba(255, 255, 255, 0.55);
         box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
         font-size: 0.875rem;

@@ -10,6 +10,8 @@
   --card-warm: rgba(255, 237, 209, 0.6);
   --scrim: rgba(61, 52, 39, 0.2);
   --ink-wash: rgba(61, 52, 39, 0.07);
+  /* 玻璃雾面统一配方：全项目 backdrop-filter 只走这一个 token（shadow DOM 继承自定义属性，须在 :root 定义） */
+  --blur-glass: blur(1rem) saturate(1.5);
   /* 尺寸 token：间距/圆角/控件高/卡片宽，全部 rem 随根字号等比缩放 */
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;

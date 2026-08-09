@@ -65,8 +65,8 @@ export class SfWinOverlay extends LitElement {
         calc(var(--page-pad-y) + env(safe-area-inset-bottom, 0px))
         calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
       background: var(--scrim);
-      backdrop-filter: blur(0.19rem);
-      -webkit-backdrop-filter: blur(0.19rem);
+      backdrop-filter: var(--blur-glass);
+      -webkit-backdrop-filter: var(--blur-glass);
       animation: fade 260ms ease-out;
     }
 
@@ -78,8 +78,8 @@ export class SfWinOverlay extends LitElement {
       text-align: center;
       /* 雾面玻璃（与全局卡片同质感）：结算卡下的游戏画面晕开 */
       background: var(--card);
-      backdrop-filter: blur(1.5rem) saturate(1.4);
-      -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
+      backdrop-filter: var(--blur-glass);
+      -webkit-backdrop-filter: var(--blur-glass);
       border: 1px solid rgba(255, 255, 255, 0.7);
       border-radius: var(--r-xl);
       corner-shape: squircle;

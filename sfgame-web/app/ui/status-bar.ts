@@ -62,8 +62,8 @@ export class SfStatusBar extends LitElement {
       font-variant-numeric: tabular-nums;
       text-align: center;
       background: rgba(255, 253, 248, 0.78);
-      backdrop-filter: blur(1rem) saturate(1.5);
-      -webkit-backdrop-filter: blur(1rem) saturate(1.5);
+      backdrop-filter: var(--blur-glass);
+      -webkit-backdrop-filter: var(--blur-glass);
       border: 1px solid rgba(255, 255, 255, 0.6);
       border-radius: var(--r-lg);
       corner-shape: squircle;

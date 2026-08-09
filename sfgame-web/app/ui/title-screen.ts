@@ -134,8 +134,8 @@ export class SfTitleScreen extends LitElement {
         text-align: center;
         /* 白雾玻璃：半透明白 + 轻模糊，背景图若隐若现（比其余页卡片更透） */
         background: rgba(255, 252, 245, 0.55);
-        backdrop-filter: blur(1rem) saturate(1.3);
-        -webkit-backdrop-filter: blur(1rem) saturate(1.3);
+        backdrop-filter: var(--blur-glass);
+        -webkit-backdrop-filter: var(--blur-glass);
         border: 1px solid rgba(255, 255, 255, 0.6);
         border-radius: var(--r-xl);
         corner-shape: squircle;

@@ -76,8 +76,8 @@ export const pageShell = css`
     padding: calc(0.75rem + env(safe-area-inset-top, 0px)) calc(var(--page-pad-x) + env(safe-area-inset-right, 0px)) 0.75rem
       calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
     background: rgba(255, 253, 248, 0.6);
-    backdrop-filter: blur(1.5rem) saturate(1.6);
-    -webkit-backdrop-filter: blur(1.5rem) saturate(1.6);
+    backdrop-filter: var(--blur-glass);
+    -webkit-backdrop-filter: var(--blur-glass);
     border-bottom: 1px solid rgba(255, 255, 255, 0.45);
     box-shadow: 0 0.25rem 1rem rgba(61, 52, 39, 0.08);
     /* 底角圆润与卡片/按钮一致；顶角贴视口上沿，不圆 */
@@ -110,8 +110,8 @@ export const pageShell = css`
     border-radius: var(--r-md);
     corner-shape: squircle;
     background: rgba(255, 253, 248, 0.66);
-    backdrop-filter: blur(1rem) saturate(1.5);
-    -webkit-backdrop-filter: blur(1rem) saturate(1.5);
+    backdrop-filter: var(--blur-glass);
+    -webkit-backdrop-filter: var(--blur-glass);
     border: 1px solid rgba(255, 255, 255, 0.55);
     box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
     color: var(--ink);
@@ -134,10 +134,10 @@ export const card = css`
     max-width: var(--maxw-card);
     margin: 0 auto var(--sp-4);
     padding: var(--sp-2);
-    /* 雾面玻璃：白底 + 模糊（与 bar 同半径），背景图在卡后晕开——所有卡片统一此质感 */
+    /* 雾面玻璃：白底 + 统一模糊（--blur-glass），背景图在卡后晕开——所有卡片统一此质感 */
     background: var(--card);
-    backdrop-filter: blur(1.5rem) saturate(1.4);
-    -webkit-backdrop-filter: blur(1.5rem) saturate(1.4);
+    backdrop-filter: var(--blur-glass);
+    -webkit-backdrop-filter: var(--blur-glass);
     border: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: var(--r-lg);
     corner-shape: squircle;

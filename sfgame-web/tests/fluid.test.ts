@@ -103,6 +103,40 @@ test('ambient 横向风顺坡而上（基场绕流）', () => {
   expect(air.y).toBeGreaterThan(0.05)
 })
 
+// 环境温度偏置：不进状态场、浮力消费时叠加——热=全域升、冷=全域沉；sampleTemp 返回总温度
+test('ambient.temp 均匀温度偏置驱动全域升沉流', () => {
+  const cfg: FluidConfig = {
+    nx: 56,
+    ny: 40,
+    cell: 1.5,
+    buoyancy: 2,
+    tMax: 9,
+    heatRate: 0,
+    sourceRadius: 3.4,
+    velDamping: 1,
+    tDamping: 1,
+    iterations: 12,
+    vorticity: 0,
+    margin: 6,
+  }
+  const air = { x: 0, y: 0 }
+  // 冷：均匀下沉（y 向下，下沉即 v > 0）
+  const fc = createFluid(cfg)
+  fc.setAmbient(0, 0, -0.5)
+  for (let i = 0; i < 30; i++) fc.step(DT)
+  fc.sampleVelocity(42, 27, air)
+  expect(air.y).toBeGreaterThan(0.1)
+  // 感受温度 = 场温（无源≈ 0）+ 偏置
+  expect(fc.sampleTemp(42, 27)).toBeCloseTo(-0.5, 5)
+  // 热：均匀上升，符号相反
+  const fh = createFluid(cfg)
+  fh.setAmbient(0, 0, 0.5)
+  for (let i = 0; i < 30; i++) fh.step(DT)
+  fh.sampleVelocity(42, 27, air)
+  expect(air.y).toBeLessThan(-0.1)
+  expect(fh.sampleTemp(42, 27)).toBeCloseTo(0.5, 5)
+})
+
 // 开放域：流体网格 = 地图外扩边距。风流出地图无墙体堆积；边距吸收层清理流出的热，不反射回场内
 test('流出边界：风丝滑流出地图，边距吸收外流能量', () => {
   const f = createFluid({

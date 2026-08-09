@@ -161,3 +161,27 @@ test('新原子校验：fixed/fans 合法放行、非法被拒', () => {
   bad((x) => (x.fans = [{ x: 10, y: 20, dir: 0, power: 2, swing: 4 }]), /swing/)
   bad((x) => (x.fans = [{ x: 10, y: 20, dir: 0, power: 2, period: -1 }]), /period/)
 })
+
+test('ambient.temp 校验：[-10, 10] 内放行，越界/非数值被拒', () => {
+  const json = (o: object) => JSON.stringify(o)
+  const base = {
+    schema: 1, id: 21, name: 't', tagline: 't', win: { title: 't', text: 't' },
+    world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: '40' },
+    budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+  }
+  const ok = (extra: object) => expect(validateLevelJson(parseLevelText(json({ ...base, ...extra })))).toEqual([])
+  ok({ ambient: { x: 1, y: 0, temp: 0.5 } })
+  ok({ ambient: { x: 1, y: 0, temp: -1 } })
+  ok({ ambient: { x: 1, y: 0, temp: 10 } })
+  ok({ ambient: { x: 1, y: 0, temp: -10 } })
+  ok({ ambient: { x: 1, y: 0 } })
+  const j = parseLevelText(json(base)) as unknown as Record<string, unknown>
+  const bad = (mut: (x: Record<string, unknown>) => void, re: RegExp) => {
+    const clone = structuredClone(j)
+    mut(clone)
+    expect(validateLevelJson(clone).join('；')).toMatch(re)
+  }
+  bad((x) => (x.ambient = { x: 1, y: 0, temp: 10.5 }), /temp/)
+  bad((x) => (x.ambient = { x: 1, y: 0, temp: -11 }), /temp/)
+  bad((x) => (x.ambient = { x: 1, y: 0, temp: 'hot' }), /temp/)
+})

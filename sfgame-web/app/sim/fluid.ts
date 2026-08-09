@@ -24,8 +24,8 @@ export interface FluidLike {
   readonly ny: number
   readonly cell: number
   clear(): void
-  // 环境风强度：采样 = 模拟场 + 位流基场×强度（基场在地形变更时烘焙，贴地绕流）
-  setAmbient(x: number, y: number): void
+  // 环境风强度与温度偏置：采样 = 模拟场 + 位流基场×强度；temp 在浮力/温度采样消费时叠加
+  setAmbient(x: number, y: number, temp?: number): void
   setGroundMask(groundY: (x: number) => number): void
   addHeat(wx: number, wy: number, amount: number): void
   // 动量注入：以 (fx,fy) 方向在 radius 圆域内给速度场加 amount（调用方负责 dt 缩放）
@@ -172,11 +172,12 @@ export class WasmFluid implements FluidLike {
     this.ex.clear()
   }
 
-  setAmbient(x: number, y: number) {
-    this.ex.setAmbient(x, y)
-    // 引擎共享环境状态：渲染零拷贝采样据此叠加基场（与 wasm 侧 sampleVelocity 同语义）
+  setAmbient(x: number, y: number, temp = 0) {
+    this.ex.setAmbient(x, y, temp)
+    // 引擎共享环境状态：渲染零拷贝采样据此叠加基场/温度着色（与 wasm 侧消费同语义）
     this.engine.ambient.x = x
     this.engine.ambient.y = y
+    this.engine.ambient.t = temp
   }
 
   setGroundMask(groundY: (x: number) => number) {

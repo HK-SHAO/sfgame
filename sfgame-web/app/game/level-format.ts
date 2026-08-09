@@ -164,6 +164,9 @@ export function validateLevelJson(raw: unknown): string[] {
   const a = j.ambient
   if (a !== undefined) {
     if (!isFin(a.x) || !isFin(a.y)) fail(ctx, 'ambient.x/y 必须为数值')
+    // 温度偏置经浮力放大（均衡升沉速 ≈ 11×|temp|）：0.1 微风、0.3 玩法级、≥1 极端；
+    // |temp|≥9 时与 tMax 钳制相互作用形成单极世界（见 level-design skill）
+    if (!optIn(a.temp, -10, 10)) fail(ctx, 'ambient.temp 需在 [-10, 10]')
     if (a.tide !== undefined) {
       if (!optPos(a.tide.period)) fail(ctx, 'ambient.tide.period 必须为正数')
       if (!optNum(a.tide.phase)) fail(ctx, 'ambient.tide.phase 必须为数值')

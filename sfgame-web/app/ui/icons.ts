@@ -150,6 +150,20 @@ export const iconInfo = html`<svg
   <path d="M12 8h.01" />
 </svg>`
 
+export const iconAlert = html`<svg
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+>
+  <path d="M12 4 3.5 20h17L12 4z" />
+  <path d="M12 10v4" />
+  <path d="M12 17h.01" />
+</svg>`
+
 export const iconChevron = html`<svg
   viewBox="0 0 24 24"
   fill="none"

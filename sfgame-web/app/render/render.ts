@@ -486,8 +486,9 @@ export class Renderer {
     for (let i = 0; i < count && m < cap; i++) {
       const env = tracers.envelope(i)
       if (env <= VISIBLE_ALPHA) continue
-      // 零拷贝采样：直读共享内存流体场（环境风 = 基场×强度，与 wasm 采样同构）
-      const temp = bilinearSample(f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell, org.x, org.y, amb.x, amb.y, tracers.x[i], tracers.y[i], air)
+      // 零拷贝采样：直读共享内存流体场（环境风 = 基场×强度，与 wasm 采样同构）；
+      // 着色用总温度 = 场温 + 环境偏置（与内核 sampleTemp/浮力同一事实源）
+      const temp = bilinearSample(f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell, org.x, org.y, amb.x, amb.y, tracers.x[i], tracers.y[i], air) + amb.t
       const sp2 = air.x * air.x + air.y * air.y
       const u = Math.tanh(Math.abs(temp) / AIR_SOFT)
       const to = temp >= 0 ? HOT : COLD

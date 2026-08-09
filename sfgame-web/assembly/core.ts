@@ -56,6 +56,9 @@ export let iterations: i32 = 0
 export let vorticity: f64 = 0
 let ambientX: f64 = 0
 let ambientY: f64 = 0
+// 环境温度偏置：不进状态场，消费时叠加（浮力 t+ambientT、sampleTemp）；
+// 0 时 t+0 逐位不变，存量关卡位级不受影响
+export let ambientT: f64 = 0
 
 let outVX: f64 = 0
 let outVY: f64 = 0
@@ -94,6 +97,7 @@ export function init(
   spongeTOut = 0.94
   ambientX = 0
   ambientY = 0
+  ambientT = 0
   clear()
   bakeAmbientBasis()
   return 0
@@ -107,9 +111,10 @@ export function clear(): void {
   memory.fill(p.dataStart, 0, bytes)
 }
 
-export function setAmbient(x: f64, y: f64): void {
+export function setAmbient(x: f64, y: f64, temp: f64): void {
   ambientX = x
   ambientY = y
+  ambientT = temp
 }
 
 // 环境风 = 预烘焙位流基场 × 强度（不再采样叠裸常数）：远场单位水平风、地面/顶面不可穿透、
@@ -347,12 +352,13 @@ export function sampleTemp(wx: f64, wy: f64): f64 {
   const b = a + 1
   const c = a + nx
   const d = c + 1
+  // 感受到的总温度 = 场温 + 环境偏置（与浮力消费同一事实源）
   return (
     <f64>t[a] * (1 - fx) * (1 - fy) +
     <f64>t[b] * fx * (1 - fy) +
     <f64>t[c] * (1 - fx) * fy +
     <f64>t[d] * fx * fy
-  )
+  ) + ambientT
 }
 
 export function applyVorticity(dt: f64): void {

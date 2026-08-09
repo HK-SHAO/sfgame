@@ -16,6 +16,8 @@ export interface TideDef {
 export interface AmbientDef {
   x: number
   y: number
+  // 环境温度偏置（热=上升、冷=下沉，经浮力生效；视觉同步着色示踪粒子）
+  temp?: number
   tide?: TideDef
 }
 

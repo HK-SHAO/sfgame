@@ -3,7 +3,7 @@ import { customElement, state } from 'lit/decorators.js'
 import { parseLevelText } from '../game/level-format'
 import { levelSource } from '../game/levels'
 import { urlState } from '../game/state'
-import { iconChevron } from '../ui/icons'
+import { iconAlert, iconChevron } from '../ui/icons'
 
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {
@@ -109,14 +109,31 @@ export class SfLevelEditor extends LitElement {
       background: var(--dev-hover);
     }
 
+    /* 校验失败容器：警示图标 + 文字，独立于编辑区成块；下间距隔开按钮行 */
     .error {
-      margin: 0;
-      color: var(--dev-error);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.375rem;
+      margin: 0 0 var(--sp-2);
+      padding: var(--sp-2);
       font-size: 0.6875rem;
+      font-weight: 500;
       line-height: 1.5;
+      color: var(--dev-error);
+      background: rgba(255, 180, 160, 0.16);
+      border: 1px solid rgba(255, 180, 160, 0.42);
+      border-radius: var(--r-sm);
+      corner-shape: squircle;
       white-space: pre-wrap;
       word-break: break-all;
       user-select: text;
+    }
+
+    .error svg {
+      flex: none;
+      width: 0.875rem;
+      height: 0.875rem;
+      margin-top: 0.125rem;
     }
   `
 
@@ -135,7 +152,7 @@ export class SfLevelEditor extends LitElement {
               .value=${this.editorText}
               @input=${this.onInput}
             ></textarea>
-            ${this.error ? html`<p class="error">${this.error}</p>` : nothing}
+            ${this.error ? html`<p class="error" role="alert">${iconAlert}<span>${this.error}</span></p>` : nothing}
             <div class="row">
               <button class="apply" @click=${this.confirm}>确认生效</button>
               <button class="cancel" @click=${this.collapse}>取消</button>

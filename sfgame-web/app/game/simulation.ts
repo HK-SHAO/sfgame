@@ -242,7 +242,7 @@ export class LevelSimulation {
       ax += (tide.ampX ?? 0) * Math.sin(ph)
       ay += (tide.ampY ?? 0) * Math.sin(ph)
     }
-    this.fluid.setAmbient(ax, ay)
+    this.fluid.setAmbient(ax, ay, a?.temp ?? 0)
   }
 
   private checkGoals() {

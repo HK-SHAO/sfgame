@@ -39,7 +39,7 @@ export class SfDevPanel extends LitElement {
       --dev-input: rgba(0, 0, 0, 0.35);
       --dev-accent-fg: #1d160e;
       --dev-accent-bg: #ffe9c9;
-      --dev-error: #ffb4a0;
+      --dev-error: #ffc9b6;
     }
 
     .panel {

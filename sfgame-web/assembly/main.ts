@@ -45,6 +45,7 @@ import {
   ny,
   cell,
   buoyancy,
+  ambientT,
   iterations,
   velDamping,
   tDamping,
@@ -67,6 +68,8 @@ function hiOf(v4: v128): v128 {
 export function applyBuoyancy(dt: f64): void {
   const k = buoyancy * dt
   const kV = f64x2.splat(k)
+  // 总温度 = 场温 + 环境偏置（ambientT=0 时逐位不变）
+  const aT = f64x2.splat(ambientT)
   const vB = v.dataStart
   const tB = t.dataStart
   const w = nx
@@ -77,8 +80,10 @@ export function applyBuoyancy(dt: f64): void {
       const off = (row + i) * B
       const tv = v128.load(tB + off)
       const vv = v128.load(vB + off)
-      const lo = f64x2.sub(f64x2.promote_low_f32x4(vv), f64x2.mul(f64x2.promote_low_f32x4(tv), kV))
-      const hi = f64x2.sub(hiOf(vv), f64x2.mul(hiOf(tv), kV))
+      const tLo = f64x2.add(f64x2.promote_low_f32x4(tv), aT)
+      const tHi = f64x2.add(hiOf(tv), aT)
+      const lo = f64x2.sub(f64x2.promote_low_f32x4(vv), f64x2.mul(tLo, kV))
+      const hi = f64x2.sub(hiOf(vv), f64x2.mul(tHi, kV))
       v128.store(
         vB + off,
         f32x4.shuffle(f32x4.demote_f64x2_zero(lo), f32x4.demote_f64x2_zero(hi), 0, 1, 4, 5),
@@ -86,7 +91,7 @@ export function applyBuoyancy(dt: f64): void {
     }
     for (; i <= w - 2; i++) {
       const idx = row + i
-      v[idx] = <f32>(<f64>v[idx] - k * <f64>t[idx])
+      v[idx] = <f32>(<f64>v[idx] - k * (<f64>t[idx] + ambientT))
     }
   }
 }

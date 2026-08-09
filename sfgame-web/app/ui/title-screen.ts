@@ -5,7 +5,7 @@ import { progress } from '../game/progress'
 import { formatTime } from '../game/timer'
 import type { LevelDef } from '../game/types'
 import { artBg, boxReset, reduceMotion } from './shared-styles'
-import { iconGear, iconLock, iconLogo } from './icons'
+import { iconGear, iconInfo, iconLock, iconLogo } from './icons'
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
 @customElement('sf-title-screen')
@@ -83,11 +83,22 @@ export class SfTitleScreen extends LitElement {
             根据菲尔兹奖得主邓煜的数学证明，从牛顿力学可以推导出热力学方程——本游戏所有物理均基于此。
           </p>
 
-          ${this.dev
-            ? html`<button class="dev-link" @click=${() => this.dispatchEvent(new Event('dev-page'))} aria-label="开发者页面">
-                ${iconGear}<span>开发者页面</span>
-              </button>`
-            : nothing}
+          <div class="links">
+            ${!this.dev
+              ? html`<button
+                  class="link-btn"
+                  @click=${() => this.dispatchEvent(new CustomEvent('about'))}
+                  aria-label="关于"
+                >
+                  ${iconInfo}<span>关于</span>
+                </button>`
+              : nothing}
+            ${this.dev
+              ? html`<button class="link-btn" @click=${() => this.dispatchEvent(new Event('dev-page'))} aria-label="开发者页面">
+                  ${iconGear}<span>开发者页面</span>
+                </button>`
+              : nothing}
+          </div>
         </section>
       </main>
     `
@@ -343,11 +354,17 @@ export class SfTitleScreen extends LitElement {
         color: var(--ink-soft);
       }
 
-      .dev-link {
+      .links {
+        display: flex;
+        justify-content: center;
+        gap: var(--sp-2);
+        margin-top: var(--sp-3);
+      }
+
+      .link-btn {
         display: inline-flex;
         align-items: center;
         gap: 0.375rem;
-        margin-top: var(--sp-3);
         padding: var(--sp-2) var(--sp-4);
         font-size: 0.75rem;
         color: var(--ink-soft);
@@ -358,12 +375,12 @@ export class SfTitleScreen extends LitElement {
         transition: color 120ms ease-out, box-shadow 120ms ease-out;
       }
 
-      .dev-link:hover {
+      .link-btn:hover {
         color: var(--ink);
         box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
       }
 
-      .dev-link svg {
+      .link-btn svg {
         width: 0.94rem;
         height: 0.94rem;
       }

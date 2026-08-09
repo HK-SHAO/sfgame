@@ -137,6 +137,19 @@ export const iconDatabase = html`<svg
   <path d="M4.5 12c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8" />
 </svg>`
 
+export const iconInfo = html`<svg
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  aria-hidden="true"
+>
+  <circle cx="12" cy="12" r="8.5" />
+  <path d="M12 11v5" />
+  <path d="M12 8h.01" />
+</svg>`
+
 export const iconChevron = html`<svg
   viewBox="0 0 24 24"
   fill="none"

@@ -23,7 +23,7 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
   },
 }
 
-export type AppView = 'title' | 'dev' | 'storage'
+export type AppView = 'title' | 'dev' | 'storage' | 'about'
 
 // lv 双形态：整数 = 内置关卡 id；内联关卡 JSON（dev 编辑生效即压入 URL，见 level-editor.ts）。
 // 形态自判别无需前缀：id 为纯数字，base64url 必含字母（`eyJ` = `{"` 的固定编码，肉眼可辨）。
@@ -57,6 +57,6 @@ export const urlState = new UrlState({
   lv: lvCodec,
   // s = sources 摆法（1 字符：分享 URL 短）
   s: codecs.list<SourcePlacement>([], sourceItem, '_'),
-  v: codecs.enum<AppView>('title', ['dev', 'storage']),
+  v: codecs.enum<AppView>('title', ['dev', 'storage', 'about']),
   dev: codecs.bool(false),
 })

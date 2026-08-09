@@ -12,6 +12,7 @@ import '../dev/dev-menu'
 import './storage-view'
 import './win-overlay'
 import './title-screen'
+import './about-screen'
 import './hud'
 import { urlState } from '../game/state'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen'
@@ -186,6 +187,12 @@ export class SfApp extends LitElement {
     this.applyScreen(screenFromUrl())
   }
 
+  private openAbout() {
+    fb.uiEnter()
+    urlState.set('v', 'about')
+    this.applyScreen(screenFromUrl())
+  }
+
   // replace：切换不进历史（后退不会"撤销切换"）
   private toggleDev(e: CustomEvent<boolean>) {
     this.dev = e.detail
@@ -254,6 +261,8 @@ export class SfApp extends LitElement {
       ></sf-dev-menu>`
     } else if (this.screen === 'storage') {
       content = html`<sf-storage @back=${this.goBack}></sf-storage>`
+    } else if (this.screen === 'about') {
+      content = html`<sf-about @back=${this.goBack}></sf-about>`
     } else {
       content = html`<sf-title-screen
         .dev=${this.dev}
@@ -261,6 +270,7 @@ export class SfApp extends LitElement {
         @group=${this.onGroup}
         @start=${(e: CustomEvent<number>) => this.startGame(e.detail)}
         @dev-page=${this.openDev}
+        @about=${this.openAbout}
       ></sf-title-screen>`
     }
     return content

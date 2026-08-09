@@ -1,8 +1,8 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { version, author, description } from '../../package.json'
 import { iconBack, iconDatabase, iconGear } from '../ui/icons'
 import { artBg, boxReset, card, pageShell } from '../ui/shared-styles'
+import '../ui/about-card'
 
 @customElement('sf-dev-menu')
 export class SfDevMenu extends LitElement {
@@ -43,12 +43,7 @@ export class SfDevMenu extends LitElement {
           </button>
         </section>
 
-        <section class="card about">
-          <h2>关于</h2>
-          <p class="line">${description}</p>
-          <p class="line">作者：${author.name}</p>
-          <p class="line">版本：v${version}</p>
-        </section>
+        <sf-about-card></sf-about-card>
       </main>
     `
   }
@@ -168,23 +163,6 @@ export class SfDevMenu extends LitElement {
       .switch-input:focus-visible + .switch {
         outline: 2px solid var(--cold);
         outline-offset: 2px;
-      }
-
-      .about {
-        padding: var(--sp-4) 1.25rem;
-      }
-
-      .about h2 {
-        margin: 0 0 0.5rem;
-        font-size: 0.9375rem;
-        font-weight: 700;
-      }
-
-      .about .line {
-        margin: 0;
-        font-size: 0.875rem;
-        line-height: 1.8;
-        color: var(--ink-soft);
       }
     `,
   ]

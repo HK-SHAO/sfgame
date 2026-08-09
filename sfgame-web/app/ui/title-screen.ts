@@ -5,7 +5,7 @@ import { progress } from '../game/progress'
 import { formatTime } from '../game/timer'
 import type { LevelDef } from '../game/types'
 import { artBg, boxReset, reduceMotion } from './shared-styles'
-import { iconGear, iconInfo, iconLock, iconLogo } from './icons'
+import { iconGear, iconInfo, iconLock } from './icons'
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
 @customElement('sf-title-screen')
@@ -22,9 +22,14 @@ export class SfTitleScreen extends LitElement {
     return html`
       <main class="title">
         <section class="title-card">
-          <div class="logo">${iconLogo}</div>
-          <h1>烧风</h1>
-          <p class="tagline">太阳精灵 · 用温度创造风</p>
+          <!-- 品牌组合图（透明 PNG，含 LOGO/大标题/副标题）：替代原 logo+h1+tagline -->
+          <img
+            class="brand"
+            src="./logo-title.webp"
+            alt="烧风 · 太阳精灵 · 用温度创造风"
+            width="1254"
+            height="1254"
+          />
 
           <nav class="groups" aria-label="关卡组">
             ${LEVEL_GROUPS.map((g) =>
@@ -160,25 +165,12 @@ export class SfTitleScreen extends LitElement {
         box-shadow: 0 1.125rem 2.75rem rgba(61, 52, 39, 0.14);
       }
 
-      .logo svg {
-        width: 3.25rem;
-        height: 3.25rem;
-        margin: 0 auto;
-      }
-
-      h1 {
-        margin: 0.625rem 0 0.25rem;
-        font-size: 2.125rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        line-height: 1.1;
-      }
-
-      .tagline {
-        margin: 0 0 1rem;
-        color: var(--ink-soft);
-        font-size: 0.875rem;
-        letter-spacing: 0.06em;
+      .brand {
+        display: block;
+        width: 12rem;
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto 0.625rem;
       }
 
       .levels {

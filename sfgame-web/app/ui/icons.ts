@@ -176,21 +176,6 @@ export const iconChevron = html`<svg
   <polyline points="9 5.5 15.5 12 9 18.5" />
 </svg>`
 
-export const iconLogo = html`<svg viewBox="0 0 64 64" aria-hidden="true">
-  <circle cx="22" cy="22" r="12" fill="#ffb43c" />
-  <g stroke="#ffb43c" stroke-width="4" stroke-linecap="round">
-    <line x1="22" y1="3" x2="22" y2="7" />
-    <line x1="8" y1="8" x2="11" y2="11" />
-    <line x1="3" y1="22" x2="7" y2="22" />
-    <line x1="8" y1="36" x2="11" y2="33" />
-    <line x1="36" y1="8" x2="33" y2="11" />
-  </g>
-  <g stroke="#3d8bff" stroke-width="5" stroke-linecap="round" fill="none">
-    <path d="M12 46 H46 a7 7 0 1 0 -7 -7" />
-    <path d="M20 57 H42" />
-  </g>
-</svg>`
-
 export const iconPause = html`<svg
   viewBox="0 0 24 24"
   fill="currentColor"

@@ -195,15 +195,17 @@ export class WorkerPool {
       }
       this.spawn()
       this.pump()
-    }).catch(() => {})
+    }).catch(() => { })
+
     const decoder = new TextDecoder()
+    // stderr 字节直写透传：不经解码（逐块零替换符风险、跨块 UTF-8 无损——每块新建解码器会拆坏多字节序列）；
+    // 流异常（worker 被 kill）吞掉，避免未处理拒绝噪音
     void (async () => {
       if (proc.stderr) {
-        for await (const chunk of proc.stderr) {
-          process.stderr.write(new TextDecoder().decode(chunk))
-        }
+        for await (const chunk of proc.stderr) process.stderr.write(chunk)
       }
-    })()
+    })().catch(() => { })
+
     void (async () => {
       for await (const chunk of proc.stdout) {
         w.buf += decoder.decode(chunk)
@@ -224,7 +226,8 @@ export class WorkerPool {
           this.pump()
         }
       }
-    })()
+    })().catch(() => { })
+
     this.pump()
   }
 

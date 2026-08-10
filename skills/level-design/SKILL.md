@@ -13,6 +13,7 @@ description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计�
 
 ```json
 {
+  "$schema": "./level.schema.json",
   "schema": 1,
   "id": 3,
   "name": "信风",
@@ -26,6 +27,8 @@ description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计�
   "ambient": { "x": 2.4, "y": 0 }
 }
 ```
+
+协议规范 = `sfgame-web/levels/level.schema.json`（JSON Schema draft-07，编辑器自动补全/校验；`$schema` 相对路径引用随文件移动仍可解析）。schema 只表达不依赖世界的静态约束；world 依赖的动态边界（x≤w 等）与 SDF 语法、固/气共存、网格 16..256 由运行时校验强制（`app/game/level-validate.ts`，两处镜像由 `tests/level-schema.test.ts` 守护）。构建产物 dist 根目录含同文件。
 
 序列化选型：**JSON**（`JSON.parse` 零依赖解析，浏览器/脚本通用；不支持注释——设计说明放本 skill 或提交信息）；地形只用**一条 SDF 表达式字符串**（有符号距离场：>0 空气 / <0 实体，高度场 H(x)−y 是其中一种写法；精准、高密度、可表达洞穴/悬挑，可移植到任意数学工具），刻意不用采样折线（不精准）也不引 path（与表达式重叠、求值复杂——堆积功能）。
 

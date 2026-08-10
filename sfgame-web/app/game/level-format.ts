@@ -1,191 +1,12 @@
-import { compileSdf, SdfError } from './sdf'
+import { validateLevelJson } from './level-validate'
+import { compileSdf } from './sdf'
 import type { LevelDef, LevelJson } from './types'
 
-// 关卡协议版本：JSON 顶层必须为 1
-const LEVEL_SCHEMA = 1
-
-const isFin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
-const isInt = (v: unknown): v is number => isFin(v) && Number.isInteger(v)
-// 可选数值带界助手：undefined = 未声明（放行）；否则须满足界
-const optNum = (v: unknown): boolean => v === undefined || isFin(v)
-const optPos = (v: unknown): boolean => v === undefined || (isFin(v) && v > 0)
-const optIn = (v: unknown, min: number, max: number): boolean =>
-  v === undefined || (isFin(v) && v >= min && v <= max)
-
-// 校验上下文：错误前缀 + 世界边界（world 非法时以 0 兜底：只列事实，不得因缺字段抛 TypeError）
-interface Ctx {
-  id: string
-  errs: string[]
-  wMax: number
-  hMax: number
-}
-
-const fail = (ctx: Ctx, msg: string) => ctx.errs.push(`${ctx.id} ${msg}`)
-
-// SDF 合法性：编译通过 + 世界内固/气共存（否则永不着地或无处可飞）
-function checkTerrain(w: { w: number; h: number }, t: { sdf: string }, ctx: Ctx) {
-  let f: ((x: number, y: number) => number) | null = null
-  try {
-    f = compileSdf(t.sdf)
-  } catch (e) {
-    fail(ctx, `terrain.sdf 语法错误：${e instanceof SdfError ? e.message : String(e)}`)
-  }
-  if (!f) return
-  let solid = 0
-  let air = 0
-  try {
-    for (let y = 0.5; y < w.h; y += 1) {
-      for (let x = 0.5; x < w.w; x += 1) {
-        const d = f(x, y)
-        if (!Number.isFinite(d)) throw new Error(`(${x}, ${y}) 处非有限值`)
-        if (d <= 0) solid++
-        else air++
-      }
-    }
-  } catch (e) {
-    fail(ctx, `terrain.sdf 求值错误：${e instanceof Error ? e.message : String(e)}`)
-    return
-  }
-  if (solid === 0) fail(ctx, 'terrain.sdf 世界内无实体（飞机永不着地）')
-  if (air === 0) fail(ctx, 'terrain.sdf 世界内全为实体（无处可飞）')
-}
-
-function checkGoals(j: unknown, ctx: Ctx) {
-  if (!Array.isArray(j) || j.length === 0) {
-    fail(ctx, 'goals 至少 1 个站点')
-    return
-  }
-  for (let i = 0; i < j.length; i++) {
-    const go = j[i]
-    if (!go || !isFin(go.x) || go.x < 0 || go.x > ctx.wMax || !isFin(go.r) || go.r <= 0 || go.r > 15) {
-      fail(ctx, `goals[${i}] 需满足 0≤x≤w、0<r≤15`)
-    }
-  }
-}
-
-function checkFixedList(j: unknown, ctx: Ctx) {
-  if (!Array.isArray(j) || j.length > 8) {
-    fail(ctx, 'fixed 必须为数组且 ≤8 个')
-    return
-  }
-  for (let i = 0; i < j.length; i++) {
-    const f = j[i]
-    if (!f || !isFin(f.x) || f.x < 0 || f.x > ctx.wMax || !isFin(f.y) || f.y <= 0 || f.y > ctx.hMax) {
-      fail(ctx, `fixed[${i}] 需满足 0≤x≤w、0<y≤h`)
-      continue
-    }
-    if (f.kind !== 'hot' && f.kind !== 'cold') fail(ctx, `fixed[${i}] kind 必须为 hot|cold`)
-    if (!optPos(f.power)) fail(ctx, `fixed[${i}] power 必须为正数`)
-  }
-}
-
-function checkFansList(j: unknown, ctx: Ctx) {
-  if (!Array.isArray(j) || j.length > 8) {
-    fail(ctx, 'fans 必须为数组且 ≤8 个')
-    return
-  }
-  for (let i = 0; i < j.length; i++) {
-    const f = j[i]
-    if (
-      !f ||
-      !isFin(f.x) ||
-      f.x < 0 ||
-      f.x > ctx.wMax ||
-      !isFin(f.y) ||
-      f.y <= 0 ||
-      f.y > ctx.hMax ||
-      !isFin(f.dir) ||
-      !isFin(f.power) ||
-      f.power <= 0
-    ) {
-      fail(ctx, `fans[${i}] 需含数值 x/y/dir 与正数 power`)
-      continue
-    }
-    if (!optIn(f.swing, 0, Math.PI)) fail(ctx, `fans[${i}] swing 需在 [0, π]`)
-    if (!optPos(f.period)) fail(ctx, `fans[${i}] period 必须为正数`)
-  }
-}
-
-// 返回错误清单（空 = 合法），只列事实不猜意图、不抛错
-export function validateLevelJson(raw: unknown): string[] {
-  const errs: string[] = []
-  const j = raw as LevelJson
-  if (!j || typeof j !== 'object') return ['不是对象']
-  const ctx: Ctx = {
-    id: `(id=${(j as { id?: unknown }).id})`,
-    errs,
-    wMax: 0,
-    hMax: 0,
-  }
-
-  if (j.schema !== LEVEL_SCHEMA) fail(ctx, `schema 必须为 ${LEVEL_SCHEMA}`)
-  if (!isInt(j.id) || j.id < 1) fail(ctx, 'id 必须为正整数')
-  for (const k of ['name', 'tagline'] as const) {
-    if (typeof j[k] !== 'string' || j[k].length === 0) fail(ctx, `${k} 必须为非空字符串`)
-  }
-  if (
-    !j.win ||
-    typeof j.win.title !== 'string' ||
-    j.win.title.length === 0 ||
-    typeof j.win.text !== 'string' ||
-    j.win.text.length === 0
-  ) {
-    fail(ctx, 'win.title/text 必须为非空字符串')
-  }
-
-  const w = j.world
-  if (!w || !isFin(w.w) || w.w <= 0 || !isFin(w.h) || w.h <= 0 || !isFin(w.cell) || w.cell <= 0) {
-    fail(ctx, 'world.w/h/cell 必须为正数')
-  } else {
-    ctx.wMax = w.w
-    ctx.hMax = w.h
-    const nx = Math.round(w.w / w.cell)
-    const ny = Math.round(w.h / w.cell)
-    if (nx < 16 || nx > 256 || ny < 16 || ny > 256) fail(ctx, `网格 ${nx}×${ny} 超出 16..256 范围`)
-  }
-
-  const t = j.terrain
-  if (!t || typeof t.sdf !== 'string' || t.sdf.trim().length === 0) {
-    fail(ctx, 'terrain.sdf 必须为非空表达式字符串')
-  } else if (w) {
-    checkTerrain(w, t, ctx)
-  }
-
-  const b = j.budget
-  if (!b || !isInt(b.hot) || b.hot < 0 || !isInt(b.cold) || b.cold < 0) {
-    fail(ctx, 'budget.hot/cold 必须为非负整数')
-  }
-
-  const s = j.spawn
-  if (!s) {
-    fail(ctx, 'spawn 需含 x/y')
-  } else {
-    if (!isFin(s.x) || s.x < -20 || s.x > ctx.wMax + 20) fail(ctx, 'spawn.x 超出 [-20, w+20]')
-    if (s.y !== undefined && (!isFin(s.y) || s.y < -20 || s.y > ctx.hMax + 20)) fail(ctx, 'spawn.y 超出范围')
-    if (s.vx !== undefined && !isFin(s.vx)) fail(ctx, 'spawn.vx 必须为数值')
-    if (s.vy !== undefined && !isFin(s.vy)) fail(ctx, 'spawn.vy 必须为数值')
-  }
-
-  checkGoals(j.goals, ctx)
-
-  const a = j.ambient
-  if (a !== undefined) {
-    if (!isFin(a.x) || !isFin(a.y)) fail(ctx, 'ambient.x/y 必须为数值')
-    // 温度偏置经浮力放大（均衡升沉速 ≈ 11×|temp|）：0.1 微风、0.3 玩法级、≥1 极端；
-    // |temp|≥9 时与 tMax 钳制相互作用形成单极世界（见 level-design skill）
-    if (!optIn(a.temp, -10, 10)) fail(ctx, 'ambient.temp 需在 [-10, 10]')
-    if (a.tide !== undefined) {
-      if (!optPos(a.tide.period)) fail(ctx, 'ambient.tide.period 必须为正数')
-      if (!optNum(a.tide.phase)) fail(ctx, 'ambient.tide.phase 必须为数值')
-      if (!optNum(a.tide.ampX)) fail(ctx, 'ambient.tide.ampX 必须为数值')
-      if (!optNum(a.tide.ampY)) fail(ctx, 'ambient.tide.ampY 必须为数值')
-    }
-  }
-
-  if (j.fixed !== undefined) checkFixedList(j.fixed, ctx)
-  if (j.fans !== undefined) checkFansList(j.fans, ctx)
-
-  return errs
+// 校验通过才出 LevelJson；解析失败与校验失败分道报错（各自定位准确）
+function requireValid(raw: unknown): LevelJson {
+  const errs = validateLevelJson(raw)
+  if (errs.length > 0) throw new Error(`关卡校验失败：\n${errs.join('\n')}`)
+  return raw as LevelJson
 }
 
 export function parseLevelText(text: string): LevelJson {
@@ -195,18 +16,13 @@ export function parseLevelText(text: string): LevelJson {
   } catch (e) {
     throw new Error(`关卡 JSON 解析失败：${e instanceof Error ? e.message : String(e)}`)
   }
-  const errs = validateLevelJson(raw)
-  if (errs.length > 0) throw new Error(`关卡校验失败：${errs.join('；')}`)
-  return raw as LevelJson
+  return requireValid(raw)
 }
 
 // validated = 调用方已走 parseLevelText/validateLevelJson（内置关卡加载路径），跳过重复校验；
 // 外部输入（内联关卡 JSON、测试对象字面量）不传——校验是安全边界
 export function levelFromJson(j: LevelJson, validated = false): LevelDef {
-  if (!validated) {
-    const errs = validateLevelJson(j)
-    if (errs.length > 0) throw new Error(`关卡校验失败：${errs.join('；')}`)
-  }
+  if (!validated) requireValid(j)
   const f = compileSdf(j.terrain.sdf)
   return { ...j, sdf: f, fixed: j.fixed ?? [], fans: j.fans ?? [], json: j }
 }

@@ -46,6 +46,8 @@ export interface FanDef {
 
 // 关卡协议 v1（JSON 可序列化的唯一事实来源，见 levels/*.json）；不内置参考解——玩家解法记录在本地（progress.ts，与关卡 hash 绑定）
 export interface LevelJson {
+  // 编辑器 schema 引用（相对路径，见 levels/level.schema.json）；协议字段 schema 见下
+  $schema?: string
   schema: 1
   id: number
   name: string

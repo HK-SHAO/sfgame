@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { parseLevelText, validateLevelJson } from '../app/game/level-format'
+import { parseLevelText } from '../app/game/level-format'
+import { validateLevelJson } from '../app/game/level-validate'
 import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, isUnlocked, nextLevel } from '../app/game/levels'
 import { compileSdf, SdfError } from '../app/game/sdf'
 
@@ -217,4 +218,33 @@ test('ambient.temp 校验：[-10, 10] 内放行，越界/非数值被拒', () =>
   bad((x) => (x.ambient = { x: 1, y: 0, temp: 10.5 }), /temp/)
   bad((x) => (x.ambient = { x: 1, y: 0, temp: -11 }), /temp/)
   bad((x) => (x.ambient = { x: 1, y: 0, temp: 'hot' }), /temp/)
+})
+
+test('$schema 放行、顶层未知字段拒绝、错误带精确路径与实值', () => {
+  const json = (o: object) => JSON.stringify(o)
+  const base = {
+    schema: 1, id: 22, name: 't', tagline: 't', win: { title: 't', text: 't' },
+    world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y' },
+    budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+  }
+  // 相对引用放行；未知顶层字段（笔误）被拒
+  const j = parseLevelText(json({ ...base, $schema: './level.schema.json' })) as unknown as Record<string, unknown>
+  expect(validateLevelJson(j)).toEqual([])
+  const clone = structuredClone(j)
+  clone.budet = 3
+  expect(validateLevelJson(clone).join('\n')).toMatch(/未知字段 "budet"/)
+  // 路径 + 实值：单字段定位，报出实际值
+  const bad = (mut: (x: Record<string, unknown>) => void) => {
+    const c = structuredClone(j)
+    mut(c)
+    return validateLevelJson(c).join('\n')
+  }
+  expect(bad((x) => ((x.goals as object[])[0] as Record<string, unknown>).r = 20)).toMatch(/goals\[0\]\.r = 20，需 ≤ 15/)
+  expect(bad((x) => ((x.goals as object[])[0] as Record<string, unknown>).x = 99)).toMatch(/goals\[0\]\.x = 99，需 ≤ 76/)
+  // world 非法时下游只查结构：不级联误报动态边界
+  const broken = structuredClone(j)
+  broken.world = { w: -1, h: 56, cell: 0.75 }
+  const errs = validateLevelJson(broken).join('\n')
+  expect(errs).toMatch(/world\.w = -1，需 > 0/)
+  expect(errs).not.toMatch(/goals\[/)
 })

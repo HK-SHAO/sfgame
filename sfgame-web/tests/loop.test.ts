@@ -68,15 +68,21 @@ test('定步长：任何速率 dt 恒为 SIM_DT，tick 数随速率比例，0.5�
   expect(halfRenders).toBe(2)
 })
 
-test('追赶尖峰封顶：单帧最多消化 24 步，剩余留待下帧', () => {
+test('追帧封顶：单帧最多 24 步；欠账封顶不超单帧量，切回 1× 下一帧即回落', () => {
   let ticks = 0
   const loop = new GameLoop({ tick: () => ticks++, render: () => {} })
   loop.setRate(16)
   loop.start()
   frame(300)
   expect(ticks).toBe(24)
-  frame(17)
-  expect(ticks).toBe(48)
-  for (let i = 0; i < 40; i++) frame(17)
-  expect(ticks).toBeGreaterThan(800)
+  // 16× 低帧率（50ms/帧，需 48 步）持续运行：欠账钉在封顶，每帧仍只消化 24
+  for (let i = 0; i < 10; i++) frame(50)
+  let before = ticks
+  frame(50)
+  expect(ticks - before).toBe(24)
+  // 切回 1×：欠账已封顶消化完，下一帧立即回到 1× 节奏（50ms ≈ 3 步），不再满转还债
+  loop.setRate(1)
+  before = ticks
+  frame(50)
+  expect(ticks - before).toBeLessThanOrEqual(4)
 })

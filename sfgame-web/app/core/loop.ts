@@ -8,6 +8,9 @@ const SIM_DT_MS = SIM_DT * 1000
 const MAX_FRAME = 0.25
 // 追赶封顶：慢帧欠账顺延后续帧逐步消化，避免单帧追帧爆成几十毫秒
 const MAX_TICKS_PER_FRAME = 24
+// 欠账上限 = 单帧封顶量：高倍速低帧率时超出部分丢时间（时间膨胀）而非无限累积——
+// 否则切回低倍速后仍按封顶满转还债数秒，视觉上倍速切换延迟生效
+const MAX_ACC = MAX_TICKS_PER_FRAME * SIM_DT
 // 高速率下每批 TICKS_PER_TASK 步后 setTimeout(0) 让出主线程，防长任务冻结 UI
 const TICKS_PER_TASK = 6
 
@@ -62,6 +65,7 @@ export class GameLoop {
     if (frameDt > MAX_FRAME) frameDt = MAX_FRAME
     if (frameDt < 0) frameDt = 0
     this.acc += frameDt * this.rate
+    if (this.acc > MAX_ACC) this.acc = MAX_ACC
     this.frameTicks = 0
     this.runTicks(now)
   }

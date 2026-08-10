@@ -29,12 +29,6 @@ const tailFade = (k: number, segs: number) => (k < segs ? k / segs : 1)
 // 颜色插值（5 处共用）：模块级无闭包，每帧零开销
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 
-// 云的单个凸起盘（底盘外的装饰凸起；与底盘同色渐变，交叠处无缝）
-const cloudPuff = (
-  b: MeshBatch, x: number, y: number, r: number,
-  fx: number, fy: number, fr: number, segs: number, sf: number, a: number,
-) => b.discGradCore(x + fx * r, y + fy * r, fr * r, segs, sf, ...CLOUD, a, ...CLOUD, 0)
-
 // 飞机轮廓遍历序（每帧复用，避免数组分配）
 const PLANE_OUTLINE = [0, 1, 2, 3, 0] as const
 
@@ -57,9 +51,6 @@ const GROUND_DEPTH_LEN = 8
 const SUN = rgb(255, 196, 83)
 const PAPER = rgb(255, 253, 248)
 const FLAG_POLE = rgb(107, 91, 69)
-const CLOUD = rgb(255, 255, 254)
-const CLOUD_SOLID_FRAC = 0.75
-const CLOUD_CORE_MIN = 0.15
 
 const SUN_POS = { x: 12, y: 9.5 }
 const SUN_RADIUS = 4
@@ -117,6 +108,8 @@ export class Renderer {
   // 地形 SDF 场：关卡变化时上传内核一次（marching squares 每帧切等值线），每帧只按视域发范围
   private terrainKey: Terrain | null = null
   private bgDirty = true
+  // 云顶点批（pos2+uv2+alpha+seed × 6 顶点/云）：形状全在片元，宿主只发四边形
+  private cloudBuf = new Float32Array(3 * 6 * 6)
   lastVertexCount = 0
   lastUploadBytes = 0
 
@@ -182,12 +175,15 @@ export class Renderer {
     const b = this.batch
     b.reset()
     // 遮挡契约（远→近）：天空烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
-    // 太阳盘面 → 云（遮粒子与日芒）→ 地形固体填充（云被山体精确遮挡）→ 旗杆 → 旗面/套筒/抵达圆 →
-    // 固定源/源/风扇 → 飞机拖尾与飞机（画面顶层，不被地形遮挡）→ 按压指示
+    // 太阳盘面 → 云（独立 GLSL 趟：遮粒子与日芒）→ 地形固体填充（云被山体精确遮挡）→ 旗杆 →
+    // 旗面/套筒/抵达圆 → 固定源/源/风扇 → 飞机拖尾与飞机（画面顶层，不被地形遮挡）→ 按压指示
     this.drawSunHalo(b)
     this.drawTracers(b, tracers)
     this.drawSun(b, now)
-    this.drawClouds(b, scene.clouds)
+    const pass1 = b.count
+    gl.draw(b, viewL, viewT, viewR, viewB)
+    gl.drawClouds(this.cloudBuf, this.fillClouds(scene.clouds), viewL, viewT, viewR, viewB, sim.time)
+    b.reset()
     this.drawTerrain(b, sim, viewL, viewT, viewR, viewB)
     this.drawGoalPoles(b, sim)
     this.drawGoal(b, sim)
@@ -197,9 +193,9 @@ export class Renderer {
     this.drawPlaneTrail(b, sim, planeTrail)
     this.drawPlane(b, sim)
     if (press && press.kind === 'place') this.drawPress(b, press, now)
-    this.lastVertexCount = b.count
-    this.lastUploadBytes = b.count * VERTEX_STRIDE * 4
-    gl.draw(b, viewL, viewT, viewR, viewB)
+    this.lastVertexCount = pass1 + b.count
+    this.lastUploadBytes = (pass1 + b.count) * VERTEX_STRIDE * 4
+    gl.drawBatch(b, viewL, viewT, viewR, viewB)
   }
 
   private drawSky(b: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number, h: number) {
@@ -247,22 +243,29 @@ export class Renderer {
     b.disc(SUN_POS.x, SUN_POS.y, r, r, 0, 48, ...SUN, 1)
   }
 
-  private drawClouds(b: MeshBatch, clouds: Clouds) {
+  // 每朵云一个四边形（两三角形）：uv 纵轴与世界 y 同向（向下），片元底边压平即积云下沿
+  private fillClouds(clouds: Clouds): number {
+    const d = this.cloudBuf
+    let n = 0
     for (let i = 0; i < clouds.count; i++) {
       const a = clouds.alpha[i]
       if (a <= VISIBLE_ALPHA) continue
-      const x = clouds.x[i]
-      const y = clouds.y[i]
-      const r = clouds.radius[i]
-      const sf = CLOUD_SOLID_FRAC * (CLOUD_CORE_MIN + (1 - CLOUD_CORE_MIN) * a)
-      // 一体感：底盘铺满（中心不透明、仅边缘渐隐），凸起全在底盘内叠出轮廓——连接处由底盘兜底，不见接缝
-      b.discGradCore(x, y, r, 20, sf, ...CLOUD, a, ...CLOUD, 0)
-      cloudPuff(b, x, y, r, -0.95, 0.12, 0.6, 14, sf, a)
-      cloudPuff(b, x, y, r, 0.95, 0.1, 0.6, 14, sf, a)
-      cloudPuff(b, x, y, r, 0, -0.52, 0.45, 14, sf, a)
-      cloudPuff(b, x, y, r, -0.5, 0.62, 0.42, 12, sf, a)
-      cloudPuff(b, x, y, r, 0.5, 0.6, 0.4, 12, sf, a)
+      // 四边形 = 可见云体（片元基椭圆约 0.68/0.61 占空）的反算包围盒
+      const hw = clouds.radius[i] * 1.5
+      const hh = clouds.radius[i] * 1.1
+      const x0 = clouds.x[i] - hw
+      const y0 = clouds.y[i] - hh
+      const x1 = clouds.x[i] + hw
+      const y1 = clouds.y[i] + hh
+      const s = clouds.seed[i]
+      d[n++] = x0; d[n++] = y0; d[n++] = 0; d[n++] = 0; d[n++] = a; d[n++] = s
+      d[n++] = x1; d[n++] = y0; d[n++] = 1; d[n++] = 0; d[n++] = a; d[n++] = s
+      d[n++] = x0; d[n++] = y1; d[n++] = 0; d[n++] = 1; d[n++] = a; d[n++] = s
+      d[n++] = x1; d[n++] = y0; d[n++] = 1; d[n++] = 0; d[n++] = a; d[n++] = s
+      d[n++] = x1; d[n++] = y1; d[n++] = 1; d[n++] = 1; d[n++] = a; d[n++] = s
+      d[n++] = x0; d[n++] = y1; d[n++] = 0; d[n++] = 1; d[n++] = a; d[n++] = s
     }
+    return n / 6
   }
 
   private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {
@@ -286,13 +289,12 @@ export class Renderer {
       b.dashRing(g.x, gy - GOAL_LIFT, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
       const air = Renderer.tmpAir
       sim.fluid.sampleVelocity(g.x + 1.6, flagTop + 1.4, air)
+      // 一阶滞后趋近当地风（dt=0 时 k=0 自然不动，无需守卫）
       const dt = sim.time - this.flagT[i]
       this.flagT[i] = sim.time
-      if (dt > 0) {
-        const k = 1 - Math.exp(-dt * (FLAG_RESPONSE_BASE + Math.hypot(air.x, air.y) * FLAG_RESPONSE_WIND))
-        this.flagX[i] += (air.x - this.flagX[i]) * k
-        this.flagY[i] += (air.y - this.flagY[i]) * k
-      }
+      const k = 1 - Math.exp(-dt * (FLAG_RESPONSE_BASE + Math.hypot(air.x, air.y) * FLAG_RESPONSE_WIND))
+      this.flagX[i] += (air.x - this.flagX[i]) * k
+      this.flagY[i] += (air.y - this.flagY[i]) * k
       const sx = this.flagX[i]
       const sy = this.flagY[i]
       const u = Math.hypot(sx, sy)
@@ -487,7 +489,8 @@ export class Renderer {
       const po = off + 5 + np * 3
       buf[po] = tracers.x[i]
       buf[po + 1] = tracers.y[i]
-      buf[po + 2] = headAlpha
+      // 头部顶点 alpha=0：线带恰在头心淡尽，头部圆盘独享混合——避免线带与圆盘重叠区双混发深
+      buf[po + 2] = 0
       np++
       buf[off + 3] = np
       m++
@@ -495,22 +498,36 @@ export class Renderer {
     b.tracers(m, TRACER_LINE_WIDTH, TRACER_HEAD_RADIUS)
   }
 
+  // 拖尾scratch：逐点坐标与 alpha（含追加的飞机位点），生命周期内只增不缩，每帧零分配
+  private trailPts = new Float32Array(0)
+  private trailFade = new Float32Array(0)
+
+  // 单条折线带（miter 接头）+ 逐点线性 alpha：无逐段恒定 alpha 的阶梯突变、无平头接头缺口；
+  // 尾端空间淡出与时间淡出取小，最旧端 alpha 恒为 0，消失如融化而非切断
   private drawPlaneTrail(b: MeshBatch, sim: LevelSimulation, trail: Trail) {
     const n = trail.count
     if (n === 0) return
-    const p = sim.plane
-    let px = trail.xAt(0)
-    let py = trail.yAt(0)
-    for (let k = 0; k < n; k++) {
-      const nx = k + 1 < n ? trail.xAt(k + 1) : p.x
-      const ny = k + 1 < n ? trail.yAt(k + 1) : p.y
-      const f = Math.min(trail.retentionAt(k), tailFade(k, PLANE_TRAIL_TAIL_SEGS))
-      if (f > VISIBLE_ALPHA) {
-        b.stroke(px, py, nx, ny, PLANE_TRAIL_WIDTH, TRAIL_INK[0], TRAIL_INK[1], TRAIL_INK[2], 0.5 * f)
-      }
-      px = nx
-      py = ny
+    const m = n + 1
+    if (this.trailPts.length < m * 2) {
+      this.trailPts = new Float32Array(m * 2)
+      this.trailFade = new Float32Array(m)
     }
+    const pts = this.trailPts
+    const fade = this.trailFade
+    let any = false
+    for (let k = 0; k < n; k++) {
+      pts[k * 2] = trail.xAt(k)
+      pts[k * 2 + 1] = trail.yAt(k)
+      const f = Math.min(trail.retentionAt(k), tailFade(k, PLANE_TRAIL_TAIL_SEGS))
+      fade[k] = 0.5 * f
+      if (f > VISIBLE_ALPHA) any = true
+    }
+    if (!any) return
+    const p = sim.plane
+    pts[n * 2] = p.x
+    pts[n * 2 + 1] = p.y
+    fade[n] = fade[n - 1]
+    b.polylineFade(pts, m * 2, PLANE_TRAIL_WIDTH, TRAIL_INK[0], TRAIL_INK[1], TRAIL_INK[2], fade)
   }
 
   private static readonly PLANE_LOCAL = PLANE_LOCAL

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import schemaText from '../levels/level.schema.json?raw'
-import { GOAL_R_MAX, LEVEL_SCHEMA, LIST_MAX, SWING_MAX, TEMP_LIMIT } from '../app/game/level-validate'
+import schemaText from '../levels/level.schema-1.json?raw'
+import { GOAL_R_MAX, ID_PATTERN, LEVEL_SCHEMA, LEVEL_SCHEMA_REF, LIST_MAX, SWING_MAX, TEMP_LIMIT } from '../app/game/level-validate'
 import { LEVEL_ERRORS, LEVELS } from '../app/game/levels'
 import { validateLevelJson } from '../app/game/level-validate'
 
@@ -15,6 +15,7 @@ interface JsonSchema {
   minimum?: number
   maximum?: number
   exclusiveMinimum?: number
+  pattern?: string
   maxItems?: number
   minItems?: number
   required?: string[]
@@ -29,13 +30,15 @@ test('schema 文件：draft-07、项目匹配 $id、根附加属性关闭、必�
   expect(schema.$schema).toBe('http://json-schema.org/draft-07/schema#')
   expect(schema.$id).toMatch(/^https:\/\/raw\.githubusercontent\.com\/HK-SHAO\/sfgame\//)
   expect(schema.required).toEqual([
-    'schema', 'id', 'name', 'tagline', 'win', 'world', 'terrain', 'budget', 'spawn', 'goals',
+    '$schema', 'id', 'name', 'tagline', 'win', 'world', 'terrain', 'budget', 'spawn', 'goals',
   ])
-  expect(prop('schema').const).toBe(LEVEL_SCHEMA)
-  expect(prop('$schema').type ?? '').toBe('string')
+  // 版本单一编码点：schema 文件 const 与运行时 LEVEL_SCHEMA_REF 同源推导
+  expect(prop('$schema').const).toBe(LEVEL_SCHEMA_REF)
+  expect(LEVEL_SCHEMA_REF).toBe(`./level.schema-${LEVEL_SCHEMA}.json`)
 })
 
 test('schema 静态边界与运行时校验常量镜像一致', () => {
+  expect(prop('id').pattern).toBe(ID_PATTERN.source)
   expect(prop('goals').items!.properties!.r.maximum).toBe(GOAL_R_MAX)
   expect(prop('fixed').maxItems).toBe(LIST_MAX)
   expect(prop('fans').maxItems).toBe(LIST_MAX)
@@ -45,10 +48,10 @@ test('schema 静态边界与运行时校验常量镜像一致', () => {
   expect(prop('budget').properties!.hot.type).toBe('integer')
 })
 
-test('仓库关卡：全部相对引用 schema 且通过运行时校验', () => {
+test('仓库关卡：全部相对引用当前版本 schema 且通过运行时校验', () => {
   expect(LEVEL_ERRORS).toEqual([])
   for (const l of LEVELS) {
-    expect(l.json.$schema).toBe('./level.schema.json')
+    expect(l.json.$schema).toBe(LEVEL_SCHEMA_REF)
     expect(validateLevelJson(l.json)).toEqual([])
   }
 })

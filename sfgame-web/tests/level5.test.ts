@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { LEVELS } from '../app/game/levels'
 import { LevelSimulation } from '../app/game/simulation'
 
-const LEVEL_5 = LEVELS.find((l) => l.id === 5)!
+const LEVEL_5 = LEVELS.find((l) => l.id === 'hui-gui')!
 const DT = 1 / 60
 
 test('站点集合语义：乱序抵达同样计数，全部抵达过即过关', () => {

@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 1,
+  "$schema": "./level.schema-1.json",
+  "id": "luo-yu",
   "name": "落羽",
   "tagline": "冷让风下沉",
   "win": {

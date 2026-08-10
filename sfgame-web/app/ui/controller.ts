@@ -9,6 +9,7 @@ import { Clouds } from '../sim/clouds'
 import { PLANE_TRAIL_FADE, Trail } from '../sim/trail'
 import { type PressVisual, type SourceKind } from '../sim/types'
 import { LevelSimulation, FLUID_MARGIN } from '../game/simulation'
+import { levelSeed } from '../game/levels'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types'
 import { GestureInput } from './input'
 import { Renderer } from '../render/render'
@@ -72,9 +73,13 @@ export class GameController {
     this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })
     // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降 dpr（所有平台同一策略）
     this.governor = new PerformanceGovernor(DPR_TIERS)
-    // 示踪粒子与云同采烘焙地形场：可随流体飞出地图，采样 clamp 即延展（内核驻 wasm，同引擎实例）
-    this.tracers = new Tracers(this.engine, TRACER_COUNT, this.world, this.sim.terrain, TRAIL_LEN, FLUID_MARGIN)
-    this.clouds = new Clouds(level.id, this.world, this.sim.terrain)
+    // 示踪粒子与云同采烘焙地形场：可随流体飞出地图，采样 clamp 即延展（内核驻 wasm，同引擎实例）。
+    // 种子由关卡 slug 派生（与云同策略异盐）：同关粒子场逐位可复现，刷新/重进不变
+    this.tracers = new Tracers(
+      this.engine, TRACER_COUNT, this.world, this.sim.terrain, TRAIL_LEN, FLUID_MARGIN,
+      levelSeed(level.id, 0x85ebca6b),
+    )
+    this.clouds = new Clouds(levelSeed(level.id), this.world, this.sim.terrain)
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
     this.windProbes = buildWindProbes(w, h)

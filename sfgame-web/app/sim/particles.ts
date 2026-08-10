@@ -29,6 +29,7 @@ export class Tracers {
     terrain: Terrain,
     trailLen = TRAIL_LEN,
     margin = 0,
+    seed: number,
   ) {
     const ex = engine.ex
     const buf = engine.memory.buffer
@@ -36,10 +37,11 @@ export class Tracers {
     const sdfCap = ex.tSdfCap()
     if (terrain.nx * terrain.ny > sdfCap) throw new Error('地形场超出示踪内核编译容量')
     new Float32Array(buf, ex.tSdfBuf(), sdfCap).set(terrain.field)
+    // 种子由调用方派生（关卡 id）：同一关卡粒子场逐位可复现，重开/刷新画面一致
     const st = ex.tracersInit(
       count, trailLen, world.w, world.h, margin,
       terrain.nx, terrain.ny, terrain.cell, terrain.originX, terrain.originY,
-      (Math.random() * 4294967296) >>> 0,
+      seed >>> 0,
     )
     // 容量不符/越界即抛：无声退化等于带病启动（同 createFluid 策略）
     if (st !== 0) throw new Error('示踪粒子内核初始化失败（count/trailLen/地形场与编译期容量不符）')

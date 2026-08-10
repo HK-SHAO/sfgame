@@ -1,5 +1,6 @@
 import { fromBase64Url, toBase64Url } from '../core/base64'
 import { UrlState, codecs, type UrlStateCodec, type UrlStateListCodec } from '../core/url-state'
+import { ID_PATTERN } from './level-validate'
 import type { SourcePlacement } from './types'
 
 // 坐标 1 位小数，整数去掉尾部 .0（20.0 → 20）
@@ -25,28 +26,24 @@ export const sourceItem: UrlStateListCodec<SourcePlacement> = {
 
 export type AppView = 'title' | 'dev' | 'storage' | 'about'
 
-// lv 双形态：整数 = 内置关卡 id；内联关卡 JSON（dev 编辑生效即压入 URL，见 level-editor.ts）。
-// 形态自判别无需前缀：id 为纯数字，base64url 必含字母（`eyI` = `{"` 的固定编码，肉眼可辨）。
-export type LvValue = number | string | null
+// lv 双形态：{ id } = 内置关卡 slug（URL 直传零转义）；{ json } = 内联关卡文本（base64url，编辑器压入）。
+// 判别 = 先 slug 后 JSON 的 fallback：slug 字符集（小写字母/数字/连字符）先验命中即归属内置，
+// 其余再试 base64 解码——损坏载荷（非法字符/坏填充/非 UTF-8）一律落 null 由调用方净化
+export type LvValue = { id: string } | { json: string } | null
 
 export const lvCodec: UrlStateCodec<LvValue> = {
   encode(v) {
-    if (v === null || v === '') return ''
-    if (typeof v === 'number') return String(v)
-    return toBase64Url(new TextEncoder().encode(v))
+    if (v === null) return ''
+    if ('id' in v) return v.id
+    return toBase64Url(new TextEncoder().encode(v.json))
   },
   decode(raw) {
     if (raw === null || raw === '') return null
-    // 纯数字 = 内置关卡 id，无数量上限（99 是旧 dev 槽时代的魔数，已无约束理由）；
-    // 判别不依赖上限：合法 JSON 的 base64 必含字母，纯数字串永远不会是内联关卡
-    if (/^\d+$/.test(raw)) {
-      const n = Number(raw)
-      return Number.isInteger(n) && n >= 1 && n <= Number.MAX_SAFE_INTEGER ? n : null
-    }
+    if (ID_PATTERN.test(raw)) return { id: raw }
     try {
       // fatal: 非法 UTF-8（损坏的 base64 输入）抛错回落 null，而非产出替换符垃圾串
       const text = new TextDecoder('utf-8', { fatal: true }).decode(fromBase64Url(raw))
-      return text === '' ? null : text
+      return text === '' ? null : { json: text }
     } catch {
       return null
     }

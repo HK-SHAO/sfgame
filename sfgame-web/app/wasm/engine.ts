@@ -80,11 +80,6 @@ export interface BatchExports {
     cr: number, cg: number, cb: number, ca: number,
     er: number, eg: number, eb: number, ea: number,
   ): void
-  bDiscGradCore(
-    cx: number, cy: number, radius: number, seg: number, solidFrac: number,
-    cr: number, cg: number, cb: number, ca: number,
-    er: number, eg: number, eb: number, ea: number,
-  ): void
   bRing(
     cx: number, cy: number, rx: number, ry: number, rot: number, seg: number, w: number,
     r: number, g: number, b: number, a: number,

@@ -1,12 +1,13 @@
 import { expect, test } from 'vitest'
 import { levelFromJson } from '../app/game/level-format'
+import { LEVEL_SCHEMA_REF } from '../app/game/level-validate'
 import { fanDirection, LevelSimulation } from '../app/game/simulation'
 import type { LevelJson } from '../app/game/types'
 
 // 空关卡骨架：无 fixed/fans，测试各自补齐
 const BASE: LevelJson = {
-  schema: 1,
-  id: 99,
+  $schema: LEVEL_SCHEMA_REF,
+  id: 'test-fixed',
   name: 't',
   tagline: 't',
   win: { title: 't', text: 't' },

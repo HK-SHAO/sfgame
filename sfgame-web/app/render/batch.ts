@@ -129,14 +129,6 @@ export class MeshBatch {
     this.ex.bDiscGrad(cx, cy, radius, seg, cr, cg, cb, ca, er, eg, eb, ea)
   }
 
-  discGradCore(
-    cx: number, cy: number, radius: number, seg: number, solidFrac: number,
-    cr: number, cg: number, cb: number, ca: number,
-    er: number, eg: number, eb: number, ea: number,
-  ) {
-    this.ex.bDiscGradCore(cx, cy, radius, seg, solidFrac, cr, cg, cb, ca, er, eg, eb, ea)
-  }
-
   ring(
     cx: number, cy: number, rx: number, ry: number, rot: number, seg: number, w: number,
     r: number, g: number, b: number, a: number,

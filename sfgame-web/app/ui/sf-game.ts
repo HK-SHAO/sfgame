@@ -105,7 +105,7 @@ export class SfGame extends LitElement {
       <canvas role="img" aria-label="烧风：放置热源与冷源，用风把纸飞机送达目标"></canvas>
       <div class="deny-ring" aria-hidden="true"></div>
       <sf-status
-        .levelId=${this.level?.id ?? 0}
+        .levelId=${this.level?.id ?? ''}
         .levelName=${this.level?.name ?? ''}
         .time=${this.statusTime}
         .penalty=${this.statusPenalty}

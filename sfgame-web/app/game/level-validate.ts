@@ -1,9 +1,13 @@
-// 关卡 JSON 结构校验 = levels/level.schema.json 的运行时镜像：schema 表达的静态约束两处同源，
+// 关卡 JSON 结构校验 = levels/level.schema-1.json 的运行时镜像：schema 表达的静态约束两处同源，
 // 由 tests/level-schema.test.ts 守护；world 依赖的动态边界（x≤w 等）与 SDF 语义仅此处可表达。
 // 错误逐字段 JSON 路径 + 实值；world 非法时动态边界自动失效（undefined），只查结构不级联误报
 import { compileSdf, SdfError } from './sdf'
 
 export const LEVEL_SCHEMA = 1
+// 协议版本唯一编码点：文件名 level.schema-N.json 携带版本，关卡 $schema 须精确指向当前版本引用
+export const LEVEL_SCHEMA_REF = `./level.schema-${LEVEL_SCHEMA}.json`
+// 关卡 id = 小写 slug（URL 直传零转义、语义化命名）；URL 内联判别（state.ts）依赖此字符集
+export const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/
 export const GOAL_R_MAX = 15
 export const LIST_MAX = 8
 export const GRID_MIN = 16
@@ -74,13 +78,17 @@ const arrSpan = (min: number, max: number) =>
   max === Infinity ? `≥ ${min}` : min === 0 ? `≤ ${max}` : `${min}..${max}`
 
 const KNOWN_TOP = new Set([
-  '$schema', 'schema', 'id', 'name', 'tagline', 'win', 'world', 'terrain',
+  '$schema', 'id', 'name', 'tagline', 'win', 'world', 'terrain',
   'budget', 'spawn', 'goals', 'ambient', 'fixed', 'fans',
 ])
 
 function checkMeta(ctx: Ctx, j: Record<string, unknown>) {
-  if (j.schema !== LEVEL_SCHEMA) ctx.errs.push(`${ctx.id} schema = ${JSON.stringify(j.schema)}，必须为 ${LEVEL_SCHEMA}`)
-  num(ctx, 'id', j.id, { min: 1, int: true })
+  if (j.$schema !== LEVEL_SCHEMA_REF) {
+    ctx.errs.push(`${ctx.id} $schema = ${JSON.stringify(j.$schema)}，必须为 ${LEVEL_SCHEMA_REF}`)
+  }
+  if (typeof j.id !== 'string' || !ID_PATTERN.test(j.id)) {
+    ctx.errs.push(`${ctx.id} id = ${JSON.stringify(j.id)}，必须为小写 slug（字母/数字/连字符，≤32 字符）`)
+  }
   str(ctx, 'name', j.name)
   str(ctx, 'tagline', j.tagline)
   const w = j.win

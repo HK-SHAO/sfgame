@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { LEVELS } from '../app/game/levels'
 import { LevelSimulation } from '../app/game/simulation'
 
-const LEVEL_4 = LEVELS.find((l) => l.id === 4)!
+const LEVEL_4 = LEVELS.find((l) => l.id === 'chao-xi')!
 const DT = 1 / 60
 
 test('潮汐风：环境风速随模拟时钟周期性变化，半周期后反向', () => {

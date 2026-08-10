@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 14,
+  "$schema": "./level.schema-1.json",
+  "id": "zhuo-yuan",
   "name": "灼原",
   "tagline": "整个世界都想上升",
   "win": {

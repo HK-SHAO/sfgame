@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 6,
+  "$schema": "./level.schema-1.json",
+  "id": "ying-huo",
   "name": "营火",
   "tagline": "世界自带的心跳",
   "win": {

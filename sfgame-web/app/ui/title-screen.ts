@@ -13,8 +13,8 @@ export class SfTitleScreen extends LitElement {
   @property({ type: Boolean }) dev = false
   @property({ type: String }) activeGroup = ''
 
-  private startLevel(id: number) {
-    this.dispatchEvent(new CustomEvent<number>('start', { detail: id }))
+  private startLevel(id: string) {
+    this.dispatchEvent(new CustomEvent<string>('start', { detail: id }))
   }
 
   // 关于按钮：短按开关于页，长按（500ms）进开发者页面（隐藏入口，不向玩家披露）
@@ -78,9 +78,9 @@ export class SfTitleScreen extends LitElement {
               .filter((l): l is LevelDef => l !== undefined)
               .map((l) => {
                 // dev 模式全关卡可玩（含未解锁）；解锁按关卡 hash 的通关记录判定
-                const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash(id) ?? ''))
+                const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash({ id }) ?? ''))
                 // 最优成绩 = 通关记录合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
-                const best = progress.best(levelHash(l.id) ?? '')
+                const best = progress.best(levelHash({ id: l.id }) ?? '')
                 // 耗时评级（≤30 绿 / ≤60 黄 / >60 红）：emoji 直观表意（🏆 纪录 / 🙂 尚可 / 🐌 缓慢）
                 const grade = best
                   ? best.total > 60
@@ -89,8 +89,8 @@ export class SfTitleScreen extends LitElement {
                       ? { cls: 'fair', emoji: '🙂' }
                       : { cls: 'good', emoji: '🏆' }
                   : null
-                // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变
-                const no = String(l.id).padStart(2, '0')
+                // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变；序数按 LEVELS 全局顺序派生，与 slug 解耦
+                const no = String(LEVELS.findIndex((x) => x.id === l.id) + 1).padStart(2, '0')
                 return html`
                   <button
                     class="level play ${locked ? 'locked' : ''}"

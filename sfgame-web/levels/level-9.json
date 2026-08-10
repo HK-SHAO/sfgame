@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 9,
+  "$schema": "./level.schema-1.json",
+  "id": "zhong-bai",
   "name": "钟摆",
   "tagline": "风有节拍，出手看时机",
   "win": {

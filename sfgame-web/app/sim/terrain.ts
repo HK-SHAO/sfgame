@@ -99,17 +99,22 @@ export function surfaceY(t: Terrain, x: number, worldH: number): number {
   return worldH
 }
 
-// 把点沿法向推出实体直到 clearance 净空（放源吸附：脚下放源不被拒绝）；迭代上限内收敛
+// 把点沿法向推出实体直到 clearance 净空（放源吸附：脚下放源不被拒绝）。
+// 单步长夹在半格内做梯度上升：SDF 在实体深处并非精确距离，整步长（clearance−d）会过冲穿过薄山体
+// 飞到远端错误表面；夹步沿场梯度逐格爬升，恒收敛到最近表面，无论点击多深都不会乱飞
+const SNAP_STEP = 0.5
+const SNAP_ITERS = 128
 export function projectOut(t: Terrain, x: number, y: number, clearance: number): { x: number; y: number } {
   const n = { x: 0, y: 0 }
   let px = x
   let py = y
-  for (let k = 0; k < 8; k++) {
+  for (let k = 0; k < SNAP_ITERS; k++) {
     const d = t.sample(px, py)
     if (d >= clearance) break
     t.normal(px, py, n)
-    px += n.x * (clearance - d)
-    py += n.y * (clearance - d)
+    const step = Math.min(clearance - d, t.cell * SNAP_STEP)
+    px += n.x * step
+    py += n.y * step
   }
   return { x: px, y: py }
 }

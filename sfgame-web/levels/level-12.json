@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 12,
+  "$schema": "./level.schema-1.json",
+  "id": "ni-lu",
   "name": "逆旅",
   "tagline": "天地者，万物之逆旅",
   "win": {

@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 8,
+  "$schema": "./level.schema-1.json",
+  "id": "gu-feng",
   "name": "鼓风",
   "tagline": "不等风来，造风而行",
   "win": {

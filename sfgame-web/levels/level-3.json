@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 3,
+  "$schema": "./level.schema-1.json",
+  "id": "xin-feng",
   "name": "信风",
   "tagline": "风为信使，逐站递送",
   "win": {

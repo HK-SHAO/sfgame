@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 10,
+  "$schema": "./level.schema-1.json",
+  "id": "fen-feng",
   "name": "焚风",
   "tagline": "火借风势，风携火威",
   "win": {

@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 15,
+  "$schema": "./level.schema-1.json",
+  "id": "tian-qian",
   "name": "天堑",
   "tagline": "寒风过天堑",
   "win": {

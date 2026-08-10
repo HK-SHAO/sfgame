@@ -12,22 +12,22 @@ export interface KnownSolution {
   total: number
 }
 
-export const KNOWN_SOLUTIONS: Record<number, KnownSolution> = {
-  1: { src: [[46, 49.3, 'hot']], time: 17.92, groundTime: 0, total: 21.92 },
-  2: { src: [[62, 20.3, 'hot'], [38, 30.1, 'cold']], time: 17.67, groundTime: 1.83, total: 27.5 },
-  3: { src: [[19.5, 15.5, 'cold']], time: 13.98, groundTime: 0, total: 17.98 },
-  4: { src: [[30.2, 28.2, 'hot']], time: 41.03, groundTime: 0, total: 45.03 },
-  5: { src: [[22.9, 30.1, 'hot'], [11, 9.7, 'cold']], time: 29.4, groundTime: 9.0, total: 46.4 },
-  6: { src: [[38, 20.3, 'cold']], time: 28.2, groundTime: 0, total: 32.2 },
-  7: { src: [[46, 41.3, 'cold']], time: 44.7, groundTime: 2.8, total: 51.4 },
-  8: { src: [[54, 18.3, 'cold'], [44, 33.3, 'hot']], time: 11.55, groundTime: 0, total: 19.55 },
-  9: { src: [[22, 19, 'hot']], time: 9.53, groundTime: 0, total: 13.53 },
-  10: { src: [[58, 17.2, 'hot']], time: 21.15, groundTime: 2.72, total: 27.87 },
-  11: { src: [[40, 40.2, 'hot']], time: 30.5, groundTime: 1.4, total: 35.8 },
-  12: { src: [[34, 21.6, 'hot']], time: 38.3, groundTime: 18.4, total: 60.6 },
-  13: { src: [[41, 26.3, 'hot']], time: 13.8, groundTime: 0, total: 17.8 },
-  14: { src: [[64, 25.9, 'hot']], time: 19.13, groundTime: 0.57, total: 23.7 },
-  15: { src: [[61.9, 3.5, 'cold']], time: 72.1, groundTime: 21.8, total: 97.9 },
+export const KNOWN_SOLUTIONS: Record<string, KnownSolution> = {
+  'luo-yu': { src: [[46, 49.3, 'hot']], time: 17.92, groundTime: 0, total: 21.92 },
+  'fu-yao': { src: [[62, 20.3, 'hot'], [38, 30.1, 'cold']], time: 17.67, groundTime: 1.83, total: 27.5 },
+  'xin-feng': { src: [[19.5, 15.5, 'cold']], time: 13.98, groundTime: 0, total: 17.98 },
+  'chao-xi': { src: [[30.2, 28.2, 'hot']], time: 41.03, groundTime: 0, total: 45.03 },
+  'hui-gui': { src: [[22.9, 30.1, 'hot'], [11, 9.7, 'cold']], time: 29.4, groundTime: 9.0, total: 46.4 },
+  'ying-huo': { src: [[38, 20.3, 'cold']], time: 28.2, groundTime: 0, total: 32.2 },
+  'bing-jiao': { src: [[46, 41.3, 'cold']], time: 44.7, groundTime: 2.8, total: 51.4 },
+  'gu-feng': { src: [[54, 18.3, 'cold'], [44, 33.3, 'hot']], time: 11.55, groundTime: 0, total: 19.55 },
+  'zhong-bai': { src: [[22, 19, 'hot']], time: 9.53, groundTime: 0, total: 13.53 },
+  'fen-feng': { src: [[58, 17.2, 'hot']], time: 21.15, groundTime: 2.72, total: 27.87 },
+  'chu-shuang': { src: [[40, 40.2, 'hot']], time: 30.5, groundTime: 1.4, total: 35.8 },
+  'ni-lu': { src: [[34, 21.6, 'hot']], time: 38.3, groundTime: 18.4, total: 60.6 },
+  'ji-bai': { src: [[41, 26.3, 'hot']], time: 13.8, groundTime: 0, total: 17.8 },
+  'zhuo-yuan': { src: [[64, 25.9, 'hot']], time: 19.13, groundTime: 0.57, total: 23.7 },
+  'tian-qian': { src: [[61.9, 3.5, 'cold']], time: 72.1, groundTime: 21.8, total: 97.9 },
 }
 
 // s= URL 直达参数（如 ?lv=1&s=46-49.3-h）：复用游戏 URL 编码（坐标 1 位小数、整数去 .0）

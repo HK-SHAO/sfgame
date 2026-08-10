@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { LEVELS_BY_ID } from '../app/game/levels'
 import { LevelSimulation } from '../app/game/simulation'
 
-const LEVEL_1 = LEVELS_BY_ID.get(1)!
+const LEVEL_1 = LEVELS_BY_ID.get('luo-yu')!
 const DT = 1 / 60
 
 test('暂停冻结时间、位置与判定，恢复后继续', () => {

@@ -4,7 +4,7 @@ import { LevelSimulation } from '../app/game/simulation'
 import { WasmFluid } from '../app/sim/fluid'
 import { surfaceY } from '../app/sim/terrain'
 
-const LEVEL_2 = LEVELS_BY_ID.get(2)!
+const LEVEL_2 = LEVELS_BY_ID.get('fu-yao')!
 
 const DT = 1 / 60
 

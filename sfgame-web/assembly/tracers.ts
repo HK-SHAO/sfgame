@@ -8,10 +8,12 @@ export const T_COUNT = 400
 const T_TRAIL_LEN = 24
 const T_TRAIL_SAMPLE = 0.45
 const T_RESPAWN_TRIES = 8
-const T_PLUME_PER_STEP = 2
 const T_PLUME_RADIUS = 1.6
 const T_PLUME_LIFE_MIN = 0.9
 const T_PLUME_LIFE_SPAN = 1.2
+// 自然死亡转生羽流的概率：稳态羽流密度 ≈ 死亡率×概率×羽流寿命，与原强夺式注入同量级
+const T_PLUME_CHANCE = 0.7
+const T_PLUME_TRIES = 4
 // 地形场容量：流体网格最大规格（nx×ny）上限，超限 init 拒绝
 const T_SDF_CAP = 19200
 const T_SRC_CAP = 32
@@ -40,6 +42,7 @@ let scell: f64 = 1
 let sox: f64 = 0
 let soy: f64 = 0
 let rngState: u32 = 0x9e3779b9
+let srcNow: i32 = 0
 
 function rnd(): f64 {
   // mulberry32：u32 算术自然回绕（与 imul 位级等价）
@@ -97,6 +100,25 @@ function recordTrail(i: i32): void {
 }
 
 function respawn(i: i32, scatter: bool): void {
+  // 有热源时自然死亡按概率转生为羽流：粒子本已淡出完毕（env→0），无 alpha 突变；
+  // 旧式强夺活粒子会让被夺者可见轨迹瞬消
+  if (!scatter && srcNow > 0 && rnd() < T_PLUME_CHANCE) {
+    for (let tries = 0; tries < T_PLUME_TRIES; tries++) {
+      const s = <i32>(rnd() * <f64>srcNow)
+      const ang = rnd() * Math.PI * 2
+      const rad = rnd() * T_PLUME_RADIUS
+      const x = <f64>srcBuf[s * 2] + Math.cos(ang) * rad
+      const y = <f64>srcBuf[s * 2 + 1] + Math.sin(ang) * rad
+      if (sdfAt(x, y) < 0.6 || y < 1) continue
+      tx[i] = <f32>x
+      ty[i] = <f32>y
+      tMaxLife[i] = <f32>(T_PLUME_LIFE_MIN + rnd() * T_PLUME_LIFE_SPAN)
+      tLife[i] = tMaxLife[i]
+      resetTrail(i)
+      recordTrail(i)
+      return
+    }
+  }
   for (let tries = 0; tries < T_RESPAWN_TRIES; tries++) {
     // 拒绝采样：全场随机投点，落在离地表 ≥1.5 的空气区才出生（SDF 天然兼容任意地形）
     const x = 0.5 + rnd() * (worldW - 1)
@@ -140,6 +162,7 @@ export function tracersInit(
 
 export function tracersStep(dt: f64, srcCount: i32): void {
   time += dt
+  srcNow = srcCount
   const m = margin
   for (let i = 0; i < T_COUNT; i++) {
     tLife[i] = <f32>(<f64>tLife[i] - dt)
@@ -159,24 +182,6 @@ export function tracersStep(dt: f64, srcCount: i32): void {
     // 允许飞出地图：边距内继续随风流动，接近末端才清理（可见区无堆积/断崖）；进地即重生
     if (sdfAt(nx, ny) < 0.4 || ny < 1 - m || nx < 1 - m || nx > worldW + m - 1) {
       respawn(i, false)
-    }
-  }
-
-  if (srcCount > 0) {
-    for (let n = 0; n < T_PLUME_PER_STEP; n++) {
-      const s = <i32>(rnd() * <f64>srcCount)
-      const i = <i32>(rnd() * <f64>T_COUNT)
-      const ang = rnd() * Math.PI * 2
-      const rad = rnd() * T_PLUME_RADIUS
-      const x = <f64>srcBuf[s * 2] + Math.cos(ang) * rad
-      const y = <f64>srcBuf[s * 2 + 1] + Math.sin(ang) * rad
-      if (sdfAt(x, y) < 0.6 || y < 1) continue
-      tx[i] = <f32>x
-      ty[i] = <f32>y
-      tMaxLife[i] = <f32>(T_PLUME_LIFE_MIN + rnd() * T_PLUME_LIFE_SPAN)
-      tLife[i] = tMaxLife[i]
-      resetTrail(i)
-      recordTrail(i)
     }
   }
 }

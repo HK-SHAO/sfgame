@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 13,
+  "$schema": "./level.schema-1.json",
+  "id": "ji-bai",
   "name": "疾摆",
   "tagline": "节拍骤然加密",
   "win": {

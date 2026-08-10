@@ -84,7 +84,7 @@ export class SfApp extends LitElement {
 
   // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验）；旧摆法不随关卡继承
   private onDevOverride = (text: string) => {
-    urlState.set('lv', text)
+    urlState.set('lv', { json: text })
     urlState.clear('s')
     this.applyScreen(screenFromUrl())
   }
@@ -123,9 +123,9 @@ export class SfApp extends LitElement {
     this.devTools?.mount(this.hudEl)
   }
 
-  private startGame(id: number) {
+  private startGame(id: string) {
     fb.uiEnter()
-    urlState.set('lv', id)
+    urlState.set('lv', { id })
     urlState.clear('s')
     this.applyScreen(screenFromUrl())
   }
@@ -135,7 +135,7 @@ export class SfApp extends LitElement {
     if (next === undefined) return
     fb.uiEnter()
     // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
-    urlState.set('lv', next)
+    urlState.set('lv', { id: next })
     urlState.clear('s')
     this.applyScreen(screenFromUrl())
   }
@@ -249,7 +249,7 @@ export class SfApp extends LitElement {
         .dev=${this.dev}
         .activeGroup=${this.activeGroup}
         @group=${this.onGroup}
-        @start=${(e: CustomEvent<number>) => this.startGame(e.detail)}
+        @start=${(e: CustomEvent<string>) => this.startGame(e.detail)}
         @dev-page=${this.openDev}
         @about=${this.openAbout}
       ></sf-title-screen>`

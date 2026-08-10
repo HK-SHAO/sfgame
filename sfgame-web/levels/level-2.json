@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 2,
+  "$schema": "./level.schema-1.json",
+  "id": "fu-yao",
   "name": "扶摇",
   "tagline": "热让风上升",
   "win": {

@@ -1,7 +1,6 @@
 {
-  "$schema": "./level.schema.json",
-  "schema": 1,
-  "id": 7,
+  "$schema": "./level.schema-1.json",
+  "id": "bing-jiao",
   "name": "冰窖",
   "tagline": "冷沿山坡下沉",
   "win": {

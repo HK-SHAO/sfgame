@@ -19,7 +19,6 @@ const data = new Float32Array(CAPACITY * VERTEX_STRIDE)
 const ptsBuf = new Float32Array(PTS_CAP)
 const fadeBuf = new Float32Array(FADE_CAP)
 const tracerBuf = new Float32Array(TRACER_CAP * TRACER_STRIDE)
-const gradRing = new Float32Array(8)
 // 地形固体填充：格心 SDF 场 + marching squares 多边形刮板（凸多边形 ≤6 点）
 const tgField = new Float32Array(TG_CAP)
 const tgCX = new Float64Array(4)
@@ -160,6 +159,27 @@ export function bDisc(
   disc(cx, cy, rx, ry, rot, seg, r, g, bl, a)
 }
 
+// 半圆盘（π 扇）：圆润端帽专用——整圆盘与线段带重叠，半透明双重混合使端头发深；
+// 半圆盘恰好补在线段带之外的延长区，零重叠、alpha 均匀
+function halfDisc(cx: f64, cy: f64, r: f64, phi: f64, seg: i32, cr: f64, cg: f64, cb: f64, a: f64): void {
+  if (r <= 0 || a <= 0) return
+  if (count + seg * 3 > CAPACITY) return
+  let px: f64 = 0
+  let py: f64 = 0
+  for (let i = 0; i <= seg; i++) {
+    const th = phi - Math.PI / 2 + (Math.PI * <f64>i) / <f64>seg
+    const qx = cx + r * Math.cos(th)
+    const qy = cy + r * Math.sin(th)
+    if (i > 0) {
+      push(cx, cy, cr, cg, cb, a)
+      push(px, py, cr, cg, cb, a)
+      push(qx, qy, cr, cg, cb, a)
+    }
+    px = qx
+    py = qy
+  }
+}
+
 function stroke(
   x0: f64, y0: f64, x1: f64, y1: f64, w: f64,
   r: f64, g: f64, bl: f64, a: f64, round: bool,
@@ -168,7 +188,8 @@ function stroke(
   const dy = y1 - y0
   const len = Math.sqrt(dx * dx + dy * dy)
   if (len < 1e-8) return
-  if (count + (round ? 54 : 6) > CAPACITY) return
+  // 圆头 = 四边形带 + 两端朝外半圆盘（6 + 2×18 顶点，互不重叠）
+  if (count + (round ? 42 : 6) > CAPACITY) return
   const hw = w / 2 / len
   const nx = -dy * hw
   const ny = dx * hw
@@ -179,8 +200,9 @@ function stroke(
   push(x1 - nx, y1 - ny, r, g, bl, a)
   push(x0 - nx, y0 - ny, r, g, bl, a)
   if (round) {
-    disc(x0, y0, w / 2, w / 2, 0, 8, r, g, bl, a)
-    disc(x1, y1, w / 2, w / 2, 0, 8, r, g, bl, a)
+    const phi = Math.atan2(dy, dx)
+    halfDisc(x1, y1, w / 2, phi, 6, r, g, bl, a)
+    halfDisc(x0, y0, w / 2, phi + Math.PI, 6, r, g, bl, a)
   }
 }
 
@@ -460,95 +482,24 @@ export function bDiscGrad(
   }
 }
 
-export function bDiscGradCore(
-  cx: f64, cy: f64, radius: f64, seg: i32, solidFrac: f64,
-  cr: f64, cg: f64, cb: f64, ca: f64,
-  er: f64, eg: f64, eb: f64, ea: f64,
-): void {
-  if (radius <= 0) return
-  if (count + seg * 21 > CAPACITY) return
-  const inner = radius * solidFrac
-  const band = radius - inner
-  const r1 = inner + band / 3
-  const r2 = inner + (band * 2) / 3
-  // AS 整数字面量相除会截断为 0：须显式浮点
-  const t1 = <f64>7 / 27
-  const t2 = <f64>20 / 27
-  const c1r = cr + (er - cr) * t1
-  const c1g = cg + (eg - cg) * t1
-  const c1b = cb + (eb - cb) * t1
-  const c1a = ca + (ea - ca) * t1
-  const c2r = cr + (er - cr) * t2
-  const c2g = cg + (eg - cg) * t2
-  const c2b = cb + (eb - cb) * t2
-  const c2a = ca + (ea - ca) * t2
-  const gd = gradRing
-  for (let i = 0; i <= seg; i++) {
-    const th = (<f64>i / <f64>seg) * Math.PI * 2
-    const cos = Math.cos(th)
-    const sin = Math.sin(th)
-    const n0x = cx + inner * cos
-    const n0y = cy + inner * sin
-    const n1x = cx + r1 * cos
-    const n1y = cy + r1 * sin
-    const n2x = cx + r2 * cos
-    const n2y = cy + r2 * sin
-    const n3x = cx + radius * cos
-    const n3y = cy + radius * sin
-    if (i > 0) {
-      push(cx, cy, cr, cg, cb, ca)
-      push(<f64>gd[0], <f64>gd[1], cr, cg, cb, ca)
-      push(n0x, n0y, cr, cg, cb, ca)
-      push(<f64>gd[0], <f64>gd[1], cr, cg, cb, ca)
-      push(<f64>gd[2], <f64>gd[3], c1r, c1g, c1b, c1a)
-      push(n1x, n1y, c1r, c1g, c1b, c1a)
-      push(<f64>gd[0], <f64>gd[1], cr, cg, cb, ca)
-      push(n1x, n1y, c1r, c1g, c1b, c1a)
-      push(n0x, n0y, cr, cg, cb, ca)
-      push(<f64>gd[2], <f64>gd[3], c1r, c1g, c1b, c1a)
-      push(<f64>gd[4], <f64>gd[5], c2r, c2g, c2b, c2a)
-      push(n2x, n2y, c2r, c2g, c2b, c2a)
-      push(<f64>gd[2], <f64>gd[3], c1r, c1g, c1b, c1a)
-      push(n2x, n2y, c2r, c2g, c2b, c2a)
-      push(n1x, n1y, c1r, c1g, c1b, c1a)
-      push(<f64>gd[4], <f64>gd[5], c2r, c2g, c2b, c2a)
-      push(<f64>gd[6], <f64>gd[7], er, eg, eb, ea)
-      push(n3x, n3y, er, eg, eb, ea)
-      push(<f64>gd[4], <f64>gd[5], c2r, c2g, c2b, c2a)
-      push(n3x, n3y, er, eg, eb, ea)
-      push(n2x, n2y, c2r, c2g, c2b, c2a)
-    }
-    gd[0] = <f32>n0x
-    gd[1] = <f32>n0y
-    gd[2] = <f32>n1x
-    gd[3] = <f32>n1y
-    gd[4] = <f32>n2x
-    gd[5] = <f32>n2y
-    gd[6] = <f32>n3x
-    gd[7] = <f32>n3y
-  }
-}
-
 export function bRing(
   cx: f64, cy: f64, rx: f64, ry: f64, rot: f64, seg: i32, w: f64,
   r: f64, g: f64, bl: f64, a: f64,
 ): void {
   if (rx <= 0 || ry <= 0 || a <= 0) return
-  if (count + seg * 6 > CAPACITY) return
+  const n = seg + 1
+  if (n * 2 > PTS_CAP) return
   const cos = Math.cos(rot)
   const sin = Math.sin(rot)
-  let px: f64 = 0
-  let py: f64 = 0
   for (let i = 0; i <= seg; i++) {
     const th = (<f64>i / <f64>seg) * Math.PI * 2
     const ex = rx * Math.cos(th)
     const ey = ry * Math.sin(th)
-    const qx = cx + ex * cos - ey * sin
-    const qy = cy + ex * sin + ey * cos
-    if (i > 0) stroke(px, py, qx, qy, w, r, g, bl, a, false)
-    px = qx
-    py = qy
+    ptsBuf[i * 2] = <f32>(cx + ex * cos - ey * sin)
+    ptsBuf[i * 2 + 1] = <f32>(cy + ex * sin + ey * cos)
   }
+  // 闭环折线（末点回首点）miter 接头：旧逐段 stroke 在接头处双重混合发深且有角度缺口
+  miter(n * 2, w, r, g, bl, a, false)
 }
 
 // 与 polyline 复用 ptsBuf：调用方不得在 arc 期间改写入参缓冲（单线程天然成立）
@@ -566,8 +517,12 @@ function arc(
   }
   miter(n * 2, w, r, g, bl, a, false)
   const hw = w / 2
-  disc(<f64>ptsBuf[0], <f64>ptsBuf[1], hw, hw, 0, 8, r, g, bl, a)
-  disc(<f64>ptsBuf[seg * 2], <f64>ptsBuf[seg * 2 + 1], hw, hw, 0, 8, r, g, bl, a)
+  // 端帽 = 沿切线朝外的半圆盘（与折线带零重叠）：旧整圆盘与末段双混使虚线每节两端发深
+  const i1 = seg * 2
+  const phi0 = Math.atan2(<f64>ptsBuf[1] - <f64>ptsBuf[3], <f64>ptsBuf[0] - <f64>ptsBuf[2])
+  const phi1 = Math.atan2(<f64>ptsBuf[i1 + 1] - <f64>ptsBuf[i1 - 1], <f64>ptsBuf[i1] - <f64>ptsBuf[i1 - 2])
+  halfDisc(<f64>ptsBuf[0], <f64>ptsBuf[1], hw, phi0, 6, r, g, bl, a)
+  halfDisc(<f64>ptsBuf[i1], <f64>ptsBuf[i1 + 1], hw, phi1, 6, r, g, bl, a)
 }
 
 export function bArc(

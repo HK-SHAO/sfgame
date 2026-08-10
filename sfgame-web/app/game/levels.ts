@@ -26,21 +26,21 @@ const LEVEL_TEXTS = [
 // 关卡图（主页选项卡 + 解锁/导航的单一事实来源）：JSON 不声明归属，组内顺序 = ids 数组顺序
 export interface LevelGroup {
   name: string
-  ids: readonly number[]
+  ids: readonly string[]
 }
 
 export const LEVEL_GROUPS: LevelGroup[] = [
-  { name: '长风', ids: [1, 2, 3, 4, 5] },
-  { name: '焚风', ids: [6, 7, 8, 9, 10] },
+  { name: '长风', ids: ['luo-yu', 'fu-yao', 'xin-feng', 'chao-xi', 'hui-gui'] },
+  { name: '焚风', ids: ['ying-huo', 'bing-jiao', 'gu-feng', 'zhong-bai', 'fen-feng'] },
   // 第三组：既有图调参的硬核重编（环境温度原子主登场），组内按难度升序
-  { name: '烈风', ids: [11, 12, 13, 14, 15] },
+  { name: '烈风', ids: ['chu-shuang', 'ni-lu', 'ji-bai', 'zhuo-yuan', 'tian-qian'] },
 ]
 
 // 逐关容错加载：坏关卡只进 LEVEL_ERRORS 清单，绝不抛错——模块加载抛错会让整个 bundle 求值失败 → 应用白屏
 export const LEVEL_ERRORS: string[] = []
-export const LEVELS_BY_ID = new Map<number, LevelDef>()
-export const LEVEL_SOURCES = new Map<number, string>()
-export function levelSource(id: number): string | undefined {
+export const LEVELS_BY_ID = new Map<string, LevelDef>()
+export const LEVEL_SOURCES = new Map<string, string>()
+export function levelSource(id: string): string | undefined {
   return LEVEL_SOURCES.get(id)
 }
 for (const text of LEVEL_TEXTS) {
@@ -59,18 +59,18 @@ export const LEVELS: LevelDef[] = LEVEL_GROUPS.flatMap((g) =>
   g.ids.map((id) => LEVELS_BY_ID.get(id)).filter((l): l is LevelDef => l !== undefined),
 )
 
-function groupOf(id: number): LevelGroup | undefined {
+function groupOf(id: string): LevelGroup | undefined {
   return LEVEL_GROUPS.find((g) => g.ids.includes(id))
 }
 
 // 下一关：组内顺延，组尾跨入下一组首关，最后一关无下一关
-export function nextLevel(id: number): number | undefined {
+export function nextLevel(id: string): string | undefined {
   const idx = LEVELS.findIndex((l) => l.id === id)
   return idx >= 0 ? LEVELS[idx + 1]?.id : undefined
 }
 
 // 解锁语义：每组第一关初始解锁，其余 = 上一关或本关已有过关记录；跨组独立
-export function isUnlocked(id: number, completed: (id: number) => boolean): boolean {
+export function isUnlocked(id: string, completed: (id: string) => boolean): boolean {
   const g = groupOf(id)
   if (!g) return false
   const i = g.ids.indexOf(id)
@@ -78,32 +78,35 @@ export function isUnlocked(id: number, completed: (id: number) => boolean): bool
   return completed(g.ids[i - 1]) || completed(id)
 }
 
-// lv 双形态解析：数字 = 内置关卡；字符串 = URL 内联 JSON（解析失败视为无效，外部输入须完整校验）
+// lv 双形态解析：{ id } = 内置关卡；{ json } = URL 内联 JSON（解析失败视为无效，外部输入须完整校验）
 export function resolveLevel(lv: LvValue): LevelDef | undefined {
-  if (typeof lv === 'number') return LEVELS_BY_ID.get(lv)
-  if (typeof lv === 'string') {
-    try {
-      return levelFromJson(JSON.parse(lv) as LevelJson)
-    } catch {
-      return undefined
-    }
+  if (lv === null) return undefined
+  if ('id' in lv) return LEVELS_BY_ID.get(lv.id)
+  try {
+    return levelFromJson(JSON.parse(lv.json) as LevelJson)
+  } catch {
+    return undefined
   }
-  return undefined
 }
 
-// FNV-1a 32bit：关卡内容 → 短 hash（base36）。玩家解法记录据此绑定（progress.ts）：
-// 关卡改版 hash 变旧解自然失效；内联 DIY 关卡同 id 不同内容互不串号
-function fnv1a(text: string): string {
+// FNV-1a 32bit：文本 → u32。关卡内容 hash（progress 绑定）与装饰种子（云/粒子同关可复现）共用同一实现
+function fnv1a(text: string): number {
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) {
     h ^= text.charCodeAt(i)
     h = Math.imul(h, 0x01000193)
   }
-  return (h >>> 0).toString(36)
+  return h >>> 0
 }
 
-// 内置关卡 hash 源 = 关卡文件原文（LEVEL_SOURCES）；内联 = URL 里的 JSON 文本本身
+// 关卡内容 hash（base36）：内置 = 关卡文件原文（LEVEL_SOURCES）；内联 = URL 里的 JSON 文本本身。
+// 玩家解法记录据此绑定（progress.ts）：关卡改版 hash 变旧解自然失效；内联 DIY 关卡同 id 不同内容互不串号
 export function levelHash(lv: LvValue): string | undefined {
-  const text = typeof lv === 'number' ? LEVEL_SOURCES.get(lv) : lv ?? undefined
-  return text ? fnv1a(text) : undefined
+  const text = lv === null ? undefined : 'id' in lv ? LEVEL_SOURCES.get(lv.id) : lv.json
+  return text ? fnv1a(text).toString(36) : undefined
+}
+
+// 装饰种子：slug 哈希 + 盐（云与粒子以不同盐派生，同关可复现、互不串号）
+export function levelSeed(id: string, salt = 0): number {
+  return (fnv1a(id) ^ salt) >>> 0
 }

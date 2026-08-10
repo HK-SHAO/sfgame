@@ -22,6 +22,7 @@ const CFG: FluidConfig = {
 }
 
 const DT = 1 / 60
+const SEED = 12345
 
 // 内核采样直调流体（同模块），须先在同一引擎实例上初始化流体场
 function build() {
@@ -30,7 +31,7 @@ function build() {
   const terrain = bakeTerrain((_x, y) => GROUND_Y - y, WORLD, CFG.cell, 6)
   fluid.setTerrain(terrain)
   fluid.setAmbient(2, 0)
-  const tracers = new Tracers(engine, 400, WORLD, terrain, TRAIL_LEN, 6)
+  const tracers = new Tracers(engine, 400, WORLD, terrain, TRAIL_LEN, 6, SEED)
   return { fluid, tracers }
 }
 
@@ -84,9 +85,16 @@ test('热源羽流：源附近持续有新注入粒子', () => {
   expect(near).toBeGreaterThan(0)
 })
 
+test('同种子粒子场逐位一致（确定性随机，同关同场）', () => {
+  const a = build()
+  const b = build()
+  expect(Array.from(b.tracers.x)).toEqual(Array.from(a.tracers.x))
+  expect(Array.from(b.tracers.y)).toEqual(Array.from(a.tracers.y))
+})
+
 test('count/trailLen 与内核编译期容量不符即抛（无静默回退）', () => {
   const engine = createEngine()
   createFluid(CFG, engine)
   const terrain = bakeTerrain((_x, y) => GROUND_Y - y, WORLD, CFG.cell, 6)
-  expect(() => new Tracers(engine, 123, WORLD, terrain, TRAIL_LEN, 6)).toThrow()
+  expect(() => new Tracers(engine, 123, WORLD, terrain, TRAIL_LEN, 6, SEED)).toThrow()
 })

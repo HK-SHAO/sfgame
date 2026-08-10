@@ -172,14 +172,14 @@ export class SfLevelEditor extends LitElement {
   // 当前关卡源文本：内联关卡为 URL 紧凑 JSON，这里重新美化；内置关卡取仓库 JSON 原文
   private currentText(): string | undefined {
     const lv = urlState.get('lv')
-    if (typeof lv === 'string') {
+    if (lv !== null && 'json' in lv) {
       try {
-        return JSON.stringify(JSON.parse(lv), null, 2)
+        return JSON.stringify(JSON.parse(lv.json), null, 2)
       } catch {
         return undefined
       }
     }
-    return lv === null ? undefined : levelSource(lv)
+    return lv === null ? undefined : levelSource(lv.id)
   }
 
   private collapse() {

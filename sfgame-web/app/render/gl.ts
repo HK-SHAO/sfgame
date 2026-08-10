@@ -41,12 +41,60 @@ void main() {
 }
 `
 
+// 云专用程序：每朵云一个四边形，片元程序化积云（iq 式值噪声调制椭圆边界）——
+// 顶点数与轮廓复杂度解耦，柔和边缘在片元完成，MSAA 无关
+const CLOUD_VS = `
+attribute vec2 aPos;
+attribute vec4 aData;
+uniform vec4 uView;
+varying vec4 vData;
+void main() {
+  vec2 t = (aPos - uView.xy) / uView.zw;
+  gl_Position = vec4(t.x * 2.0 - 1.0, 1.0 - t.y * 2.0, 0.0, 1.0);
+  vData = aData;
+}
+`
+
+const CLOUD_FS = `
+precision mediump float;
+varying vec4 vData;
+uniform float uTime;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+void main() {
+  vec2 uv = vData.xy;
+  vec2 q = uv * 2.0 - 1.0;
+  // 两 octave：低频塑轮廓凸起、高频加蓬感；时间慢漂移使云“活”
+  float n = 0.62 * vnoise(uv * 4.5 + vData.w) + 0.38 * vnoise(uv * 9.0 - vData.w + uTime * 0.06);
+  // 椭圆基 + 噪声调制边界 + 底边压平（积云上蓬下平）；基椭圆在四边形边界处 d≥1.1，
+  // 最坏噪声（−0.4）下可见轮廓也不出四边形，无直边裁切感
+  float d = length(q * vec2(1.35, 1.5)) + (n - 0.5) * 0.8 + max(0.0, q.y - 0.15) * 0.9;
+  float a = smoothstep(0.92, 0.45, d) * vData.z;
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(1.0, 1.0, 0.996, a);
+}
+`
+
 interface TexProgram {
   program: WebGLProgram
   aPos: number
   aUV: number
   uView: WebGLUniformLocation | null
   uTex: WebGLUniformLocation | null
+}
+
+interface CloudProgram {
+  program: WebGLProgram
+  aPos: number
+  aData: number
+  uView: WebGLUniformLocation | null
+  uTime: WebGLUniformLocation | null
 }
 
 export class GlRenderer {
@@ -59,6 +107,8 @@ export class GlRenderer {
   private uView: WebGLUniformLocation | null = null
   private tex: TexProgram | null = null
   private texBuffer: WebGLBuffer | null = null
+  private cloud: CloudProgram | null = null
+  private cloudBuffer: WebGLBuffer | null = null
   private quadData = new Float32Array(24)
   private bgTexture: WebGLTexture | null = null
   private bgFbo: WebGLFramebuffer | null = null
@@ -111,12 +161,16 @@ export class GlRenderer {
     if (this.buffer) gl.deleteBuffer(this.buffer)
     if (this.tex) gl.deleteProgram(this.tex.program)
     if (this.texBuffer) gl.deleteBuffer(this.texBuffer)
+    if (this.cloud) gl.deleteProgram(this.cloud.program)
+    if (this.cloudBuffer) gl.deleteBuffer(this.cloudBuffer)
     if (this.bgTexture) gl.deleteTexture(this.bgTexture)
     if (this.bgFbo) gl.deleteFramebuffer(this.bgFbo)
     this.program = null
     this.buffer = null
     this.tex = null
     this.texBuffer = null
+    this.cloud = null
+    this.cloudBuffer = null
     this.bgTexture = null
     this.bgFbo = null
     this.uploadedBytes = 0
@@ -129,18 +183,22 @@ export class GlRenderer {
     const fs = this.compile(gl.FRAGMENT_SHADER, FS)
     const tvs = this.compile(gl.VERTEX_SHADER, TEX_VS)
     const tfs = this.compile(gl.FRAGMENT_SHADER, TEX_FS)
-    if (!vs || !fs || !tvs || !tfs) {
-      for (const s of [vs, fs, tvs, tfs]) {
+    const cvs = this.compile(gl.VERTEX_SHADER, CLOUD_VS)
+    const cfs = this.compile(gl.FRAGMENT_SHADER, CLOUD_FS)
+    if (!vs || !fs || !tvs || !tfs || !cvs || !cfs) {
+      for (const s of [vs, fs, tvs, tfs, cvs, cfs]) {
         if (s) gl.deleteShader(s)
       }
       return false
     }
     const program = this.link(vs, fs)
     const tprogram = this.link(tvs, tfs)
-    for (const s of [vs, fs, tvs, tfs]) gl.deleteShader(s)
-    if (!program || !tprogram) {
-      if (program) gl.deleteProgram(program)
-      if (tprogram) gl.deleteProgram(tprogram)
+    const cprogram = this.link(cvs, cfs)
+    for (const s of [vs, fs, tvs, tfs, cvs, cfs]) gl.deleteShader(s)
+    if (!program || !tprogram || !cprogram) {
+      for (const p of [program, tprogram, cprogram]) {
+        if (p) gl.deleteProgram(p)
+      }
       return false
     }
 
@@ -159,6 +217,15 @@ export class GlRenderer {
       uTex: gl.getUniformLocation(tprogram, 'uTex'),
     }
     this.texBuffer = gl.createBuffer()
+
+    this.cloud = {
+      program: cprogram,
+      aPos: gl.getAttribLocation(cprogram, 'aPos'),
+      aData: gl.getAttribLocation(cprogram, 'aData'),
+      uView: gl.getUniformLocation(cprogram, 'uView'),
+      uTime: gl.getUniformLocation(cprogram, 'uTime'),
+    }
+    this.cloudBuffer = gl.createBuffer()
 
     gl.disable(gl.DEPTH_TEST)
     gl.disable(gl.BLEND)
@@ -233,7 +300,7 @@ export class GlRenderer {
   }
 
   // 顶点批上传→绘制尾段（bakeBg 与 draw 共用；成员方法零闭包，每帧调用 JIT 内联）
-  private drawBatch(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number) {
+  drawBatch(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number) {
     const gl = this.gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
     const bytes = batch.count * VERTEX_STRIDE * 4
@@ -308,5 +375,25 @@ export class GlRenderer {
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
     this.drawBatch(batch, viewL, viewT, viewR, viewB)
+  }
+
+  // 云趟：夹在主批两半之间（遮挡契约：云遮粒子/日芒、被地形遮）；data = pos2+uv2+alpha+seed ×6 顶点/云
+  drawClouds(
+    data: Float32Array, verts: number,
+    viewL: number, viewT: number, viewR: number, viewB: number,
+    time: number,
+  ) {
+    if (this.lost || !this.cloud || !this.cloudBuffer || verts === 0) return
+    const gl = this.gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cloudBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, verts * 6), gl.STREAM_DRAW)
+    gl.useProgram(this.cloud.program)
+    gl.uniform4f(this.cloud.uView, viewL, viewT, viewR - viewL, viewB - viewT)
+    gl.uniform1f(this.cloud.uTime, time)
+    gl.enableVertexAttribArray(this.cloud.aPos)
+    gl.enableVertexAttribArray(this.cloud.aData)
+    gl.vertexAttribPointer(this.cloud.aPos, 2, gl.FLOAT, false, 24, 0)
+    gl.vertexAttribPointer(this.cloud.aData, 4, gl.FLOAT, false, 24, 8)
+    gl.drawArrays(gl.TRIANGLES, 0, verts)
   }
 }

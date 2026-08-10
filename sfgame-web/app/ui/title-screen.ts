@@ -210,6 +210,9 @@ export class SfTitleScreen extends LitElement {
         width: 12rem;
         max-width: 100%;
         height: auto;
+        /* 品牌插槽恒定方形：换图比例变化只 letterbox，不随文件抖动 */
+        aspect-ratio: 1 / 1;
+        object-fit: contain;
         margin: 0 auto 0.625rem;
       }
 

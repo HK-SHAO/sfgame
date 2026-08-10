@@ -17,6 +17,33 @@ export class SfTitleScreen extends LitElement {
     this.dispatchEvent(new CustomEvent<number>('start', { detail: id }))
   }
 
+  // 关于按钮：短按开关于页，长按（500ms）进开发者页面（隐藏入口，不向玩家披露）
+  private aboutTimer: number | null = null
+
+  private onAboutDown = () => {
+    this.aboutTimer = window.setTimeout(() => {
+      this.aboutTimer = null
+      this.dispatchEvent(new Event('dev-page'))
+    }, 500)
+  }
+
+  private onAboutUp = () => {
+    if (this.aboutTimer === null) return
+    clearTimeout(this.aboutTimer)
+    this.aboutTimer = null
+    this.dispatchEvent(new CustomEvent('about'))
+  }
+
+  private onAboutCancel = () => {
+    if (this.aboutTimer !== null) clearTimeout(this.aboutTimer)
+    this.aboutTimer = null
+  }
+
+  // 键盘路径（Enter 的 click detail=0）；指针的 click 忽略（about 已由 pointerup 触发）
+  private onAboutClick = (e: MouseEvent) => {
+    if (e.detail === 0) this.dispatchEvent(new CustomEvent('about'))
+  }
+
   protected override render() {
     const group = LEVEL_GROUPS.find((g) => g.name === this.activeGroup)
     return html`
@@ -101,7 +128,11 @@ export class SfTitleScreen extends LitElement {
             ${!this.dev
               ? html`<button
                   class="link-btn"
-                  @click=${() => this.dispatchEvent(new CustomEvent('about'))}
+                  @pointerdown=${this.onAboutDown}
+                  @pointerup=${this.onAboutUp}
+                  @pointercancel=${this.onAboutCancel}
+                  @pointerleave=${this.onAboutCancel}
+                  @click=${this.onAboutClick}
                   aria-label="关于"
                 >
                   ${iconInfo}<span>关于</span>
@@ -164,8 +195,8 @@ export class SfTitleScreen extends LitElement {
         margin: auto;
         padding: var(--card-pad);
         text-align: center;
-        /* 白雾玻璃：半透明白 + 轻模糊，背景图若隐若现（比其余页卡片更透） */
-        background: rgba(255, 252, 245, 0.55);
+        /* 白雾玻璃：--card-glass + --blur-glass 统一配方（与页面壳卡片同源） */
+        background: var(--card-glass);
         backdrop-filter: var(--blur-glass);
         -webkit-backdrop-filter: var(--blur-glass);
         border: 1px solid rgba(255, 255, 255, 0.6);

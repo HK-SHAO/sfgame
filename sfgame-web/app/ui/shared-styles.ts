@@ -74,7 +74,7 @@ export const pageShell = css`
       calc(-1 * (var(--page-pad-x) + env(safe-area-inset-left, 0px)));
     padding: calc(0.75rem + env(safe-area-inset-top, 0px)) calc(var(--page-pad-x) + env(safe-area-inset-right, 0px)) 0.75rem
       calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
-    background: rgba(255, 253, 248, 0.6);
+    background: var(--card-glass);
     backdrop-filter: var(--blur-glass);
     -webkit-backdrop-filter: var(--blur-glass);
     border-bottom: 1px solid rgba(255, 255, 255, 0.45);
@@ -108,7 +108,7 @@ export const pageShell = css`
     border: none;
     border-radius: var(--r-md);
     corner-shape: squircle;
-    background: rgba(255, 253, 248, 0.66);
+    background: var(--card-glass);
     backdrop-filter: var(--blur-glass);
     -webkit-backdrop-filter: var(--blur-glass);
     border: 1px solid rgba(255, 255, 255, 0.55);
@@ -133,8 +133,8 @@ export const card = css`
     max-width: var(--maxw-card);
     margin: 0 auto var(--sp-4);
     padding: var(--sp-2);
-    /* 雾面玻璃：白底 + 统一模糊（--blur-glass），背景图在卡后晕开——所有卡片统一此质感 */
-    background: var(--card);
+    /* 雾面玻璃：白底（--card-glass）+ 统一模糊（--blur-glass），与主菜单卡同配方——所有页面卡片统一质感 */
+    background: var(--card-glass);
     backdrop-filter: var(--blur-glass);
     -webkit-backdrop-filter: var(--blur-glass);
     border: 1px solid rgba(255, 255, 255, 0.6);

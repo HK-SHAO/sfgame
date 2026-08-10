@@ -53,7 +53,6 @@ export class GameController {
   private fitW = 0
   private fitH = 0
   private world: { w: number; h: number }
-  private ground: (x: number) => number
   private devTools: PerfRecorder | null = null
 
   constructor(
@@ -66,7 +65,6 @@ export class GameController {
     this.events = events
     this.host = host ?? canvas.parentElement ?? canvas
     this.world = level.world
-    this.ground = level.ground
     // 物理与渲染共享同一 wasm 实例：渲染零拷贝读流体内存（每关一次，keyed 重建时整体释放）
     this.engine = createEngine()
     this.devTools = devTools ?? null
@@ -74,9 +72,9 @@ export class GameController {
     this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })
     // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降 dpr（所有平台同一策略）
     this.governor = new PerformanceGovernor(DPR_TIERS)
-    // 示踪粒子用延展地面：可随流体飞出地图，在外扩边距末端才清理（内核驻 wasm，同引擎实例）
-    this.tracers = new Tracers(this.engine, TRACER_COUNT, this.world, this.sim.groundExt, TRAIL_LEN, FLUID_MARGIN)
-    this.clouds = new Clouds(level.id, this.world, this.ground)
+    // 示踪粒子与云同采烘焙地形场：可随流体飞出地图，采样 clamp 即延展（内核驻 wasm，同引擎实例）
+    this.tracers = new Tracers(this.engine, TRACER_COUNT, this.world, this.sim.terrain, TRAIL_LEN, FLUID_MARGIN)
+    this.clouds = new Clouds(level.id, this.world, this.sim.terrain)
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
     const { w, h } = level.world
     this.windProbes = buildWindProbes(w, h)
@@ -224,7 +222,8 @@ export class GameController {
 
     if (!frozen) {
       const p = this.sim.plane
-      const altBefore = this.sim.level.ground(p.x) - p.y
+      // SDF 值即距地表距离：直接作高度语义（坡面/崖壁同样成立）
+      const altBefore = this.sim.terrain.sample(p.x, p.y)
       const vyBefore = p.vy
 
       this.sim.step(dt)
@@ -235,7 +234,7 @@ export class GameController {
       const wind = sampleWind(this.sim.fluid, this.windProbes, p, this.tmpAir)
       sfx.updateWind(wind.field, wind.rel, dt)
       sfx.setPlanePan(p.x, this.world.w)
-      const altAfter = this.sim.level.ground(p.x) - p.y
+      const altAfter = this.sim.terrain.sample(p.x, p.y)
       if (isLanding(altBefore, altAfter, vyBefore)) {
         const now = performance.now()
         if (now - this.lastLand > LAND_SOUND_MIN_INTERVAL) {

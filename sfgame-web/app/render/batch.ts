@@ -11,6 +11,7 @@ export class MeshBatch {
   private ptsView: Float32Array
   private fadeView: Float32Array
   private tracerView: Float32Array
+  private terrainFieldView: Float32Array
 
   constructor(engine = createEngine()) {
     const ex = engine.ex
@@ -20,6 +21,7 @@ export class MeshBatch {
     this.ptsView = new Float32Array(buf, ex.bPtsBuf(), ex.bPtsCap())
     this.fadeView = new Float32Array(buf, ex.bFadeBuf(), ex.bFadeCap())
     this.tracerView = new Float32Array(buf, ex.bTracerBuf(), ex.bTracerCap() * ex.bTracerStride())
+    this.terrainFieldView = new Float32Array(buf, ex.bTerrainFieldBuf(), ex.bTerrainFieldCap())
   }
 
   get data(): Float32Array {
@@ -78,10 +80,21 @@ export class MeshBatch {
     this.ex.bPolylineFade(n, w, r, g, b)
   }
 
-  // 地形填充：点列拷入暂存区后单调用展三角（替代逐段 tri 的数百次跨界）
-  terrainFill(pts: Float32Array, n: number, viewB: number, r: number, g: number, b: number, a: number) {
-    this.ptsView.set(pts.subarray(0, n))
-    this.ex.bTerrainFill(n, viewB, r, g, b, a)
+  // 地形固体填充：每关写入格心 SDF 场与网格参数/配色，每帧按视域单调用 marching squares
+  get terrainField(): Float32Array {
+    return this.terrainFieldView
+  }
+
+  // 容量/参数非法返回 false（宿主场超限 = 编译期容量不足，不得静默）
+  terrainSetup(
+    nx: number, ny: number, x0: number, y0: number, cell: number,
+    sr: number, sg: number, sb: number, dr: number, dg: number, db: number, ramp: number,
+  ): boolean {
+    return this.ex.bTerrainField(nx, ny, x0, y0, cell, sr, sg, sb, dr, dg, db, ramp) === 0
+  }
+
+  terrainDraw(i0: number, j0: number, i1: number, j1: number) {
+    this.ex.bTerrainDraw(i0, j0, i1, j1)
   }
 
   // 示踪粒子批量缓冲：宿主直写定长记录（见 assembly/batch.ts 布局）后 tracers() 单调用 tessellate

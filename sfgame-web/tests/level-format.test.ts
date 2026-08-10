@@ -1,50 +1,70 @@
 import { expect, test } from 'vitest'
-import { compileExpr, ExprError } from '../app/game/expr'
 import { parseLevelText, validateLevelJson } from '../app/game/level-format'
 import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, isUnlocked, nextLevel } from '../app/game/levels'
+import { compileSdf, SdfError } from '../app/game/sdf'
 
-test('表达式求值：四则/幂/函数/x 变量，语法错误抛 ExprError', () => {
-  expect(compileExpr('x + 2')(3)).toBe(5)
-  expect(compileExpr('2 ^ 3 ^ 2')(0)).toBe(512)
-  expect(compileExpr('-(x - 1)')(5)).toBe(-4)
-  expect(compileExpr('clamp(x, 0, 2)')(5)).toBe(2)
-  expect(compileExpr('smoothstep(x)')(0.5)).toBe(0.5)
-  expect(compileExpr('step(x, 3)')(2.9)).toBe(0)
-  expect(compileExpr('abs(x) * sqrt(4) + pow(2, 3)')(-3)).toBe(6 + 8)
-  expect(() => compileExpr('x +')).toThrow(ExprError)
-  expect(() => compileExpr('foo(x)')).toThrow(ExprError)
-  expect(() => compileExpr('(x + 1')).toThrow(ExprError)
+test('SDF 表达式求值：四则/函数/x、y 变量，语法错误抛 SdfError', () => {
+  expect(compileSdf('x + 2')(3, 0)).toBe(5)
+  expect(compileSdf('-(x - 1)')(5, 0)).toBe(-4)
+  expect(compileSdf('y - x')(3, 10)).toBe(7)
+  expect(compileSdf('clamp(x, 0, 2)')(5, 0)).toBe(2)
+  expect(compileSdf('smoothstep(x)')(0.5, 0)).toBe(0.5)
+  expect(compileSdf('abs(x) * sqrt(4)')(3, 0)).toBe(6)
+  expect(compileSdf('min(x, y)')(3, 7)).toBe(3)
+  // 幂/取模不进词法（避免 ^ 歧义与非距离语义）
+  expect(() => compileSdf('x ^ 2')).toThrow(SdfError)
+  expect(() => compileSdf('x % 2')).toThrow(SdfError)
+  expect(() => compileSdf('x +')).toThrow(SdfError)
+  expect(() => compileSdf('foo(x)')).toThrow(SdfError)
+  expect(() => compileSdf('(x + 1')).toThrow(SdfError)
+})
+
+test('SDF 原语：精确距离场（flat/circle/box/capsule）与光滑并/交（smin/smax）', () => {
+  expect(compileSdf('flat(40)')(3, 38)).toBe(2)
+  expect(compileSdf('circle(20, 30, 5)')(20, 38)).toBe(3)
+  expect(compileSdf('circle(20, 30, 5)')(20, 30)).toBe(-5)
+  expect(compileSdf('box(10, 20, 3, 4)')(10, 27)).toBe(3)
+  expect(compileSdf('box(10, 20, 3, 4)')(10, 20)).toBe(-3)
+  expect(compileSdf('capsule(0, 10, 10, 10, 2)')(5, 14)).toBe(2)
+  // 光滑并 = 硬并的平滑极限：地表上方的圆丘熔入地面；挖洞 = smax(a, −b, k)
+  expect(compileSdf('smin(flat(40), circle(20, 30, 5), 0.0001)')(20, 32)).toBeCloseTo(-3, 3)
+  expect(compileSdf('smax(flat(40), -circle(20, 42, 5), 0.0001)')(20, 42)).toBeCloseTo(5, 3)
+  // 非法参数在求值期拒绝（编译期只查语法）
+  expect(() => compileSdf('circle(0, 0, 0)')(0, 0)).toThrow(SdfError)
+  expect(() => compileSdf('box(0, 0, 1, 0)')(0, 0)).toThrow(SdfError)
+  expect(() => compileSdf('capsule(0, 0, 1, 1, -1)')(0, 0)).toThrow(SdfError)
+  expect(() => compileSdf('smin(flat(40), flat(30), 0)')(0, 0)).toThrow(SdfError)
 })
 
 test('地形原子：smoothstep 三参 GLSL 兼容，bump/gauss 山丘', () => {
-  const ss = (e0: number, e1: number, x: number) => compileExpr(`smoothstep(${e0}, ${e1}, x)`)(x)
+  const ss = (e0: number, e1: number, x: number) => compileSdf(`smoothstep(${e0}, ${e1}, x)`)(x, 0)
   expect(ss(0, 1, 0.5)).toBe(0.5)
   expect(ss(0, 1, 0)).toBe(0)
   expect(ss(0, 1, 1)).toBe(1)
   expect(ss(0, 1, -2)).toBe(0)
   expect(ss(0, 1, 3)).toBe(1)
   expect(ss(0, 2, 1)).toBe(0.5)
-  expect(() => ss(1, 1, 0.5)).toThrow(ExprError)
-  expect(() => ss(2, 1, 0.5)).toThrow(ExprError)
-  expect(() => compileExpr('smoothstep(x, 2)')(0)).toThrow(ExprError)
-  expect(compileExpr('smoothstep(x)')(0.5)).toBe(0.5)
+  expect(() => ss(1, 1, 0.5)).toThrow(SdfError)
+  expect(() => ss(2, 1, 0.5)).toThrow(SdfError)
+  expect(() => compileSdf('smoothstep(x, 2)')(0, 0)).toThrow(SdfError)
+  expect(compileSdf('smoothstep(x)')(0.5, 0)).toBe(0.5)
   // ss 别名与 smoothstep 等价（1 参与 3 参）
-  expect(compileExpr('ss(x)')(0.5)).toBe(compileExpr('smoothstep(x)')(0.5))
-  expect(compileExpr('ss(0, 2, x)')(1)).toBe(compileExpr('smoothstep(0, 2, x)')(1))
-  const b = compileExpr('bump(20, 5, 12)')
-  expect(b(20)).toBe(12)
-  expect(b(15)).toBe(0)
-  expect(b(25)).toBe(0)
-  expect(b(17.5)).toBe(6)
-  expect(b(22.5)).toBe(6)
-  const g = compileExpr('gauss(30, 4, 10)')
-  expect(g(30)).toBe(10)
-  expect(g(34)).toBeCloseTo(10 * Math.exp(-1))
-  expect(g(42)).toBeCloseTo(0)
-  expect(() => compileExpr('bump(20, 0, 5)')(0)).toThrow(/w/)
-  expect(() => compileExpr('gauss(20, -1, 5)')(0)).toThrow(/w/)
-  expect(() => compileExpr('bump(20)')(0)).toThrow(ExprError)
-  expect(() => compileExpr('gauss(20, 5)')(0)).toThrow(ExprError)
+  expect(compileSdf('ss(x)')(0.5, 0)).toBe(compileSdf('smoothstep(x)')(0.5, 0))
+  expect(compileSdf('ss(0, 2, x)')(1, 0)).toBe(compileSdf('smoothstep(0, 2, x)')(1, 0))
+  const b = compileSdf('bump(20, 5, 12)')
+  expect(b(20, 0)).toBe(12)
+  expect(b(15, 0)).toBe(0)
+  expect(b(25, 0)).toBe(0)
+  expect(b(17.5, 0)).toBe(6)
+  expect(b(22.5, 0)).toBe(6)
+  const g = compileSdf('gauss(30, 4, 10)')
+  expect(g(30, 0)).toBe(10)
+  expect(g(34, 0)).toBeCloseTo(10 * Math.exp(-1))
+  expect(g(42, 0)).toBeCloseTo(0)
+  expect(() => compileSdf('bump(20, 0, 5)')(0, 0)).toThrow(/w/)
+  expect(() => compileSdf('gauss(20, -1, 5)')(0, 0)).toThrow(/w/)
+  expect(() => compileSdf('bump(20)')(0, 0)).toThrow(SdfError)
+  expect(() => compileSdf('gauss(20, 5)')(0, 0)).toThrow(SdfError)
 })
 
 test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
@@ -55,16 +75,16 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
     parseLevelText(
       json({
         schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
-        world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: '999' },
+        world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y +' },
         budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
       }),
     ),
-  ).toThrow(/世界高度/)
+  ).toThrow(/语法错误/)
   expect(() =>
     parseLevelText(
       json({
         schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
-        ground: { expr: '30' }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+        terrain: { sdf: '40 - y' }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
       }),
     ),
   ).toThrow(/world/)
@@ -72,20 +92,30 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
     parseLevelText(
       json({
         schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
-        world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: '40' },
+        world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y' },
         budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 0 }],
       }),
     ),
   ).toThrow(/goals/)
+  // 固/气共存校验：无实体（永不着地）与全实体（无处可飞）皆被拒
   expect(() =>
     parseLevelText(
       json({
         schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
-        world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: 'bump(20, 0, 5)' },
+        world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '999 - y' },
         budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
       }),
     ),
-  ).toThrow(/求值错误/)
+  ).toThrow(/无实体/)
+  expect(() =>
+    parseLevelText(
+      json({
+        schema: 1, id: 1, name: 't', tagline: 't', win: { title: 't', text: 't' },
+        world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '-y' },
+        budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+      }),
+    ),
+  ).toThrow(/全为实体/)
 })
 
 test('仓库关卡全部合法，协议一致且可往返序列化', () => {
@@ -142,7 +172,7 @@ test('新原子校验：fixed/fans 合法放行、非法被拒', () => {
   const json = (o: object) => JSON.stringify(o)
   const base = {
     schema: 1, id: 20, name: 't', tagline: 't', win: { title: 't', text: 't' },
-    world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: '40' },
+    world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y' },
     budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
   }
   const ok = (extra: object) => expect(validateLevelJson(parseLevelText(json({ ...base, ...extra })))).toEqual([])
@@ -169,7 +199,7 @@ test('ambient.temp 校验：[-10, 10] 内放行，越界/非数值被拒', () =>
   const json = (o: object) => JSON.stringify(o)
   const base = {
     schema: 1, id: 21, name: 't', tagline: 't', win: { title: 't', text: 't' },
-    world: { w: 76, h: 56, cell: 0.75 }, ground: { expr: '40' },
+    world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y' },
     budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
   }
   const ok = (extra: object) => expect(validateLevelJson(parseLevelText(json({ ...base, ...extra })))).toEqual([])

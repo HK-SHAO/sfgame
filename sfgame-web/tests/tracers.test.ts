@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { createEngine } from '../app/wasm/engine'
 import { createFluid, type FluidConfig } from '../app/sim/fluid'
 import { Tracers, TRAIL_LEN } from '../app/sim/particles'
+import { bakeTerrain } from '../app/sim/terrain'
 
 const WORLD = { w: 60, h: 40 }
 const GROUND_Y = 38
@@ -26,9 +27,10 @@ const DT = 1 / 60
 function build() {
   const engine = createEngine()
   const fluid = createFluid(CFG, engine)
-  fluid.setGroundMask(() => GROUND_Y)
+  const terrain = bakeTerrain((_x, y) => GROUND_Y - y, WORLD, CFG.cell, 6)
+  fluid.setTerrain(terrain)
   fluid.setAmbient(2, 0)
-  const tracers = new Tracers(engine, 400, WORLD, () => GROUND_Y, TRAIL_LEN, 6)
+  const tracers = new Tracers(engine, 400, WORLD, terrain, TRAIL_LEN, 6)
   return { fluid, tracers }
 }
 
@@ -85,5 +87,6 @@ test('热源羽流：源附近持续有新注入粒子', () => {
 test('count/trailLen 与内核编译期容量不符即抛（无静默回退）', () => {
   const engine = createEngine()
   createFluid(CFG, engine)
-  expect(() => new Tracers(engine, 123, WORLD, () => GROUND_Y, TRAIL_LEN, 0)).toThrow()
+  const terrain = bakeTerrain((_x, y) => GROUND_Y - y, WORLD, CFG.cell, 6)
+  expect(() => new Tracers(engine, 123, WORLD, terrain, TRAIL_LEN, 6)).toThrow()
 })

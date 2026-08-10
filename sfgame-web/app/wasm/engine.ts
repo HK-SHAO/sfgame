@@ -63,7 +63,13 @@ export interface BatchExports {
   ): void
   bPolyline(n: number, w: number, r: number, g: number, b: number, a: number): void
   bPolylineFade(n: number, w: number, r: number, g: number, b: number): void
-  bTerrainFill(n: number, viewB: number, r: number, g: number, b: number, a: number): void
+  bTerrainFieldBuf(): number
+  bTerrainFieldCap(): number
+  bTerrainField(
+    nx: number, ny: number, x0: number, y0: number, cell: number,
+    sr: number, sg: number, sb: number, dr: number, dg: number, db: number, ramp: number,
+  ): number
+  bTerrainDraw(i0: number, j0: number, i1: number, j1: number): void
   bTracers(count: number, w: number, headR: number): void
   bDisc(
     cx: number, cy: number, rx: number, ry: number, rot: number, seg: number,
@@ -95,7 +101,8 @@ export interface BatchExports {
 
 export interface TracerExports {
   tracersInit(
-    count: number, trailLen: number, worldW: number, margin: number, lutStep: number, seed: number,
+    count: number, trailLen: number, worldW: number, worldH: number, margin: number,
+    snx: number, sny: number, scell: number, sox: number, soy: number, seed: number,
   ): number
   tracersStep(dt: number, srcCount: number): void
   tTime(): number
@@ -107,8 +114,8 @@ export interface TracerExports {
   tTrailYBuf(): number
   tTrailTBuf(): number
   tTrailNBuf(): number
-  tLutBuf(): number
-  tLutCap(): number
+  tSdfBuf(): number
+  tSdfCap(): number
   tSrcBuf(): number
   tSrcCap(): number
 }

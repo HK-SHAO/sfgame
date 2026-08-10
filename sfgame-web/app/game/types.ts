@@ -52,7 +52,7 @@ export interface LevelJson {
   tagline: string
   win: { title: string; text: string }
   world: { w: number; h: number; cell: number }
-  ground: { expr: string }
+  terrain: { sdf: string }
   budget: { hot: number; cold: number }
   // 出生状态：可在世界外（如画布左外侧飞入）；vx/vy 为初速度
   spawn: { x: number; y?: number; vx?: number; vy?: number }
@@ -81,8 +81,8 @@ export interface LevelDef {
   tagline: string
   win: { title: string; text: string }
   world: { w: number; h: number; cell: number }
-  // 世界坐标 y 向下；由 ground.expr 编译而来
-  ground: (x: number) => number
+  // 地形 SDF：到地表的有符号距离（>0 空气 / <0 实体），世界坐标 y 向下；由 terrain.sdf 编译而来
+  sdf: (x: number, y: number) => number
   budget: { hot: number; cold: number }
   spawn: { x: number; y?: number; vx?: number; vy?: number }
   goals: GoalDef[]

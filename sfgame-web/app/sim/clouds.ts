@@ -1,11 +1,13 @@
 import type { FluidLike } from './fluid'
+import type { TerrainLike } from './terrain'
 import type { WorldBounds } from './types'
 
 const CLOUD_COUNT = 3
 const CLOUD_R_MIN = 5.6
 const CLOUD_R_SPAN = 4.0
-const ALT_LOW_F = 0.6
-const ALT_SPAN_F = 0.25
+// 出生高度带（占世界高度比例）：上三分之一天空区
+const ALT_LOW_F = 0.12
+const ALT_SPAN_F = 0.18
 const SPAWN_BAND_MIN = 8
 const SPAWN_BAND_SPAN = 12
 const DESPAWN_MARGIN = 30
@@ -42,14 +44,14 @@ export class Clouds {
   private homeY: Float32Array
   private descent: Float32Array
   private world: WorldBounds
-  private groundY: (x: number) => number
+  private terrain: TerrainLike
   private rng: () => number
   private tmpAir = { x: 0, y: 0 }
 
-  constructor(levelId: number, world: WorldBounds, groundY: (x: number) => number, count = CLOUD_COUNT) {
+  constructor(levelId: number, world: WorldBounds, terrain: TerrainLike, count = CLOUD_COUNT) {
     this.count = count
     this.world = world
-    this.groundY = groundY
+    this.terrain = terrain
     this.rng = mulberry32(Math.imul(levelId, 0x9e3779b1))
     this.x = new Float32Array(count)
     this.y = new Float32Array(count)
@@ -63,7 +65,7 @@ export class Clouds {
   }
 
   private respawn(i: number) {
-    const { w } = this.world
+    const { w, h } = this.world
     const rng = this.rng
     let x: number
     if (rng() < IN_AIR_RATIO) {
@@ -72,8 +74,7 @@ export class Clouds {
       const band = SPAWN_BAND_MIN + rng() * SPAWN_BAND_SPAN
       x = rng() < 0.5 ? -band : w + band
     }
-    const gx = x < 0 ? 0 : x > w ? w : x
-    const y = Math.max(2, this.groundY(gx) * (1 - ALT_LOW_F - rng() * ALT_SPAN_F))
+    const y = Math.max(2, h * (ALT_LOW_F + rng() * ALT_SPAN_F))
     this.x[i] = x
     this.y[i] = y
     this.homeY[i] = y
@@ -90,12 +91,12 @@ export class Clouds {
     for (let i = 0; i < this.count; i++) {
       const x = this.x[i]
       const y = this.y[i]
-      const gx = x < 0 ? 0 : x > w ? w : x
+      // 距地表（SDF）足够远才算存活：云不会钻山
       const live =
         x > -DESPAWN_MARGIN &&
         x < w + DESPAWN_MARGIN &&
         y > -DESPAWN_MARGIN &&
-        y < this.groundY(gx) - FADE_ALT &&
+        this.terrain.sample(x, y) > FADE_ALT &&
         this.descent[i] < DESCEND_LIMIT
       const target = live ? 1 : 0
       const a = this.alpha[i] + (target - this.alpha[i]) * (1 - Math.exp(-dt * ALPHA_RATE))

@@ -1,4 +1,4 @@
-import { compileExpr, ExprError } from './expr'
+import { compileSdf, SdfError } from './sdf'
 import type { LevelDef, LevelJson } from './types'
 
 // 关卡协议版本：JSON 顶层必须为 1
@@ -22,25 +22,32 @@ interface Ctx {
 
 const fail = (ctx: Ctx, msg: string) => ctx.errs.push(`${ctx.id} ${msg}`)
 
-function checkGroundExpr(w: { w: number; h: number }, g: { expr: string }, ctx: Ctx) {
-  let f: ((x: number) => number) | null = null
+// SDF 合法性：编译通过 + 世界内固/气共存（否则永不着地或无处可飞）
+function checkTerrain(w: { w: number; h: number }, t: { sdf: string }, ctx: Ctx) {
+  let f: ((x: number, y: number) => number) | null = null
   try {
-    f = compileExpr(g.expr)
+    f = compileSdf(t.sdf)
   } catch (e) {
-    fail(ctx, `ground.expr 语法错误：${e instanceof ExprError ? e.message : String(e)}`)
+    fail(ctx, `terrain.sdf 语法错误：${e instanceof SdfError ? e.message : String(e)}`)
   }
   if (!f) return
-  let outOfWorld = 0
+  let solid = 0
+  let air = 0
   try {
-    for (let x = 0; x <= w.w + 1e-9; x += 0.5) {
-      const y = f(x)
-      if (!Number.isFinite(y) || y <= 0.5 || y >= w.h - 0.5) outOfWorld++
+    for (let y = 0.5; y < w.h; y += 1) {
+      for (let x = 0.5; x < w.w; x += 1) {
+        const d = f(x, y)
+        if (!Number.isFinite(d)) throw new Error(`(${x}, ${y}) 处非有限值`)
+        if (d <= 0) solid++
+        else air++
+      }
     }
   } catch (e) {
-    outOfWorld = -1
-    fail(ctx, `ground.expr 求值错误：${e instanceof ExprError ? e.message : String(e)}`)
+    fail(ctx, `terrain.sdf 求值错误：${e instanceof Error ? e.message : String(e)}`)
+    return
   }
-  if (outOfWorld > 0) fail(ctx, `ground.expr 在 ${outOfWorld} 个采样点超出世界高度 (0.5, h-0.5)`)
+  if (solid === 0) fail(ctx, 'terrain.sdf 世界内无实体（飞机永不着地）')
+  if (air === 0) fail(ctx, 'terrain.sdf 世界内全为实体（无处可飞）')
 }
 
 function checkGoals(j: unknown, ctx: Ctx) {
@@ -137,11 +144,11 @@ export function validateLevelJson(raw: unknown): string[] {
     if (nx < 16 || nx > 256 || ny < 16 || ny > 256) fail(ctx, `网格 ${nx}×${ny} 超出 16..256 范围`)
   }
 
-  const g = j.ground
-  if (!g || typeof g.expr !== 'string' || g.expr.trim().length === 0) {
-    fail(ctx, 'ground.expr 必须为非空表达式字符串')
+  const t = j.terrain
+  if (!t || typeof t.sdf !== 'string' || t.sdf.trim().length === 0) {
+    fail(ctx, 'terrain.sdf 必须为非空表达式字符串')
   } else if (w) {
-    checkGroundExpr(w, g, ctx)
+    checkTerrain(w, t, ctx)
   }
 
   const b = j.budget
@@ -200,6 +207,6 @@ export function levelFromJson(j: LevelJson, validated = false): LevelDef {
     const errs = validateLevelJson(j)
     if (errs.length > 0) throw new Error(`关卡校验失败：${errs.join('；')}`)
   }
-  const f = compileExpr(j.ground.expr)
-  return { ...j, ground: f, fixed: j.fixed ?? [], fans: j.fans ?? [], json: j }
+  const f = compileSdf(j.terrain.sdf)
+  return { ...j, sdf: f, fixed: j.fixed ?? [], fans: j.fans ?? [], json: j }
 }

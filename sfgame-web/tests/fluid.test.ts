@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { bilinearSample, createFluid, type FluidConfig } from '../app/sim/fluid'
+import { bakeTerrain } from '../app/sim/terrain'
 import { createEngine } from '../app/wasm/engine'
 
 const CFG: FluidConfig = {
@@ -44,7 +45,7 @@ test('冷源产生下沉风', () => {
 
 test('固体掩码内无速度', () => {
   const f = createFluid(CFG)
-  f.setGroundMask(() => 45)
+  f.setTerrain(bakeTerrain((_x, y) => 45 - y, { w: 72, h: 54 }, CFG.cell, 0))
   f.addHeat(30, 40, 5)
   for (let i = 0; i < 60; i++) f.step(DT)
   const air = { x: 0, y: 0 }
@@ -88,7 +89,7 @@ test('ambient 横向风顺坡而上（基场绕流）', () => {
   const f = createFluid(CFG)
   // 中央平滑山丘：y=44 平原隆起至 y=30
   const ground = (x: number) => 44 - 14 * Math.exp(-((x - 36) ** 2) / 40)
-  f.setGroundMask(ground)
+  f.setTerrain(bakeTerrain((x, y) => ground(x) - y, { w: 72, h: 54 }, CFG.cell, 0))
   f.setAmbient(1, 0)
   const air = { x: 0, y: 0 }
   // 远场 ≈ 均匀横向风

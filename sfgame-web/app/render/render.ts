@@ -9,6 +9,7 @@ import { PLANE_LOCAL } from '../sim/bodies'
 import type { Vec2 } from '../sim/types'
 import type { LevelSimulation } from '../game/simulation'
 import { fanDirection } from '../game/simulation'
+import type { Terrain } from '../sim/terrain'
 import { GOAL_LIFT, LONG_PRESS_MS, type PressVisual } from '../sim/types'
 
 export interface SceneState {
@@ -49,7 +50,10 @@ const GOAL = rgb(47, 191, 113)
 const SKY_TOP = rgb(255, 248, 234)
 const SKY_BOTTOM = rgb(248, 226, 187)
 const GROUND_FILL = rgb(236, 220, 186)
+// 地表色 = 迁移前描边色：锐利轮廓沿 d=0 等值线，入地深处丝滑过渡到原填充色（深度渐变唯一配色）
 const GROUND_EDGE = rgb(216, 193, 147)
+// 深度渐变坡道（世界单位）：入地此深度内从地表色丝滑过渡到深处色
+const GROUND_DEPTH_RAMP = 16
 const SUN = rgb(255, 196, 83)
 const PAPER = rgb(255, 253, 248)
 const FLAG_POLE = rgb(107, 91, 69)
@@ -98,12 +102,6 @@ const SLEEVE_W = 0.4
 // 套筒长 = 旗面长 + 杆半径：顶/底帽尖对称超出旗面上下边各 POLE_W/2（底帽尖半径另占去 sr）
 const SLEEVE_LEN = POLE_FABRIC_LEN + POLE_W / 2 - SLEEVE_W / 2
 
-const TERRAIN_STEP = 0.25
-const TERRAIN_MAX_STEP = 2
-// 弦中点-曲线偏差容差（弦偏差自适应采样）：曲线弓起超此值即加密发射——
-// 陡坡上小角度误差×长弦=巨大垂直偏差（旧"角度变化"判据在 L4 转角偏差达 1.5 单位）
-const TERRAIN_DEV_TOL = 0.02
-
 export class Renderer {
   readonly canvas: HTMLCanvasElement
   private gl: GlRenderer | null
@@ -116,13 +114,8 @@ export class Renderer {
   private scale = 1
   private ox = 0
   private oy = 0
-  private terrainPts = new Float32Array(256)
-  private terrainN = 0
-  // 地形折线缓存：地面静态，点列只在视域/关卡变化时重烘（否则每帧数百次地面表达式求值白费）；
-  // 每帧仍需重发（地形填充盖住漂移的云），缓存只免求值不免 tessellation
-  private terrainGround: ((x: number) => number) | null = null
-  private terrainViewL = Number.NaN
-  private terrainViewR = Number.NaN
+  // 地形 SDF 场：关卡变化时上传内核一次（marching squares 每帧切等值线），每帧只按视域发范围
+  private terrainKey: Terrain | null = null
   private bgDirty = true
   lastVertexCount = 0
   lastUploadBytes = 0
@@ -189,13 +182,13 @@ export class Renderer {
     const b = this.batch
     b.reset()
     // 遮挡契约（远→近）：天空烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
-    // 太阳盘面 → 云（遮粒子与日芒）→ 地形填充（云被山体精确遮挡）→ 旗杆 → 旗面/套筒/抵达圆 →
-    // 固定源/源/风扇 → 飞机拖尾与飞机（画面顶层，不被地面遮挡）→ 按压指示
+    // 太阳盘面 → 云（遮粒子与日芒）→ 地形固体填充（云被山体精确遮挡）→ 旗杆 → 旗面/套筒/抵达圆 →
+    // 固定源/源/风扇 → 飞机拖尾与飞机（画面顶层，不被地形遮挡）→ 按压指示
     this.drawSunHalo(b)
     this.drawTracers(b, tracers)
     this.drawSun(b, now)
     this.drawClouds(b, scene.clouds)
-    this.drawTerrain(b, sim, viewL, viewR, viewB)
+    this.drawTerrain(b, sim, viewL, viewT, viewR, viewB)
     this.drawGoalPoles(b, sim)
     this.drawGoal(b, sim)
     this.drawFixedSources(b, sim)
@@ -219,52 +212,30 @@ export class Renderer {
     if (bottomBandTop < viewB) b.rect(viewL, bottomBandTop, viewR, viewB, ...SKY_BOTTOM, 1)
   }
 
-  private drawTerrain(b: MeshBatch, sim: LevelSimulation, viewL: number, viewR: number, viewB: number) {
-    const ground = sim.level.ground
-    if (ground !== this.terrainGround || viewL !== this.terrainViewL || viewR !== this.terrainViewR) {
-      this.bakeTerrain(ground, viewL, viewR)
-      this.terrainGround = ground
-      this.terrainViewL = viewL
-      this.terrainViewR = viewR
-    }
-    const pts = this.terrainPts
-    const n = this.terrainN
-    b.terrainFill(pts, n, viewB, ...GROUND_FILL, 1)
-    b.polyline(pts, n, 0.5, ...GROUND_EDGE, 1)
+  private drawTerrain(b: MeshBatch, sim: LevelSimulation, viewL: number, viewT: number, viewR: number, viewB: number) {
+    const t = sim.terrain
+    if (t !== this.terrainKey) this.uploadTerrain(b, t)
+    // 视域格心索引范围（越界由内核钳场延展）：单调用发当前可见格
+    const c = t.cell
+    b.terrainDraw(
+      Math.floor(viewL / c + t.originX) - 1,
+      Math.floor(viewT / c + t.originY) - 1,
+      Math.ceil(viewR / c + t.originX) + 1,
+      Math.ceil(viewB / c + t.originY) + 1,
+    )
   }
 
-  // 自适应采样烘焙地形点列（弦中点-曲线偏差加密）；视域含 letterbox 带（x 可 <0 / >w），与旧逻辑同语义直评 ground
-  private bakeTerrain(ground: (x: number) => number, viewL: number, viewR: number) {
-    const need = Math.ceil((viewR - viewL) / TERRAIN_STEP + 3) * 2
-    if (this.terrainPts.length < need) this.terrainPts = new Float32Array(need)
-    const pts = this.terrainPts
-    let n = 0
-    pts[n++] = viewL
-    pts[n++] = ground(viewL)
-    let lastX = viewL
-    let lastY = pts[n - 1]
-    for (let x = Math.max(0, viewL) + TERRAIN_STEP; x <= viewR + 1e-9; x += TERRAIN_STEP) {
-      const y = ground(x)
-      if (x - lastX >= TERRAIN_MAX_STEP) {
-        pts[n++] = x
-        pts[n++] = y
-        lastX = x
-        lastY = y
-        continue
-      }
-      const midX = (lastX + x) / 2
-      if (Math.abs(ground(midX) - (lastY + y) / 2) > TERRAIN_DEV_TOL) {
-        pts[n++] = x
-        pts[n++] = y
-        lastX = x
-        lastY = y
-      }
-    }
-    if (viewR - lastX > 1e-6) {
-      pts[n++] = viewR
-      pts[n++] = ground(viewR)
-    }
-    this.terrainN = n
+  // SDF 场上传内核（每关一次）：绘制端每帧 marching squares 切 d=0 等值线，轮廓矢量级锐利；
+  // 配色 = 地表色（旧描边色）随入地深度 smoothstep 混向原填充色，采样与物理同源
+  private uploadTerrain(b: MeshBatch, t: Terrain) {
+    if (!b.terrainSetup(
+      t.nx, t.ny, -t.originX * t.cell, -t.originY * t.cell, t.cell,
+      GROUND_EDGE[0], GROUND_EDGE[1], GROUND_EDGE[2],
+      GROUND_FILL[0], GROUND_FILL[1], GROUND_FILL[2],
+      GROUND_DEPTH_RAMP,
+    )) throw new Error('地形场超出顶点批内核容量')
+    b.terrainField.set(t.field)
+    this.terrainKey = t
   }
 
   private drawSunHalo(b: MeshBatch) {

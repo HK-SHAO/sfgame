@@ -48,17 +48,50 @@ test('polylineFade：逐顶点 alpha 随数组生效', () => {
   expect(vertex(b, 1)[5]).toBeCloseTo(0.75, 5)
 })
 
-test('terrainFill：批量展三角与逐段 tri 逐顶点一致', () => {
+test('terrainDraw：marching squares 固体填充——等值线精确切割、全固格深度色、空气格跳过', () => {
   const b = new MeshBatch()
-  const pts = new Float32Array([0, 1, 2, 0.5, 5, 2])
-  b.terrainFill(pts, 6, 10, 0.5, 0.6, 0.7, 1)
-  const ref = new MeshBatch()
-  ref.tri(0, 1, 2, 0.5, 0, 10, 0.5, 0.6, 0.7, 1)
-  ref.tri(2, 0.5, 2, 10, 0, 10, 0.5, 0.6, 0.7, 1)
-  ref.tri(2, 0.5, 5, 2, 2, 10, 0.5, 0.6, 0.7, 1)
-  ref.tri(5, 2, 5, 10, 2, 10, 0.5, 0.6, 0.7, 1)
-  expect(b.count).toBe(ref.count)
-  for (let k = 0; k < b.count; k++) expect(vertex(b, k)).toEqual(vertex(ref, k))
+  // 3×3 格心场（cell=1，原点 (0,10)）：顶行空气（d=1）、下两行实体（d=−1）
+  const f = b.terrainField
+  for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) f[j * 3 + i] = j === 0 ? 1 : -1
+  // 地表色红 → 深处色蓝，坡道 2：d=−1 处 depth=0.5 → 混色 0.5
+  expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(true)
+  expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 0)).toBe(false) // ramp 非法
+  expect(b.terrainSetup(200, 100, 0, 0, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(false) // 超容量
+  b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)
+  b.terrainDraw(0, 0, 2, 2)
+  // 行 0：上空气下实体 → 等值线 y=10.5 切出矩形 6 顶点；行 1 全固 6 顶点；两列共 24
+  expect(b.count).toBe(24)
+  const cut = Array.from({ length: 6 }, (_, k) => vertex(b, k)) // 首格（i=0,j=0）
+  // 等值线交点：y=10.5，地表色（1,0,0）不透明
+  for (const v of cut.filter((v) => Math.abs(v[1] - 10.5) < 1e-5)) expect(v.slice(2)).toEqual([1, 0, 0, 1])
+  // 实体角点 d=−1：深度混色（0.5,0,0.5）
+  for (const v of cut.filter((v) => v[1] === 11)) expect(v.slice(2)).toEqual([0.5, 0, 0.5, 1])
+
+  // 越界：位置外推、场钳至边缘列（地形延展），不崩不丢
+  b.reset()
+  b.terrainDraw(-1, 0, 0, 1)
+  expect(b.count).toBe(6)
+  let minX = Infinity
+  for (let k = 0; k < 6; k++) minX = Math.min(minX, vertex(b, k)[0])
+  expect(minX).toBe(-1)
+
+  // 全空气场：零顶点
+  b.reset()
+  f.fill(1)
+  b.terrainDraw(0, 0, 2, 2)
+  expect(b.count).toBe(0)
+
+  // 鞍点（对角双固体、格心空气）：拆两块独立三角形，不在格心错误连通
+  b.reset()
+  f.fill(1.5)
+  f[0] = -1 // TL
+  f[4] = -1 // BR（对角双固体，格心均值 >0 = 空气）
+  b.terrainDraw(0, 0, 1, 1)
+  expect(b.count).toBe(6)
+  for (let k = 0; k < 6; k++) {
+    const [x, y] = vertex(b, k)
+    expect(x > 0.3 && x < 0.7 && y - 10 > 0.3 && y - 10 < 0.7).toBe(false) // 格心无顶点
+  }
 })
 
 test('tracers 批量：单调用输出与 polylineFade + disc 逐顶点一致', () => {

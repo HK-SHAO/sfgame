@@ -11,7 +11,7 @@ const BASE: LevelJson = {
   tagline: 't',
   win: { title: 't', text: 't' },
   world: { w: 76, h: 56, cell: 0.75 },
-  ground: { expr: '50' },
+  terrain: { sdf: '50 - y' },
   budget: { hot: 2, cold: 2 },
   spawn: { x: -5, y: 10, vx: 0 },
   goals: [{ x: 40, r: 10 }],

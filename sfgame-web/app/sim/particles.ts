@@ -1,11 +1,10 @@
 // 示踪粒子（纯视觉层）：数值内核在 assembly/tracers.ts（WASM，与流体同模块同内存——
-// 采样直调内核零跨界、地面走 LUT），本模块只是零拷贝视图门面。宿主每 tick 只写热源表并单次调用
+// 采样直调内核零跨界、地形采宿主烘焙的 SDF 场），本模块只是零拷贝视图门面。宿主每 tick 只写热源表并单次调用
 import type { EngineHandle } from '../wasm/engine'
+import type { Terrain } from './terrain'
 import type { WorldBounds } from './types'
 
 export const TRAIL_LEN = 24
-// LUT 采样步长（世界单位）：0.25 与渲染地形同步长；粒子碰撞/重生容差 ≥0.4，线性插值误差无感
-const LUT_STEP = 0.25
 
 export class Tracers {
   readonly count: number
@@ -27,21 +26,23 @@ export class Tracers {
     engine: EngineHandle,
     count: number,
     world: WorldBounds,
-    groundY: (x: number) => number,
+    terrain: Terrain,
     trailLen = TRAIL_LEN,
     margin = 0,
   ) {
     const ex = engine.ex
     const buf = engine.memory.buffer
-    // LUT 先行烘焙（init 内 scatter 重生即消费）：域 [0,w]，查询端外钳制取边缘值（同 groundExt）
-    const lutCap = ex.tLutCap()
-    const step = Math.max(LUT_STEP, world.w / (lutCap - 1))
-    const lutN = Math.min(lutCap, Math.floor(world.w / step) + 1)
-    const lut = new Float32Array(buf, ex.tLutBuf(), lutCap)
-    for (let i = 0; i < lutN; i++) lut[i] = groundY(i * step)
-    const st = ex.tracersInit(count, trailLen, world.w, margin, step, (Math.random() * 4294967296) >>> 0)
+    // 地形场原样上传（与流体掩码/飞机碰撞同源）：init 内 scatter 重生即消费
+    const sdfCap = ex.tSdfCap()
+    if (terrain.nx * terrain.ny > sdfCap) throw new Error('地形场超出示踪内核编译容量')
+    new Float32Array(buf, ex.tSdfBuf(), sdfCap).set(terrain.field)
+    const st = ex.tracersInit(
+      count, trailLen, world.w, world.h, margin,
+      terrain.nx, terrain.ny, terrain.cell, terrain.originX, terrain.originY,
+      (Math.random() * 4294967296) >>> 0,
+    )
     // 容量不符/越界即抛：无声退化等于带病启动（同 createFluid 策略）
-    if (st !== 0) throw new Error('示踪粒子内核初始化失败（count/trailLen 与编译期容量不符或 LUT 越界）')
+    if (st !== 0) throw new Error('示踪粒子内核初始化失败（count/trailLen/地形场与编译期容量不符）')
 
     this.ex = ex
     this.count = count

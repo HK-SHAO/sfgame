@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { GROUND_PENALTY_RATE, SOURCE_PENALTY } from '../app/game/timer'
 import { levelFromJson, parseLevelText } from '../app/game/level-format'
-import { LevelSimulation } from '../app/game/simulation'
+import { FLUID_MARGIN, LevelSimulation } from '../app/game/simulation'
 import type { LevelDef } from '../app/game/types'
+import { bakeTerrain, surfaceY, type Terrain } from '../app/sim/terrain'
 import { bootEngine } from '../app/wasm/engine'
 
 // FINE_DT 与浏览器固定步长 SIM_DT 一致（无头 ↔ 真机同语义）；粗筛是"另一套物理"，胜点必须 FINE_DT 精验
@@ -53,7 +54,6 @@ export function evalCandidate(
     }
   }
   let pathLen = 0
-  let groundTime = 0
   let px = sim.plane.x
   let py = sim.plane.y
   for (let t = 0; t < cap; t += dt) {
@@ -65,19 +65,18 @@ export function evalCandidate(
       throw new Error('流场发散（NaN）：当前运行时无法正确执行 WASM·SIMD 流体内核')
     }
     pathLen += Math.hypot(p.x - px, p.y - py)
-    const alt = level.ground(p.x) - p.y
-    if (alt < 1) groundTime += dt
     px = p.x
     py = p.y
     if (sim.phase === 'won') {
-      return { won: true, time: stepStart, pathLen, groundTime, progress: level.goals.length, sources: src.length }
+      // 贴地秒数直取 sim.groundedTime：与游戏罚时同口径，免手工重复累计
+      return { won: true, time: stepStart, pathLen, groundTime: sim.groundedTime, progress: level.goals.length, sources: src.length }
     }
   }
   return {
     won: false,
     time: -1,
     pathLen,
-    groundTime,
+    groundTime: sim.groundedTime,
     progress: sim.visitedCount * 1000 + Math.min(sim.plane.x, level.world.w),
     sources: src.length,
   }
@@ -125,11 +124,25 @@ export function verifyRobustness(level: LevelDef, sources: SourceTuple[], cap = 
   return { ok, total: sources.length * moves.length, failed }
 }
 
+// 烘焙地形场缓存（与模拟同规格）：候选点网格只读地表高度，免每关重复烘焙
+const terrainCache = new WeakMap<LevelDef, Terrain>()
+function levelTerrain(level: LevelDef): Terrain {
+  let t = terrainCache.get(level)
+  if (!t) {
+    const { w, h, cell } = level.world
+    t = bakeTerrain(level.sdf, { w, h }, cell, FLUID_MARGIN)
+    terrainCache.set(level, t)
+  }
+  return t
+}
+
 export function spotGrid(level: LevelDef): SourceTuple[] {
+  const t = levelTerrain(level)
   const spots: SourceTuple[] = []
   for (let x = 4; x <= level.world.w - 4; x += 2) {
+    const gy = surfaceY(t, x, level.world.h)
     for (const dy of [0.7, 8, 16]) {
-      const y = Math.max(3, level.ground(x) - dy)
+      const y = Math.max(3, gy - dy)
       spots.push([x, y, 'hot'], [x, y, 'cold'])
     }
   }

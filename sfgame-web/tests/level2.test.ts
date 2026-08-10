@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { LEVELS_BY_ID } from '../app/game/levels'
 import { LevelSimulation } from '../app/game/simulation'
 import { WasmFluid } from '../app/sim/fluid'
+import { surfaceY } from '../app/sim/terrain'
 
 const LEVEL_2 = LEVELS_BY_ID.get(2)!
 
@@ -10,7 +11,7 @@ const DT = 1 / 60
 test('初始状态：纸飞机在画布外、离地有一定高度、带初速飞入', () => {
   const sim = new LevelSimulation(LEVEL_2)
   expect(sim.plane.x).toBeLessThan(0)
-  expect(sim.plane.y).toBeLessThan(LEVEL_2.ground(0) - 3)
+  expect(sim.plane.y).toBeLessThan(surfaceY(sim.terrain, 0, LEVEL_2.world.h) - 3)
   expect(sim.plane.y).toBeGreaterThan(2)
   expect(sim.plane.vx).toBeGreaterThan(6)
   expect(sim.phase).toBe('playing')
@@ -25,7 +26,7 @@ test('预算与放置规则：预算扣减/返还、间距、世界外拒绝、�
   expect(sim.placeSource(17, 44, 'hot')).toBeNull()
   const clamped = sim.placeSource(60, 55, 'hot')
   expect(clamped).not.toBeNull()
-  expect(clamped!.y).toBeCloseTo(LEVEL_2.ground(60) - 0.7, 5)
+  expect(clamped!.y).toBeCloseTo(surfaceY(sim.terrain, 60, LEVEL_2.world.h) - 0.7, 5)
   // 边界死区对齐 toWorld ±0.5：仅世界外拒绝
   expect(sim.placeSource(0.4, 20, 'hot')).toBeNull()
   expect(sim.placeSource(1.2, 20, 'hot')).not.toBeNull()
@@ -58,13 +59,13 @@ test('restart 保留玩家已放置的源与预算，仅清场复位飞机', () 
 test('抵达语义：贴地滑入与飞入目标圈同等计数', () => {
   const slide = new LevelSimulation(LEVEL_2)
   slide.plane.x = LEVEL_2.goals[0].x
-  slide.plane.y = LEVEL_2.ground(LEVEL_2.goals[0].x) - 0.5
+  slide.plane.y = slide.goalGroundY[0] - 0.5
   slide.step(DT)
   expect(slide.phase).toBe('won')
 
   const fly = new LevelSimulation(LEVEL_2)
   fly.plane.x = LEVEL_2.goals[0].x
-  fly.plane.y = LEVEL_2.ground(LEVEL_2.goals[0].x) - 3
+  fly.plane.y = fly.goalGroundY[0] - 3
   fly.step(DT)
   expect(fly.phase).toBe('won')
 })
@@ -108,23 +109,22 @@ test('计时与罚时：按场上源数计费、移除减免、restart 保留、
   let hud = sim.hudState()
   expect(hud.time).toBe(0)
   expect(hud.extra).toBe(0)
+  // 已知解摆法（同 verify-known 回归）+ 一个额外源计罚：通关路径在新物理下稳定
+  sim.placeSource(62, 20.3, 'hot')
+  sim.placeSource(38, 30.1, 'cold')
   sim.placeSource(8, 45.6, 'hot')
-  sim.placeSource(16, 45.6, 'hot')
-  sim.placeSource(56, 21.1, 'hot')
   for (let i = 0; i < 60; i++) sim.step(DT)
   hud = sim.hudState()
   expect(hud.time).toBeCloseTo(1, 5)
   expect(hud.extra).toBe(12)
   expect(hud.sources).toBe(3)
-  const removed = sim.sources.find((s) => s.x === 56)!
+  const removed = sim.sources.find((s) => s.x === 8)!
   sim.removeSource(removed.id)
   expect(sim.hudState().extra).toBe(8)
   sim.restart()
   hud = sim.hudState()
   expect(hud.time).toBe(0)
   expect(hud.extra).toBe(8)
-  sim.placeSource(22, 45.6, 'hot')
-  sim.placeSource(56, 21.1, 'hot')
   let wonAt = -1
   for (let t = 0; t < 60; t += DT) {
     sim.step(DT)

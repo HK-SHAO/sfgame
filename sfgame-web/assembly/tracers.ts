@@ -1,5 +1,5 @@
 // 示踪粒子内核（app/sim/particles.ts 门面的数值实现）：粒子状态全量驻留 wasm 内存，
-// 宿主每 tick 只写热源表并单次调用推进——风场采样直调 core（同模块零跨界）、地面走 LUT。
+// 宿主每 tick 只写热源表并单次调用推进——风场采样直调 core（同模块零跨界）、地形走宿主烘焙的 SDF 场。
 // 粒子纯视觉不涉判定：PRNG 用确定性 mulberry32（宿主播种），位级不与 JS 旧实现对齐。
 // 静态容量 + stub runtime：实例化定型、运行期零分配。
 import { sampleVelocity, outX, outY } from './core'
@@ -12,7 +12,8 @@ const T_PLUME_PER_STEP = 2
 const T_PLUME_RADIUS = 1.6
 const T_PLUME_LIFE_MIN = 0.9
 const T_PLUME_LIFE_SPAN = 1.2
-const T_LUT_CAP = 1024
+// 地形场容量：流体网格最大规格（nx×ny）上限，超限 init 拒绝
+const T_SDF_CAP = 19200
 const T_SRC_CAP = 32
 
 const tx = new Float32Array(T_COUNT)
@@ -25,15 +26,19 @@ const trailX = new Float32Array(T_COUNT * T_TRAIL_LEN)
 const trailY = new Float32Array(T_COUNT * T_TRAIL_LEN)
 const trailT = new Float32Array(T_COUNT * T_TRAIL_LEN)
 const trailN = new Uint8Array(T_COUNT)
-// 地面 LUT：宿主烘焙 groundY（世界坐标 [0,w]），查询端外钳制取边缘值（同 groundExt 语义）
-const groundLut = new Float32Array(T_LUT_CAP)
+// 地形 SDF 场：宿主烘焙后原样上传（与流体掩码/飞机碰撞同源），格心值、双线性采样
+const tSdf = new Float32Array(T_SDF_CAP)
 const srcBuf = new Float32Array(T_SRC_CAP * 2)
 
 let time: f64 = 0
 let worldW: f64 = 0
+let worldH: f64 = 0
 let margin: f64 = 0
-let lutN: i32 = 0
-let lutStep: f64 = 1
+let snx: i32 = 0
+let sny: i32 = 0
+let scell: f64 = 1
+let sox: f64 = 0
+let soy: f64 = 0
 let rngState: u32 = 0x9e3779b9
 
 function rnd(): f64 {
@@ -45,15 +50,25 @@ function rnd(): f64 {
   return <f64>(z ^ (z >>> 14)) / 4294967296
 }
 
-function groundAt(x: f64): f64 {
-  let cx = x
-  if (cx < 0) cx = 0
-  else if (cx > worldW) cx = worldW
-  const f = cx / lutStep
-  let i = <i32>f
-  if (i >= lutN - 1) return <f64>groundLut[lutN - 1]
-  const fr = f - <f64>i
-  return <f64>groundLut[i] * (1 - fr) + <f64>groundLut[i + 1] * fr
+// 双线性采样烘焙场：clamp 约定与 app/sim/terrain.ts sample 同构（域外取边缘值 = 地形延展）
+function sdfAt(x: f64, y: f64): f64 {
+  let gx = x / scell - 0.5 + sox
+  let gy = y / scell - 0.5 + soy
+  if (gx < 0) gx = 0
+  else if (gx > <f64>snx - 1.001) gx = <f64>snx - 1.001
+  if (gy < 0) gy = 0
+  else if (gy > <f64>sny - 1.001) gy = <f64>sny - 1.001
+  const i0 = <i32>gx
+  const j0 = <i32>gy
+  const fx = gx - <f64>i0
+  const fy = gy - <f64>j0
+  const a = i0 + j0 * snx
+  return (
+    <f64>tSdf[a] * (1 - fx) * (1 - fy) +
+    <f64>tSdf[a + 1] * fx * (1 - fy) +
+    <f64>tSdf[a + snx] * (1 - fx) * fy +
+    <f64>tSdf[a + snx + 1] * fx * fy
+  )
 }
 
 function resetTrail(i: i32): void {
@@ -83,11 +98,10 @@ function recordTrail(i: i32): void {
 
 function respawn(i: i32, scatter: bool): void {
   for (let tries = 0; tries < T_RESPAWN_TRIES; tries++) {
-    // 重生范围与边界严格镜像 [0.5, w-0.5]（左右空白带一致）
+    // 拒绝采样：全场随机投点，落在离地表 ≥1.5 的空气区才出生（SDF 天然兼容任意地形）
     const x = 0.5 + rnd() * (worldW - 1)
-    const ceil = groundAt(x) - 1.5
-    if (ceil < 3) continue
-    const y = 2 + rnd() * (ceil - 2)
+    const y = 2 + rnd() * (worldH - 3)
+    if (sdfAt(x, y) < 1.5) continue
     tx[i] = <f32>x
     ty[i] = <f32>y
     tMaxLife[i] = <f32>(2.5 + rnd() * 4)
@@ -103,16 +117,21 @@ function respawn(i: i32, scatter: bool): void {
   resetTrail(i)
 }
 
-// LUT 须先由宿主写入 groundLut 再调用；count/trailLen 与编译期容量不符返回非 0（拒绝创建）
+// SDF 场须先由宿主写入 tSdf 再调用；count/trailLen/场容量与编译期容量不符返回非 0（拒绝创建）
 export function tracersInit(
-  count: i32, trailLen: i32, worldW_: f64, margin_: f64, lutStep_: f64, seed: u32,
+  count: i32, trailLen: i32, worldW_: f64, worldH_: f64, margin_: f64,
+  snx_: i32, sny_: i32, scell_: f64, sox_: f64, soy_: f64, seed: u32,
 ): i32 {
   if (count != T_COUNT || trailLen != T_TRAIL_LEN) return 1
+  if (snx_ < 2 || sny_ < 2 || snx_ * sny_ > T_SDF_CAP) return 2
   worldW = worldW_
+  worldH = worldH_
   margin = margin_
-  lutStep = lutStep_
-  lutN = <i32>(worldW / lutStep) + 1
-  if (lutN < 2 || lutN > T_LUT_CAP) return 2
+  snx = snx_
+  sny = sny_
+  scell = scell_
+  sox = sox_
+  soy = soy_
   rngState = seed
   time = 0
   for (let i = 0; i < T_COUNT; i++) respawn(i, true)
@@ -137,8 +156,8 @@ export function tracersStep(dt: f64, srcCount: i32): void {
     tx[i] = <f32>nx
     ty[i] = <f32>ny
     if (<f64>tOdo[i] - <f64>tLastOdo[i] >= T_TRAIL_SAMPLE) recordTrail(i)
-    // 允许飞出地图：边距内继续随风流动，接近末端才清理（可见区无堆积/断崖）
-    if (ny > groundAt(nx) - 0.4 || ny < 1 - m || nx < 1 - m || nx > worldW + m - 1) {
+    // 允许飞出地图：边距内继续随风流动，接近末端才清理（可见区无堆积/断崖）；进地即重生
+    if (sdfAt(nx, ny) < 0.4 || ny < 1 - m || nx < 1 - m || nx > worldW + m - 1) {
       respawn(i, false)
     }
   }
@@ -151,7 +170,7 @@ export function tracersStep(dt: f64, srcCount: i32): void {
       const rad = rnd() * T_PLUME_RADIUS
       const x = <f64>srcBuf[s * 2] + Math.cos(ang) * rad
       const y = <f64>srcBuf[s * 2 + 1] + Math.sin(ang) * rad
-      if (y > groundAt(x) - 0.6 || y < 1) continue
+      if (sdfAt(x, y) < 0.6 || y < 1) continue
       tx[i] = <f32>x
       ty[i] = <f32>y
       tMaxLife[i] = <f32>(T_PLUME_LIFE_MIN + rnd() * T_PLUME_LIFE_SPAN)
@@ -189,11 +208,11 @@ export function tTrailTBuf(): usize {
 export function tTrailNBuf(): usize {
   return trailN.dataStart
 }
-export function tLutBuf(): usize {
-  return groundLut.dataStart
+export function tSdfBuf(): usize {
+  return tSdf.dataStart
 }
-export function tLutCap(): i32 {
-  return T_LUT_CAP
+export function tSdfCap(): i32 {
+  return T_SDF_CAP
 }
 export function tSrcBuf(): usize {
   return srcBuf.dataStart

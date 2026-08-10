@@ -26,35 +26,14 @@ export interface FluidLike {
   clear(): void
   // 环境风强度与温度偏置：采样 = 模拟场 + 位流基场×强度；temp 在浮力/温度采样消费时叠加
   setAmbient(x: number, y: number, temp?: number): void
-  setGroundMask(groundY: (x: number) => number): void
+  // 固体掩码来自烘焙地形场（与飞机/粒子/渲染同源）
+  setTerrain(terrain: { readonly mask: Uint8Array }): void
   addHeat(wx: number, wy: number, amount: number): void
   // 动量注入：以 (fx,fy) 方向在 radius 圆域内给速度场加 amount（调用方负责 dt 缩放）
   addForce(wx: number, wy: number, fx: number, fy: number, amount: number, radius: number): void
   sampleVelocity(wx: number, wy: number, out: Vec2): void
   sampleTemp(wx: number, wy: number): number
   step(dt: number): void
-}
-
-// 地面/边界固体掩码（几何与 assembly/core.ts 的 rebuildSolid 一致）。
-// originX/Y（格）= 地图在网格内的原点偏移：地面函数定义在世界坐标，格中心须减回偏移
-export function buildSolidMask(
-  nx: number,
-  ny: number,
-  cell: number,
-  groundY: (x: number) => number,
-  originX = 0,
-  originY = 0,
-): Uint8Array {
-  const solid = new Uint8Array(nx * ny)
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const cx = (i - originX + 0.5) * cell
-      const cy = (j - originY + 0.5) * cell
-      const edge = i === 0 || j === 0 || i === nx - 1 || j === ny - 1
-      solid[i + j * nx] = edge || cy >= groundY(cx) ? 1 : 0
-    }
-  }
-  return solid
 }
 
 // 渲染零拷贝采样：与 assembly/core.ts sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、
@@ -179,9 +158,8 @@ export class WasmFluid implements FluidLike {
     this.engine.ambient.t = temp
   }
 
-  setGroundMask(groundY: (x: number) => number) {
-    const m = this.engine.origin.x
-    this.solidView.set(buildSolidMask(this.nx, this.ny, this.cell, groundY, m, m))
+  setTerrain(terrain: { readonly mask: Uint8Array }) {
+    this.solidView.set(terrain.mask)
     this.ex.rebuildSolid()
   }
 

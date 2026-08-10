@@ -11,14 +11,38 @@ const MITER_LIMIT = 4
 const TRACER_CAP = 400
 const TRACER_MAX_PTS = 25
 const TRACER_STRIDE = 5 + TRACER_MAX_PTS * 3
+// 地形 SDF 场容量（格点数 nx×ny）：与流体最大网格同上限，宿主每关上传一次
+const TG_CAP = 19200
 
 const data = new Float32Array(CAPACITY * VERTEX_STRIDE)
 const ptsBuf = new Float32Array(PTS_CAP)
 const fadeBuf = new Float32Array(FADE_CAP)
 const tracerBuf = new Float32Array(TRACER_CAP * TRACER_STRIDE)
 const gradRing = new Float32Array(8)
+// 地形固体填充：格心 SDF 场 + marching squares 多边形刮板（凸多边形 ≤6 点）
+const tgField = new Float32Array(TG_CAP)
+const tgCX = new Float64Array(4)
+const tgCY = new Float64Array(4)
+const tgCD = new Float64Array(4)
+const tgCS = new Uint8Array(4)
+const polyX = new Float64Array(6)
+const polyY = new Float64Array(6)
+const polyD = new Float64Array(6)
 
 let count: i32 = 0
+let tgNx: i32 = 0
+let tgNy: i32 = 0
+let tgX0: f64 = 0
+let tgY0: f64 = 0
+let tgCell: f64 = 1
+// 配色：地表色（d=0）随入地深度 smoothstep 混向深处色（渲染常量由宿主传入）
+let tgSr: f64 = 0
+let tgSg: f64 = 0
+let tgSb: f64 = 0
+let tgDr: f64 = 0
+let tgDg: f64 = 0
+let tgDb: f64 = 0
+let tgRamp: f64 = 1
 
 export function bCapacity(): i32 {
   return CAPACITY
@@ -254,23 +278,138 @@ export function bPolylineFade(n: i32, w: f64, r: f64, g: f64, bl: f64): void {
   miter(n, w, r, g, bl, 0, true)
 }
 
-// 地形填充批量：ptsBuf 存折线点列（n 个 float），相邻点对各展 2 三角填到 viewB——
-// 单调用替代逐段 bTri（视域宽时每帧数百次跨界）
-export function bTerrainFill(n: i32, viewB: f64, r: f64, g: f64, bl: f64, a: f64): void {
-  const segs = n / 2 - 1
-  if (segs < 1) return
-  if (count + segs * 6 > CAPACITY) return
-  for (let i = 0; i + 3 < n; i += 2) {
-    const ax = <f64>ptsBuf[i]
-    const ay = <f64>ptsBuf[i + 1]
-    const bx = <f64>ptsBuf[i + 2]
-    const by = <f64>ptsBuf[i + 3]
-    push(ax, ay, r, g, bl, a)
-    push(bx, by, r, g, bl, a)
-    push(ax, viewB, r, g, bl, a)
-    push(bx, by, r, g, bl, a)
-    push(bx, viewB, r, g, bl, a)
-    push(ax, viewB, r, g, bl, a)
+// 地形固体填充（marching squares）：宿主每关上传格心 SDF 场，每帧对可视格做等值线切割——
+// 轮廓 = 格内线性插值的 d=0 线，矢量级锐利（无软边 alpha）；颜色按入地深度丝滑渐变。
+// 越界格索引钳至边缘列 = 地形自然延展；鞍点（对角双固体）以格心均值消歧
+function pushTg(x: f64, y: f64, d: f64): void {
+  let depth = -d / tgRamp
+  if (depth < 0) depth = 0
+  else if (depth > 1) depth = 1
+  const k = depth * depth * (3 - 2 * depth)
+  push(x, y, tgSr + (tgDr - tgSr) * k, tgSg + (tgDg - tgSg) * k, tgSb + (tgDb - tgSb) * k, 1)
+}
+
+export function bTerrainFieldBuf(): usize {
+  return tgField.dataStart
+}
+export function bTerrainFieldCap(): i32 {
+  return TG_CAP
+}
+export function bTerrainField(
+  nx: i32, ny: i32, x0: f64, y0: f64, cell: f64,
+  sr: f64, sg: f64, sb: f64, dr: f64, dg: f64, db: f64, ramp: f64,
+): i32 {
+  if (nx < 2 || ny < 2 || nx * ny > TG_CAP || ramp <= 0) return 1
+  tgNx = nx
+  tgNy = ny
+  tgX0 = x0
+  tgY0 = y0
+  tgCell = cell
+  tgSr = sr
+  tgSg = sg
+  tgSb = sb
+  tgDr = dr
+  tgDg = dg
+  tgDb = db
+  tgRamp = ramp
+  return 0
+}
+export function bTerrainDraw(i0: i32, j0: i32, i1: i32, j1: i32): void {
+  if (tgNx < 2 || tgNy < 2) return
+  if (i1 <= i0 || j1 <= j0) return
+  // 每格至多 4 三角形（六点多边形扇形化）
+  if (count + (i1 - i0) * (j1 - j0) * 12 > CAPACITY) return
+  const mx = tgNx - 1
+  const my = tgNy - 1
+  for (let j = j0; j < j1; j++) {
+    let bj = j
+    if (bj < 0) bj = 0
+    else if (bj > my) bj = my
+    let bj1 = j + 1
+    if (bj1 < 0) bj1 = 0
+    else if (bj1 > my) bj1 = my
+    const y0 = tgY0 + <f64>j * tgCell
+    const y1 = y0 + tgCell
+    for (let i = i0; i < i1; i++) {
+      let ai = i
+      if (ai < 0) ai = 0
+      else if (ai > mx) ai = mx
+      let ai1 = i + 1
+      if (ai1 < 0) ai1 = 0
+      else if (ai1 > mx) ai1 = mx
+      const d00 = <f64>tgField[bj * tgNx + ai]
+      const d10 = <f64>tgField[bj * tgNx + ai1]
+      const d11 = <f64>tgField[bj1 * tgNx + ai1]
+      const d01 = <f64>tgField[bj1 * tgNx + ai]
+      const s00 = d00 <= 0
+      const s10 = d10 <= 0
+      const s11 = d11 <= 0
+      const s01 = d01 <= 0
+      const n = (s00 ? 1 : 0) + (s10 ? 1 : 0) + (s11 ? 1 : 0) + (s01 ? 1 : 0)
+      if (n == 0) continue
+      const x0 = tgX0 + <f64>i * tgCell
+      const x1 = x0 + tgCell
+      if (n == 4) {
+        pushTg(x0, y0, d00)
+        pushTg(x1, y0, d10)
+        pushTg(x0, y1, d01)
+        pushTg(x1, y0, d10)
+        pushTg(x1, y1, d11)
+        pushTg(x0, y1, d01)
+        continue
+      }
+      // 鞍点且格心为空气：两块固体互不相连，拆成两个独立三角形（行走法会错误连通）
+      if (n == 2 && s00 == s11 && d00 + d10 + d01 + d11 > 0) {
+        const topX = x0 + tgCell * (d00 / (d00 - d10))
+        const rightY = y0 + tgCell * (d10 / (d10 - d11))
+        const botX = x1 - tgCell * (d11 / (d11 - d01))
+        const leftY = y1 - tgCell * (d01 / (d01 - d00))
+        if (s00) {
+          pushTg(x0, y0, d00)
+          pushTg(topX, y0, 0)
+          pushTg(x0, leftY, 0)
+          pushTg(x1, y1, d11)
+          pushTg(x1, rightY, 0)
+          pushTg(botX, y1, 0)
+        } else {
+          pushTg(x1, y0, d10)
+          pushTg(topX, y0, 0)
+          pushTg(x1, rightY, 0)
+          pushTg(x0, y1, d01)
+          pushTg(x0, leftY, 0)
+          pushTg(botX, y1, 0)
+        }
+        continue
+      }
+      // 常规：绕格行走（TL→TR→BR→BL）收集固体角与交点成凸多边形，扇形化
+      tgCX[0] = x0; tgCY[0] = y0; tgCD[0] = d00; tgCS[0] = s00 ? 1 : 0
+      tgCX[1] = x1; tgCY[1] = y0; tgCD[1] = d10; tgCS[1] = s10 ? 1 : 0
+      tgCX[2] = x1; tgCY[2] = y1; tgCD[2] = d11; tgCS[2] = s11 ? 1 : 0
+      tgCX[3] = x0; tgCY[3] = y1; tgCD[3] = d01; tgCS[3] = s01 ? 1 : 0
+      let m = 0
+      for (let k = 0; k < 4; k++) {
+        const k2 = (k + 1) & 3
+        if (tgCS[k]) {
+          polyX[m] = tgCX[k]
+          polyY[m] = tgCY[k]
+          polyD[m] = tgCD[k]
+          m++
+        }
+        if (tgCS[k] != tgCS[k2]) {
+          const da = tgCD[k]
+          const tt = da / (da - tgCD[k2])
+          polyX[m] = tgCX[k] + (tgCX[k2] - tgCX[k]) * tt
+          polyY[m] = tgCY[k] + (tgCY[k2] - tgCY[k]) * tt
+          polyD[m] = 0
+          m++
+        }
+      }
+      for (let k = 1; k + 1 < m; k++) {
+        pushTg(polyX[0], polyY[0], polyD[0])
+        pushTg(polyX[k], polyY[k], polyD[k])
+        pushTg(polyX[k + 1], polyY[k + 1], polyD[k + 1])
+      }
+    }
   }
 }
 

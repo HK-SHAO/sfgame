@@ -1,5 +1,6 @@
 import type { FluidConfig, FluidLike } from '../sim/fluid'
 import { createFluid } from '../sim/fluid'
+import { bakeTerrain, projectOut, surfaceY, type Terrain } from '../sim/terrain'
 import type { EngineHandle } from '../wasm/engine'
 import { createBody, stepBody, type Body } from '../sim/bodies'
 import { GOAL_LIFT, type SourceKind } from '../sim/types'
@@ -34,6 +35,8 @@ const URL_PRECISION_TOLERANCE = 0.06
 // 胜负语义：进入抵达圆（与渲染虚线圆一致）即算抵达，贴地滑入同样计数、顺序不限；过关瞬间与显式暂停都冻结物理与时钟
 export class LevelSimulation {
   readonly level: LevelDef
+  // 烘焙地形场（单一事实源）：流体掩码/飞机碰撞/放源吸附/粒子/渲染全部采样它
+  readonly terrain: Terrain
   readonly fluid: FluidLike
   readonly plane: Body
   // 关卡自带的固定源：玩家不可移除、不计预算（独立数组，hitSource 天然不命中）
@@ -49,7 +52,7 @@ export class LevelSimulation {
   visited: boolean[]
   visitedCount = 0
   paused = false
-  // 目标地面高度（静态量构造期预存）：判定与渲染每 tick/帧消费，免重复求值地形表达式
+  // 目标列地表高度（静态量构造期预存）：判定与渲染每 tick/帧消费，免重复采样
   readonly goalGroundY: number[]
 
   private nextId = 1
@@ -64,20 +67,22 @@ export class LevelSimulation {
     this.level = level
     this.unlimited = opts.unlimited ?? false
     const { w, h, cell } = level.world
+    // 地形场即流体网格（同公式同边距）：掩码直接交给内核，免二次建掩码
+    this.terrain = bakeTerrain(level.sdf, { w, h }, cell, FLUID_MARGIN)
     this.fluid = createFluid(
       {
-        nx: Math.round((w + 2 * FLUID_MARGIN) / cell),
-        ny: Math.round((h + FLUID_MARGIN) / cell),
+        nx: this.terrain.nx,
+        ny: this.terrain.ny,
         cell,
         margin: FLUID_MARGIN,
         ...FLUID_TUNING,
       },
       engine,
     )
-    this.fluid.setGroundMask(this.groundExt)
+    this.fluid.setTerrain(this.terrain)
     this.applyAmbient(0)
     this.visited = level.goals.map(() => false)
-    this.goalGroundY = level.goals.map((g) => level.ground(g.x))
+    this.goalGroundY = level.goals.map((g) => surfaceY(this.terrain, g.x, h))
     // 负 id 区段：与玩家源 id 空间隔离；born=-1 免生长动画（渲染 pop 恒为 1）
     this.fixedSources = level.fixed.map((f, i) => ({
       id: -i - 1,
@@ -89,8 +94,8 @@ export class LevelSimulation {
       power: f.power,
     }))
     this.fans = level.fans
-    // 质点静息即地面本身：默认出生贴地，带初速的关卡显式给 y
-    this.spawnY = level.spawn.y ?? level.ground(level.spawn.x)
+    // 质点静息即地表本身：默认出生贴地，带初速的关卡显式给 y
+    this.spawnY = level.spawn.y ?? surfaceY(this.terrain, level.spawn.x, h)
     this.spawnVx = level.spawn.vx ?? 0
     this.spawnVy = level.spawn.vy ?? 0
     this.plane = createBody(level.spawn.x, this.spawnY)
@@ -99,12 +104,6 @@ export class LevelSimulation {
 
   get hotLeft() {
     return this.unlimited ? Infinity : this.level.budget.hot - this.usedHot
-  }
-
-  // 延展地面：地图外取边缘值（边距列的固体掩码/示踪粒子需要，关卡地面表达式在域外未必良性）
-  groundExt = (x: number): number => {
-    const { w } = this.level.world
-    return this.level.ground(x < 0 ? 0 : x > w ? w : x)
   }
 
   get coldLeft() {
@@ -161,7 +160,7 @@ export class LevelSimulation {
     const { w } = this.level.world
     // 边界对齐 toWorld ±0.5 与粒子重生边界：整个可视世界皆可放置，无不可放置死角
     if (x < 0.5 || x > w - 0.5 || y < 3) return false
-    if (y > this.level.ground(x) - GROUND_PLACE_MARGIN) return false
+    if (this.terrain.sample(x, y) < GROUND_PLACE_MARGIN) return false
     for (const s of this.sources) {
       if (Math.hypot(s.x - x, s.y - y) < MIN_SOURCE_GAP) return false
     }
@@ -185,10 +184,10 @@ export class LevelSimulation {
   placeSource(x: number, y: number, kind: SourceKind, force = false): Source | null {
     if (!force && this.phase !== 'playing') return null
     if (!this.unlimited && (kind === 'hot' ? this.hotLeft <= 0 : this.coldLeft <= 0)) return null
-    // 点在地面/物体上时，吸附到贴地高度——"在脚下放源"是核心交互，不应拒绝
-    const cy = Math.min(y, this.level.ground(x) - GROUND_SNAP_LIFT)
-    if (!this.canPlaceAt(x, cy)) return null
-    const source: Source = { id: this.nextId++, kind, x, y: cy, born: this.time, wallBorn: performance.now() }
+    // 点在实体内时沿法向推出到净空——“在脚下放源”是核心交互，不应拒绝
+    const p = projectOut(this.terrain, x, y, GROUND_SNAP_LIFT)
+    if (!this.canPlaceAt(p.x, p.y)) return null
+    const source: Source = { id: this.nextId++, kind, x: p.x, y: p.y, born: this.time, wallBorn: performance.now() }
     this.sources.push(source)
     this.charge(kind, 1)
     return source
@@ -234,9 +233,9 @@ export class LevelSimulation {
       this.fluid.addForce(f.x, f.y, Math.cos(dir), Math.sin(dir), f.power * dt, FAN_RADIUS)
     }
     this.fluid.step(dt)
-    // groundExt 而非 level.ground：飞机可飞出地图，延展地面保证地图外同样"不入地"
-    stepBody(this.plane, this.fluid, dt, this.groundExt)
-    if (this.level.ground(this.plane.x) - this.plane.y < 1) this.groundedTime += dt
+    // SDF 全域有定义，地图外同样不入地（采样 clamp = 边缘延展）
+    stepBody(this.plane, this.fluid, dt, this.terrain)
+    if (this.terrain.sample(this.plane.x, this.plane.y) < 1) this.groundedTime += dt
     this.checkGoals()
   }
 

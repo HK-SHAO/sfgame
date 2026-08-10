@@ -19,7 +19,7 @@ function stubFluid(vx: number, vy: number): FluidLike {
     cell: 1,
     clear() {},
     setAmbient() {},
-    setGroundMask() {},
+    setTerrain() {},
     addHeat() {},
     addForce() {},
     sampleVelocity(_x: number, _y: number, out: Vec2) {

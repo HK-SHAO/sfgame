@@ -1,9 +1,10 @@
 // 渲染顶点批数值内核（app/render/batch.ts 的 WASM 实现）：x,y,r,g,b,a 平铺，f64 中间量 → f32 存储。
 // 静态容量 + stub runtime：实例化时定型、运行期零分配、memory.buffer 视图恒定；
-// 容量溢出整体丢弃图元（最坏场景 ~10 万顶点，容量留 ~2 倍余量）。
+// 容量溢出逐图元检查丢弃（地形逐格降级，其余图元整体丢弃，绝不写越界）。
 
 export const VERTEX_STRIDE = 6
-const CAPACITY = 196608
+// 最坏帧 ≈ 地形 ~11 万 + 示踪 ~7 万 + 其余 ~1 万：留足余量，溢出由逐图元检查优雅降级（取 12 整倍便于恰好写满）
+const CAPACITY = 262152
 const PTS_CAP = 2048
 const FADE_CAP = 1024
 const MITER_LIMIT = 4
@@ -35,14 +36,14 @@ let tgNy: i32 = 0
 let tgX0: f64 = 0
 let tgY0: f64 = 0
 let tgCell: f64 = 1
-// 配色：地表色（d=0）随入地深度 smoothstep 混向深处色（渲染常量由宿主传入）
+// 配色：地表色（d=0）随入地深度指数渐近混向深处色（渲染常量由宿主传入）
 let tgSr: f64 = 0
 let tgSg: f64 = 0
 let tgSb: f64 = 0
 let tgDr: f64 = 0
 let tgDg: f64 = 0
 let tgDb: f64 = 0
-let tgRamp: f64 = 1
+let tgLen: f64 = 1
 
 export function bCapacity(): i32 {
   return CAPACITY
@@ -279,13 +280,11 @@ export function bPolylineFade(n: i32, w: f64, r: f64, g: f64, bl: f64): void {
 }
 
 // 地形固体填充（marching squares）：宿主每关上传格心 SDF 场，每帧对可视格做等值线切割——
-// 轮廓 = 格内线性插值的 d=0 线，矢量级锐利（无软边 alpha）；颜色按入地深度丝滑渐变。
+// 轮廓 = 格内线性插值的 d=0 线，矢量级锐利（无软边 alpha）；颜色按入地深度指数渐近（表面最陡、深处趋缓，视觉自然）。
 // 越界格索引钳至边缘列 = 地形自然延展；鞍点（对角双固体）以格心均值消歧
 function pushTg(x: f64, y: f64, d: f64): void {
-  let depth = -d / tgRamp
-  if (depth < 0) depth = 0
-  else if (depth > 1) depth = 1
-  const k = depth * depth * (3 - 2 * depth)
+  const depth = d < 0 ? -d : 0
+  const k = 1 - Math.exp(-depth / tgLen)
   push(x, y, tgSr + (tgDr - tgSr) * k, tgSg + (tgDg - tgSg) * k, tgSb + (tgDb - tgSb) * k, 1)
 }
 
@@ -297,9 +296,9 @@ export function bTerrainFieldCap(): i32 {
 }
 export function bTerrainField(
   nx: i32, ny: i32, x0: f64, y0: f64, cell: f64,
-  sr: f64, sg: f64, sb: f64, dr: f64, dg: f64, db: f64, ramp: f64,
+  sr: f64, sg: f64, sb: f64, dr: f64, dg: f64, db: f64, depthLen: f64,
 ): i32 {
-  if (nx < 2 || ny < 2 || nx * ny > TG_CAP || ramp <= 0) return 1
+  if (nx < 2 || ny < 2 || nx * ny > TG_CAP || depthLen <= 0) return 1
   tgNx = nx
   tgNy = ny
   tgX0 = x0
@@ -311,14 +310,12 @@ export function bTerrainField(
   tgDr = dr
   tgDg = dg
   tgDb = db
-  tgRamp = ramp
+  tgLen = depthLen
   return 0
 }
 export function bTerrainDraw(i0: i32, j0: i32, i1: i32, j1: i32): void {
   if (tgNx < 2 || tgNy < 2) return
   if (i1 <= i0 || j1 <= j0) return
-  // 每格至多 4 三角形（六点多边形扇形化）
-  if (count + (i1 - i0) * (j1 - j0) * 12 > CAPACITY) return
   const mx = tgNx - 1
   const my = tgNy - 1
   for (let j = j0; j < j1; j++) {
@@ -331,6 +328,8 @@ export function bTerrainDraw(i0: i32, j0: i32, i1: i32, j1: i32): void {
     const y0 = tgY0 + <f64>j * tgCell
     const y1 = y0 + tgCell
     for (let i = i0; i < i1; i++) {
+      // 逐格预算（每格至多 12 顶点）：容量临界时优雅截断，而非整批丢弃导致地形闪烁/消失
+      if (count + 12 > CAPACITY) return
       let ai = i
       if (ai < 0) ai = 0
       else if (ai > mx) ai = mx

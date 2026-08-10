@@ -50,10 +50,10 @@ const GOAL = rgb(47, 191, 113)
 const SKY_TOP = rgb(255, 248, 234)
 const SKY_BOTTOM = rgb(248, 226, 187)
 const GROUND_FILL = rgb(236, 220, 186)
-// 地表色 = 迁移前描边色：锐利轮廓沿 d=0 等值线，入地深处丝滑过渡到原填充色（深度渐变唯一配色）
+// 地表色 = 迁移前描边色：锐利轮廓沿 d=0 等值线，入地按 SDF 深度指数渐近混向原填充色（深度渐变唯一配色）
 const GROUND_EDGE = rgb(216, 193, 147)
-// 深度渐变坡道（世界单位）：入地此深度内从地表色丝滑过渡到深处色
-const GROUND_DEPTH_RAMP = 16
+// 深度渐变特征长度（世界单位）：k = 1−exp(−深度/L)，表面过渡最陡、深处趋缓，视觉柔和自然
+const GROUND_DEPTH_LEN = 8
 const SUN = rgb(255, 196, 83)
 const PAPER = rgb(255, 253, 248)
 const FLAG_POLE = rgb(107, 91, 69)
@@ -226,13 +226,13 @@ export class Renderer {
   }
 
   // SDF 场上传内核（每关一次）：绘制端每帧 marching squares 切 d=0 等值线，轮廓矢量级锐利；
-  // 配色 = 地表色（旧描边色）随入地深度 smoothstep 混向原填充色，采样与物理同源
+  // 配色 = 地表色（旧描边色）随入地深度指数渐近混向原填充色，采样与物理同源
   private uploadTerrain(b: MeshBatch, t: Terrain) {
     if (!b.terrainSetup(
       t.nx, t.ny, -t.originX * t.cell, -t.originY * t.cell, t.cell,
       GROUND_EDGE[0], GROUND_EDGE[1], GROUND_EDGE[2],
       GROUND_FILL[0], GROUND_FILL[1], GROUND_FILL[2],
-      GROUND_DEPTH_RAMP,
+      GROUND_DEPTH_LEN,
     )) throw new Error('地形场超出顶点批内核容量')
     b.terrainField.set(t.field)
     this.terrainKey = t

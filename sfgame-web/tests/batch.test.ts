@@ -53,9 +53,9 @@ test('terrainDraw：marching squares 固体填充——等值线精确切割、�
   // 3×3 格心场（cell=1，原点 (0,10)）：顶行空气（d=1）、下两行实体（d=−1）
   const f = b.terrainField
   for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) f[j * 3 + i] = j === 0 ? 1 : -1
-  // 地表色红 → 深处色蓝，坡道 2：d=−1 处 depth=0.5 → 混色 0.5
+  // 地表色红 → 深处色蓝，深度特征长度 2：d=−1 处 k = 1−exp(−1/2)
   expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(true)
-  expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 0)).toBe(false) // ramp 非法
+  expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 0)).toBe(false) // 长度非法
   expect(b.terrainSetup(200, 100, 0, 0, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(false) // 超容量
   b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)
   b.terrainDraw(0, 0, 2, 2)
@@ -64,8 +64,13 @@ test('terrainDraw：marching squares 固体填充——等值线精确切割、�
   const cut = Array.from({ length: 6 }, (_, k) => vertex(b, k)) // 首格（i=0,j=0）
   // 等值线交点：y=10.5，地表色（1,0,0）不透明
   for (const v of cut.filter((v) => Math.abs(v[1] - 10.5) < 1e-5)) expect(v.slice(2)).toEqual([1, 0, 0, 1])
-  // 实体角点 d=−1：深度混色（0.5,0,0.5）
-  for (const v of cut.filter((v) => v[1] === 11)) expect(v.slice(2)).toEqual([0.5, 0, 0.5, 1])
+  // 实体角点 d=−1：指数渐近混色 k = 1−exp(−0.5)
+  const k = 1 - Math.exp(-0.5)
+  for (const v of cut.filter((v) => v[1] === 11)) {
+    expect(v[2]).toBeCloseTo(1 - k, 5)
+    expect(v[4]).toBeCloseTo(k, 5)
+    expect(v[5]).toBe(1)
+  }
 
   // 越界：位置外推、场钳至边缘列（地形延展），不崩不丢
   b.reset()
@@ -92,6 +97,19 @@ test('terrainDraw：marching squares 固体填充——等值线精确切割、�
     const [x, y] = vertex(b, k)
     expect(x > 0.3 && x < 0.7 && y - 10 > 0.3 && y - 10 < 0.7).toBe(false) // 格心无顶点
   }
+})
+
+test('terrainDraw 容量临界：逐格优雅降级，绝不整批丢弃导致地形消失', () => {
+  const b = new MeshBatch()
+  b.terrainField.fill(-1)
+  expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(true)
+  // 填到只剩 12 顶点余量：全固格（6 顶点）仍能输出，再画则原样返回不越界
+  const cap = b.capacity
+  while (b.count < cap - 12) b.rect(0, 0, 1, 1, 1, 1, 1, 1)
+  b.terrainDraw(0, 0, 1, 1)
+  expect(b.count).toBe(cap - 6)
+  b.terrainDraw(0, 0, 1, 1)
+  expect(b.count).toBe(cap - 6)
 })
 
 test('tracers 批量：单调用输出与 polylineFade + disc 逐顶点一致', () => {

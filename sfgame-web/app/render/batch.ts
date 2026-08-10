@@ -88,9 +88,9 @@ export class MeshBatch {
   // 容量/参数非法返回 false（宿主场超限 = 编译期容量不足，不得静默）
   terrainSetup(
     nx: number, ny: number, x0: number, y0: number, cell: number,
-    sr: number, sg: number, sb: number, dr: number, dg: number, db: number, ramp: number,
+    sr: number, sg: number, sb: number, dr: number, dg: number, db: number, depthLen: number,
   ): boolean {
-    return this.ex.bTerrainField(nx, ny, x0, y0, cell, sr, sg, sb, dr, dg, db, ramp) === 0
+    return this.ex.bTerrainField(nx, ny, x0, y0, cell, sr, sg, sb, dr, dg, db, depthLen) === 0
   }
 
   terrainDraw(i0: number, j0: number, i1: number, j1: number) {

@@ -67,7 +67,7 @@ export interface BatchExports {
   bTerrainFieldCap(): number
   bTerrainField(
     nx: number, ny: number, x0: number, y0: number, cell: number,
-    sr: number, sg: number, sb: number, dr: number, dg: number, db: number, ramp: number,
+    sr: number, sg: number, sb: number, dr: number, dg: number, db: number, depthLen: number,
   ): number
   bTerrainDraw(i0: number, j0: number, i1: number, j1: number): void
   bTracers(count: number, w: number, headR: number): void

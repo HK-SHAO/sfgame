@@ -8,17 +8,14 @@ const CLOUD_R_SPAN = 4.0
 // 出生高度带（占世界高度比例）：上三分之一天空区
 const ALT_LOW_F = 0.12
 const ALT_SPAN_F = 0.18
-const SPAWN_BAND_MIN = 8
-const SPAWN_BAND_SPAN = 12
-const DESPAWN_MARGIN = 30
+// 回收边界：超出世界边缘此距离（≈ letterbox 溢绘）即淡出重生回场内——避免云停在可视区外长期不归
+const DESPAWN_MARGIN = 12
 const FADE_ALT = 3
-const DESCEND_LIMIT = 16
 const RESPOND_H = 1.2
 const RESPOND_V = 0.25
 const HOME_RESTORE = 0.06
 const ALPHA_RATE = 1.2
 const ALPHA_DEAD = 0.02
-const IN_AIR_RATIO = 0.7
 
 // 可复现 PRNG（mulberry32，黄金比例哈希使相邻 id 布局也分散）：同一 level id → 同一片云
 const mulberry32 = (seed: number) => {
@@ -42,7 +39,6 @@ export class Clouds {
   private vx: Float32Array
   private vy: Float32Array
   private homeY: Float32Array
-  private descent: Float32Array
   private world: WorldBounds
   private terrain: TerrainLike
   private rng: () => number
@@ -60,20 +56,14 @@ export class Clouds {
     this.vx = new Float32Array(count)
     this.vy = new Float32Array(count)
     this.homeY = new Float32Array(count)
-    this.descent = new Float32Array(count)
     for (let i = 0; i < count; i++) this.respawn(i)
   }
 
+  // 重生恒在地图内（出场即玩家可见）；被风吹出回收边界后淡出再重生，轮换自然不断档
   private respawn(i: number) {
     const { w, h } = this.world
     const rng = this.rng
-    let x: number
-    if (rng() < IN_AIR_RATIO) {
-      x = 4 + rng() * (w - 8)
-    } else {
-      const band = SPAWN_BAND_MIN + rng() * SPAWN_BAND_SPAN
-      x = rng() < 0.5 ? -band : w + band
-    }
+    const x = 4 + rng() * (w - 8)
     const y = Math.max(2, h * (ALT_LOW_F + rng() * ALT_SPAN_F))
     this.x[i] = x
     this.y[i] = y
@@ -81,7 +71,6 @@ export class Clouds {
     this.radius[i] = CLOUD_R_MIN + rng() * CLOUD_R_SPAN
     this.vx[i] = 0
     this.vy[i] = 0
-    this.descent[i] = 0
     this.alpha[i] = 0
   }
 
@@ -91,13 +80,12 @@ export class Clouds {
     for (let i = 0; i < this.count; i++) {
       const x = this.x[i]
       const y = this.y[i]
-      // 距地表（SDF）足够远才算存活：云不会钻山
+      // 存活 = 在回收边界内且距地表（SDF）足够远：云不钻山、不长期停在可视区外
       const live =
         x > -DESPAWN_MARGIN &&
         x < w + DESPAWN_MARGIN &&
         y > -DESPAWN_MARGIN &&
-        this.terrain.sample(x, y) > FADE_ALT &&
-        this.descent[i] < DESCEND_LIMIT
+        this.terrain.sample(x, y) > FADE_ALT
       const target = live ? 1 : 0
       const a = this.alpha[i] + (target - this.alpha[i]) * (1 - Math.exp(-dt * ALPHA_RATE))
       this.alpha[i] = a
@@ -113,10 +101,7 @@ export class Clouds {
         (this.homeY[i] - y) * (1 - Math.exp(-dt * HOME_RESTORE))
       this.vx[i] = vx
       this.vy[i] = vy
-      const ny = y + vy * dt
-      this.y[i] = ny
-      const dy = ny - y
-      if (dy > 0) this.descent[i] += dy
+      this.y[i] = y + vy * dt
       this.x[i] = x + vx * dt
     }
   }

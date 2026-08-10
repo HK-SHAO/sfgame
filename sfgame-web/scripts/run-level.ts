@@ -1,6 +1,6 @@
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
-import { KNOWN_SOLUTIONS } from './known-solutions'
+import { KNOWN_SOLUTIONS, solutionUrl } from './known-solutions'
 import {
   better,
   evalCandidate,
@@ -81,12 +81,12 @@ if (args.includes('--verify')) {
 
 // 已知解回归验证：scripts/known-solutions.ts 序列化的解必须仍通关（物理/关卡改动后跑一遍）
 if (args.includes('--verify-known')) {
-  const sources = KNOWN_SOLUTIONS[level.id]
-  if (sources === undefined) {
+  const known = KNOWN_SOLUTIONS[level.id]
+  if (known === undefined) {
     console.log(`关卡 ${level.id} 未登记已知解`)
   } else {
-    const m = evalCandidate(level, sources, { dt: FINE_DT, cap: 120 })
-    console.log(`已知解（${sources.length === 0 ? '无源' : fmtSrcUrl(sources)}）：${fmt(m)}`)
+    const m = evalCandidate(level, known.src, { dt: FINE_DT, cap: 120 })
+    console.log(`已知解（${known.src.length === 0 ? '无源' : solutionUrl(known.src)}）：${fmt(m)}`)
   }
 }
 
@@ -147,10 +147,6 @@ function srcKeySorted(src: SourceTuple[]): string {
     .map((s) => `${+s[0].toFixed(1)},${+s[1].toFixed(1)},${s[2]}`)
     .sort()
     .join('_')
-}
-
-function fmtSrcUrl(src: SourceTuple[]): string {
-  return src.map((s) => `${+s[0].toFixed(1)}-${+s[1].toFixed(1)}-${s[2] === 'hot' ? 'h' : 'c'}`).join('_')
 }
 
 function fmtTotal(src: SourceTuple[], m: CandidateMetric): string {
@@ -222,7 +218,7 @@ async function refineSolution(start: SourceTuple[], cap: number, budgetMs: numbe
       if (best !== cur) {
         cur = best
         moved = true
-        console.log(`[refine] 步长 ${step} 改进：${fmtSrcUrl(cur.src)} → ${fmtTotal(cur.src, cur.m)}`)
+        console.log(`[refine] 步长 ${step} 改进：${solutionUrl(cur.src)} → ${fmtTotal(cur.src, cur.m)}`)
       }
     }
   }
@@ -234,7 +230,7 @@ async function refineSolution(start: SourceTuple[], cap: number, budgetMs: numbe
   } else {
     console.log(`[refine] 总耗时 ${totalTime(base.m).toFixed(1)}s → ${totalTime(cur.m).toFixed(1)}s`)
   }
-  console.log(`[refine] 最优摆法（URL s= 形态）：${fmtSrcUrl(cur.src)}`)
+  console.log(`[refine] 最优摆法（URL s= 形态）：${solutionUrl(cur.src)}`)
   console.log(`[refine] 最优摆法（--verify 逗号形态）：${cur.src.map((s) => `${+s[0].toFixed(1)}-${+s[1].toFixed(1)}-${s[2][0]}`).join(',')}`)
 }
 
@@ -242,7 +238,7 @@ async function refineSolution(start: SourceTuple[], cap: number, budgetMs: numbe
 if (args.includes('--refine')) {
   const raw = opt('--refine')
   // 无参（或后跟其他选项）时以 known-solutions.ts 登记解为种子，继续优化
-  const start = raw && !raw.startsWith('--') ? parseSources(raw) : (KNOWN_SOLUTIONS[level.id] ?? [])
+  const start = raw && !raw.startsWith('--') ? parseSources(raw) : (KNOWN_SOLUTIONS[level.id]?.src ?? [])
   const cap = Number(opt('--refine-cap', '90'))
   const budgetMs = Number(opt('--refine-ms', '180000'))
   const workers = Math.min(

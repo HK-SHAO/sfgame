@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { formatPenalty, formatTime } from '../game/timer'
+import { SOURCE_PENALTY, formatTime } from '../game/timer'
 import { boxReset } from './shared-styles'
 
 @customElement('sf-win-overlay')
@@ -20,6 +20,14 @@ export class SfWinOverlay extends LitElement {
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))
 
   protected override render() {
+    // 罚时构成直观按秒显示（道具源罚 4s/源、贴地罚 1s/s），不再给"额外"总文案
+    const groundPenalty = this.extra - this.sources * SOURCE_PENALTY
+    const extraBreakdown =
+      this.extra > 0
+        ? groundPenalty > 0
+          ? `道具 +${this.sources * SOURCE_PENALTY}s · 贴地 +${groundPenalty.toFixed(1)}s`
+          : `道具 +${this.sources * SOURCE_PENALTY}s`
+        : ''
     return html`
       <div class="overlay" role="dialog" aria-label="过关">
         <div class="win-card">
@@ -27,24 +35,22 @@ export class SfWinOverlay extends LitElement {
           <p class="desc">${this.text}</p>
           <p class="stats">
             <b class="total">合计 ${formatTime(this.time + this.extra)}</b>
-            <span class="line">用时 ${formatTime(this.time)}</span>
-            <span class="line extra"
-              >额外 ${this.extra > 0 ? `${formatPenalty(this.extra)}（使用 ${this.sources} 个道具）` : '无'}</span
-            >
             ${this.bestTotal !== undefined
               ? html`<span class="line record"
                   >本关最佳 ${formatTime(this.bestTotal)}${this.rank === 0 ? ' · 新纪录' : ''}</span
                 >`
               : nothing}
+            <span class="line">用时 ${formatTime(this.time)}</span>
+            ${extraBreakdown ? html`<span class="note">${extraBreakdown}</span>` : nothing}
           </p>
-          <div class="row">
+          <div class="actions">
             <button class="primary next" @click=${this.onMain}>
               ${this.hasNext ? '下一关' : '再玩一次'}
             </button>
-          </div>
-          <div class="row">
-            ${this.hasNext ? html`<button class="ghost" @click=${this.onReplay}>再玩一次</button>` : nothing}
-            <button class="ghost" @click=${this.onBack}>选关</button>
+            <div class="row">
+              ${this.hasNext ? html`<button class="ghost" @click=${this.onReplay}>再玩一次</button>` : nothing}
+              <button class="ghost" @click=${this.onBack}>选关</button>
+            </div>
           </div>
         </div>
       </div>
@@ -127,13 +133,31 @@ export class SfWinOverlay extends LitElement {
       white-space: nowrap;
     }
 
-    .stats .extra {
+    /* 罚时构成（道具/贴地）：独立小字行，主行保持简短 */
+    .stats .note {
       font-size: 0.75rem;
+      color: var(--ink-soft);
+      opacity: 0.75;
+      white-space: nowrap;
     }
 
     .stats .record {
       color: var(--goal);
       font-weight: 600;
+    }
+
+    /* 两行按钮整体等宽（主按钮与副按钮组同宽），按钮组内均分 */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-3);
+      width: 100%;
+      max-width: 15rem;
+      margin: 0 auto;
+    }
+
+    .actions .next {
+      width: 100%;
     }
 
     .row {
@@ -142,13 +166,8 @@ export class SfWinOverlay extends LitElement {
       justify-content: center;
     }
 
-    .row + .row {
-      margin-top: var(--sp-3);
-    }
-
-    .row .next {
+    .row button {
       flex: 1;
-      max-width: 15rem;
     }
 
     button {

@@ -47,6 +47,7 @@ TypeScript · Lit · WebGL · WASM·SIMD 流体内核（AssemblyScript）· Vite
 ## 运行 · Run
 
 ```sh
+cd sfgame-web
 bun install
 bun run dev
 ```

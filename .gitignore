@@ -54,3 +54,4 @@ sfgame-web/app/wasm/*.wasm
 # AI 会话导出文件（非项目内容）
 *-export-*.md
 dist.zip
+.local*

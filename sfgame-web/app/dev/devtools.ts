@@ -24,10 +24,11 @@ export class DevTools implements PerfRecorder {
     this.panel.append(this.perfEl, editor)
   }
 
-  // 挂入 hud 的 shadow 内（top 锚 hud 底，天然不与 header 重合）；hud 重建后由 app 重挂，
-  // appendChild 幂等：重复挂载只是原位移动
+  // 挂入 hud 的 shadow 内（top 锚 hud 底，天然不与 header 重合）；hud 重建后由 app 重挂。
+  // 已挂载即跳过：重复 appendChild 触发子树重挂，会清空其中 textarea 的原生撤销栈与滚动位置
   mount(host: HTMLElement) {
-    host.shadowRoot!.appendChild(this.panel)
+    const root = host.shadowRoot
+    if (root && this.panel.parentNode !== root) root.appendChild(this.panel)
   }
 
   record(sample: PerfSample) {

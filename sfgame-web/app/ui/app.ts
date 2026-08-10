@@ -118,7 +118,7 @@ export class SfApp extends LitElement {
     }
   }
 
-  // 渲染后挂载 dev 面板（hud 已就绪）：appendChild 幂等，hud 重建后自动重挂
+  // 渲染后挂载 dev 面板（hud 已就绪）：mount 内部守卫跳过重复挂载，hud 重建后自动重挂
   protected override updated() {
     this.devTools?.mount(this.hudEl)
   }

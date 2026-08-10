@@ -9,13 +9,13 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && node scripts/build-wasm.ts && vite build",
-    "preview": "vite preview",
-    "test": "node scripts/build-wasm.ts && vitest run",
-    "typecheck": "tsc -b",
-    "build:wasm": "node scripts/build-wasm.ts",
-    "check": "tsc -b && node scripts/build-wasm.ts && vitest run && vite build"
+    "dev": "bun node_modules/vite/bin/vite.js",
+    "build": "bun tsc -b && bun run build:wasm && bun node_modules/vite/bin/vite.js build",
+    "preview": "bun node_modules/vite/bin/vite.js preview",
+    "test": "bun run build:wasm && bun vitest run",
+    "typecheck": "bun tsc -b",
+    "build:wasm": "bun run scripts/build-wasm.ts",
+    "check": "bun run typecheck && bun run test && bun vite build"
   },
   "dependencies": {
     "lit": "^3.3.3"

@@ -1,7 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
-import { once } from 'node:events'
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { GROUND_PENALTY_RATE, SOURCE_PENALTY } from '../app/game/timer.ts'
 import { levelFromJson, parseLevelText } from '../app/game/level-format.ts'
 import { FLUID_MARGIN, LevelSimulation } from '../app/game/simulation.ts'
@@ -15,7 +12,7 @@ export const FINE_DT = 1 / 60
 // 无头引导：wasm 缺失/不可用直接抛错——脚本场景下无声回退等于产出假结果
 export async function initBackend(): Promise<void> {
   const ok = await bootEngine(() =>
-    Promise.resolve(readFileSync(fileURLToPath(new URL('../app/wasm/sfengine.wasm', import.meta.url)))),
+    Promise.resolve(readFileSync(`${import.meta.dir}/../app/wasm/sfengine.wasm`)),
   )
   if (!ok) throw new Error('WASM 引擎（sfengine.wasm）加载失败，请先 bun run build:wasm')
 }
@@ -167,9 +164,9 @@ export const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen:
 
 // 并行评估子进程池：stdin/stdout 逐行 JSON；worker 意外退出时在途任务按失败计并补起替身（否则 Promise 永不 resolve 无声挂死）。
 // cap 随任务下发：--solve 用 35s 快筛，--refine 用长 cap（既有解耗时可能超 35s）。
-// spawn 走 process.execPath：bun 下 = bun、node 下 = node（Node ≥24 type-stripping 直跑 worker.ts），双运行时自举
+// worker 用当前运行时（process.execPath，bun 下即 bun）执行 TS 源码，无需预编译
 export class WorkerPool {
-  private procs: Array<{ proc: ChildProcess; buf: string; idle: boolean; jobId: number }> = []
+  private procs: Array<{ proc: import('bun').Subprocess; buf: string; idle: boolean; jobId: number }> = []
   private queue: Array<{ src: SourceTuple[]; cap?: number; resolve: (m: CandidateMetric) => void }> = []
   private closed = false
   private levelFile: string
@@ -180,18 +177,15 @@ export class WorkerPool {
   }
 
   private spawn() {
-    const proc = spawn(process.execPath, [
-      fileURLToPath(new URL('./solve-worker.ts', import.meta.url)),
-      this.levelFile,
-    ], {
-      cwd: fileURLToPath(new URL('.', import.meta.url)),
-      stdio: ['pipe', 'pipe', 'pipe'],
+    const proc = Bun.spawn([process.execPath, `${import.meta.dir}/solve-worker.ts`, this.levelFile], {
+      cwd: import.meta.dir,
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
     })
-    // node 下 spawn 失败（如 runtime 缺文件）走 'error' 事件而非抛错：显式暴露，不静默挂死
-    proc.on('error', (e) => process.stderr.write(`[solve] worker 启动失败：${e.message}\n`))
     const w = { proc, buf: '', idle: true, jobId: 0 }
     this.procs.push(w)
-    void once(proc, 'exit').then(() => {
+    void proc.exited.then(() => {
       if (this.closed) return
       const i = this.procs.indexOf(w)
       if (i >= 0) this.procs.splice(i, 1)
@@ -247,6 +241,7 @@ export class WorkerPool {
       this.pending.set(id, job.resolve)
       if (w.proc.stdin && typeof w.proc.stdin !== 'number') {
         w.proc.stdin.write(`${JSON.stringify({ id, src: job.src, cap: job.cap })}\n`)
+        w.proc.stdin.flush()
       }
     }
   }

@@ -1,10 +1,12 @@
 import { name } from '../../package.json'
 
-// localStorage 进度载荷带版本（.progress.v2）：解析容错，损坏/未知版本 → 空进度绝不抛错；
+// localStorage 进度载荷带版本（.progress.v1）：解析容错，损坏/未知版本 → 空进度绝不抛错；
 // 键前缀跟随 package.json name（存储管理页据此识别，勿改）。
 // 键 = 关卡内容 hash（levels.ts levelHash）：关卡改版即失效，内联 DIY 关卡互不串号。
 // 只记最佳过关耗时（不记解摆法），新纪录覆盖旧值
-export const STORAGE_KEY = `${name}.progress.v2`
+const PROGRESS_VERSION = 1
+
+export const STORAGE_KEY = `${name}.progress.v${PROGRESS_VERSION}`
 
 export interface ScoreEntry {
   time: number
@@ -19,7 +21,7 @@ export interface ProgressStorage {
 }
 
 interface ProgressJson {
-  v: 2
+  v: typeof PROGRESS_VERSION
   levels: Record<string, ScoreEntry>
 }
 
@@ -34,7 +36,7 @@ function parseEntry(raw: unknown): ScoreEntry | null {
 }
 
 function parseProgress(raw: string | null): ProgressJson {
-  const empty: ProgressJson = { v: 2, levels: {} }
+  const empty: ProgressJson = { v: PROGRESS_VERSION, levels: {} }
   if (!raw) return empty
   let data: unknown
   try {
@@ -44,10 +46,10 @@ function parseProgress(raw: string | null): ProgressJson {
   }
   if (!data || typeof data !== 'object') return empty
   const d = data as { v?: unknown; levels?: unknown }
-  if (d.v !== 2 || !d.levels || typeof d.levels !== 'object') return empty
+  if (d.v !== PROGRESS_VERSION || !d.levels || typeof d.levels !== 'object') return empty
   const levels: Record<string, ScoreEntry> = {}
   for (const [id, rawEntry] of Object.entries(d.levels as Record<string, unknown>)) {
-    // 兼容旧版数组载荷（v2 曾存 top3 列表）：取最优一条，多余字段（sources 等）忽略
+    // 兼容旧版数组载荷（v1 曾存 top3 列表）：取最优一条，多余字段（sources 等）忽略
     const list = Array.isArray(rawEntry) ? rawEntry : [rawEntry]
     let best: ScoreEntry | null = null
     for (const e of list) {
@@ -56,7 +58,7 @@ function parseProgress(raw: string | null): ProgressJson {
     }
     if (best) levels[id] = best
   }
-  return { v: 2, levels }
+  return { v: PROGRESS_VERSION, levels }
 }
 
 export function createBrowserStorage(): ProgressStorage {

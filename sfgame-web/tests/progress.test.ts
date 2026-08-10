@@ -39,7 +39,7 @@ test('旧版 top3 数组载荷兼容：取最优一条，多余字段忽略', ()
   const old = memStorage()
   old.storage.set(
     JSON.stringify({
-      v: 2,
+      v: 1,
       levels: {
         h1: [
           { time: 'x', extra: 0, at: 1 },
@@ -53,7 +53,7 @@ test('旧版 top3 数组载荷兼容：取最优一条，多余字段忽略', ()
   const p = new PlayerProgress(old.storage)
   expect(p.best('h1')?.total).toBe(5)
   // 单条非数组载荷也可读
-  old.storage.set(JSON.stringify({ v: 2, levels: { h1: { time: 8, extra: 1, at: 1 } } }))
+  old.storage.set(JSON.stringify({ v: 1, levels: { h1: { time: 8, extra: 1, at: 1 } } }))
   expect(new PlayerProgress(old.storage).best('h1')?.total).toBe(9)
 })
 
@@ -63,6 +63,6 @@ test('损坏数据容错：非法 JSON/未知版本/非法条目安全回落', (
   expect(new PlayerProgress(bad.storage).best('h1')).toBeUndefined()
 
   const vOld = memStorage()
-  vOld.storage.set(JSON.stringify({ v: 1, levels: {} }))
+  vOld.storage.set(JSON.stringify({ v: 2, levels: {} }))
   expect(new PlayerProgress(vOld.storage).best('h1')).toBeUndefined()
 })

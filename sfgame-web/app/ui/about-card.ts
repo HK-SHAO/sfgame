@@ -34,6 +34,10 @@ export class SfAboutCard extends LitElement {
         <p class="line">${description}</p>
         <p class="line">作者：${author.name}</p>
         <p class="line">版本：v${version}</p>
+        <div class="links">
+          <a href="https://github.com/HK-SHAO/sfgame" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://shaofun.itch.io/sfgame" target="_blank" rel="noopener">itch.io</a>
+        </div>
       </section>
     `
   }
@@ -122,6 +126,34 @@ export class SfAboutCard extends LitElement {
         font-size: 0.875rem;
         line-height: 1.8;
         color: var(--ink-soft);
+      }
+
+      .links {
+        display: flex;
+        justify-content: center;
+        gap: var(--sp-2);
+        margin-top: var(--sp-3);
+      }
+
+      /* 与主页 .link-btn 同配方的胶囊玻璃钮：不引入链接专属色，保持全局暖色玻璃质感 */
+      .links a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: var(--sp-2) var(--sp-4);
+        font-size: 0.75rem;
+        color: var(--ink-soft);
+        text-decoration: none;
+        background: rgba(255, 253, 248, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        border-radius: var(--r-pill);
+        corner-shape: squircle;
+        transition: color 120ms ease-out, box-shadow 120ms ease-out;
+      }
+
+      .links a:hover {
+        color: var(--ink);
+        box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
       }
     `,
   ]

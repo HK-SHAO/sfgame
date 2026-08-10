@@ -1,7 +1,7 @@
 // 关卡 JSON 结构校验 = levels/level.schema-1.json 的运行时镜像：schema 表达的静态约束两处同源，
 // 由 tests/level-schema.test.ts 守护；world 依赖的动态边界（x≤w 等）与 SDF 语义仅此处可表达。
 // 错误逐字段 JSON 路径 + 实值；world 非法时动态边界自动失效（undefined），只查结构不级联误报
-import { compileSdf, SdfError } from './sdf'
+import { compileSdf, SdfError } from './sdf.ts'
 
 export const LEVEL_SCHEMA = 1
 // 协议版本唯一编码点：文件名 level.schema-N.json 携带版本，关卡 $schema 须精确指向当前版本引用

@@ -1,11 +1,11 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash } from '../game/levels'
-import { progress } from '../game/progress'
-import { formatTime } from '../game/timer'
-import type { LevelDef } from '../game/types'
-import { artBg, boxReset, reduceMotion } from './shared-styles'
-import { iconGear, iconInfo, iconLock } from './icons'
+import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash } from '../game/levels.ts'
+import { progress } from '../game/progress.ts'
+import { formatTime } from '../game/timer.ts'
+import type { LevelDef } from '../game/types.ts'
+import { artBg, boxReset, reduceMotion } from './shared-styles.ts'
+import { iconGear, iconInfo, iconLock } from './icons.ts'
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
 @customElement('sf-title-screen')

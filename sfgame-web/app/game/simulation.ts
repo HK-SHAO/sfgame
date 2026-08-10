@@ -1,11 +1,11 @@
-import type { FluidConfig, FluidLike } from '../sim/fluid'
-import { createFluid } from '../sim/fluid'
-import { bakeTerrain, projectOut, surfaceY, type Terrain } from '../sim/terrain'
-import type { EngineHandle } from '../wasm/engine'
-import { createBody, stepBody, type Body } from '../sim/bodies'
-import { GOAL_LIFT, type SourceKind } from '../sim/types'
-import { totalPenaltySeconds } from './timer'
-import type { FanDef, HudState, LevelDef, Source, SourcePlacement } from './types'
+import type { FluidConfig, FluidLike } from '../sim/fluid.ts'
+import { createFluid } from '../sim/fluid.ts'
+import { bakeTerrain, projectOut, surfaceY, type Terrain } from '../sim/terrain.ts'
+import type { EngineHandle } from '../wasm/engine.ts'
+import { createBody, stepBody, type Body } from '../sim/bodies.ts'
+import { GOAL_LIFT, type SourceKind } from '../sim/types.ts'
+import { totalPenaltySeconds } from './timer.ts'
+import type { FanDef, HudState, LevelDef, Source, SourcePlacement } from './types.ts'
 
 const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell' | 'margin'> = {
   buoyancy: 2.0,

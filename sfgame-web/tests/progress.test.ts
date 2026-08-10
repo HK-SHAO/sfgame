@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { PlayerProgress, type ProgressStorage } from '../app/game/progress'
+import { PlayerProgress, type ProgressStorage } from '../app/game/progress.ts'
 
 function memStorage(): { storage: ProgressStorage; raw(): string | null } {
   let raw: string | null = null

@@ -1,6 +1,6 @@
 import { LitElement, css, html, type PropertyValues } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { formatPenalty, formatTime } from '../game/timer'
+import { formatPenalty, formatTime } from '../game/timer.ts'
 
 // 声明式状态条：属性每帧由 sf-game 驱动，shouldUpdate 内格式化比对短路，文本未变零渲染成本
 @customElement('sf-status')

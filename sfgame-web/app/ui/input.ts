@@ -1,5 +1,5 @@
-import { LONG_PRESS_MS, type SourceKind, type Vec2 } from '../sim/types'
-import type { Source } from '../game/types'
+import { LONG_PRESS_MS, type SourceKind, type Vec2 } from '../sim/types.ts'
+import type { Source } from '../game/types.ts'
 
 const MOVE_SLOP_PX = 14
 

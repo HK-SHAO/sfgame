@@ -1,7 +1,7 @@
 // 遗传算法搜索引擎（run-level --solve）：精英保留 + 锦标赛选择 + 均匀交叉 + 邻域变异，worker 并行评估；连续停滞重随机重启。
 // 纯搜索无 I/O：进度经 onStatus 回调上报，打印归 CLI
-import { better, spotGrid, WorkerPool, type CandidateMetric, type SourceTuple } from './solve-lib'
-import type { LevelDef } from '../app/game/types'
+import { better, spotGrid, WorkerPool, type CandidateMetric, type SourceTuple } from './solve-lib.ts'
+import type { LevelDef } from '../app/game/types.ts'
 
 const POP = 32
 const ELITE = 4

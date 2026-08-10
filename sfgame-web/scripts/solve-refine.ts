@@ -2,8 +2,8 @@
 // 目标字典序：通关 → 总耗时（通关时间 + 源罚 4s/个 + 贴地罚 1s/s）最短 → 耗时；路程不参与排序。
 // 邻域 = 单源单轴 ±step（粗到细）+ 删一源；memo 缓存去重评（排序规范化键 = 同一多重集同键）、worker 并行。
 // 纯搜索无 I/O：基线/改进经回调上报，打印归 CLI
-import { totalTime, WorkerPool, type CandidateMetric, type SourceTuple } from './solve-lib'
-import type { LevelDef } from '../app/game/types'
+import { totalTime, WorkerPool, type CandidateMetric, type SourceTuple } from './solve-lib.ts'
+import type { LevelDef } from '../app/game/types.ts'
 
 export const REFINE_STEPS = [2, 1, 0.5, 0.2, 0.1]
 

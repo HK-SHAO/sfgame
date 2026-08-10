@@ -1,6 +1,6 @@
 // 欧拉稳定流体（Jos Stam）：浮力 → 涡度约束 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风。环境风不进步流水线：预烘焙位流基场（贴地绕流，顺坡爬升），采样时按强度线性叠加；数值内核在 assembly/core.ts（WASM·SIMD），本模块只是门面与纯计算辅助
-import type { Vec2 } from './types'
-import { createEngine, type EngineHandle } from '../wasm/engine'
+import type { Vec2 } from './types.ts'
+import { createEngine, type EngineHandle } from '../wasm/engine.ts'
 
 export interface FluidConfig {
   nx: number

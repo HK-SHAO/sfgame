@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { LEVELS, levelSource, resolveLevel } from '../app/game/levels'
-import { parseLevelText } from '../app/game/level-format'
-import { lvCodec } from '../app/game/state'
+import { LEVELS, levelSource, resolveLevel } from '../app/game/levels.ts'
+import { parseLevelText } from '../app/game/level-format.ts'
+import { lvCodec } from '../app/game/state.ts'
 
 const levelJson = (id: string) => levelSource(id)!
 

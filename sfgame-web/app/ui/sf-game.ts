@@ -1,11 +1,11 @@
 import { LitElement, css, html, type PropertyValues } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
-import type { SourceKind } from '../sim/types'
-import type { HudState, LevelDef, SourcePlacement } from '../game/types'
-import type { PerfRecorder } from '../dev/devtools'
-import { GameController } from './controller'
+import type { SourceKind } from '../sim/types.ts'
+import type { HudState, LevelDef, SourcePlacement } from '../game/types.ts'
+import type { PerfRecorder } from '../dev/devtools.ts'
+import { GameController } from './controller.ts'
 import './status-bar'
-import { boxReset, reduceMotion } from './shared-styles'
+import { boxReset, reduceMotion } from './shared-styles.ts'
 
 // 事件协议名：app.ts 模板与 dispatch 共用同一来源（跨组件协议名单一事实）
 export const HUD_CHANGE = 'hudchange'

@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest'
 import schemaText from '../levels/level.schema-1.json?raw'
-import { GOAL_R_MAX, ID_PATTERN, LEVEL_SCHEMA, LEVEL_SCHEMA_REF, LIST_MAX, SWING_MAX, TEMP_LIMIT } from '../app/game/level-validate'
-import { LEVEL_ERRORS, LEVELS } from '../app/game/levels'
-import { validateLevelJson } from '../app/game/level-validate'
+import { GOAL_R_MAX, ID_PATTERN, LEVEL_SCHEMA, LEVEL_SCHEMA_REF, LIST_MAX, SWING_MAX, TEMP_LIMIT } from '../app/game/level-validate.ts'
+import { LEVEL_ERRORS, LEVELS } from '../app/game/levels.ts'
+import { validateLevelJson } from '../app/game/level-validate.ts'
 
 // schema 文件与运行时校验是协议的两份镜像实现（编辑器静态面 vs 运行时全量面），
 // 关键边界必须一致——此处守护，防单侧漂移

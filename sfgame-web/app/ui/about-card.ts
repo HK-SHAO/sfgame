@@ -1,7 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import { customElement } from 'lit/decorators.js'
 import { author, description, version } from '../../package.json'
-import { boxReset, card } from './shared-styles'
+import { boxReset, card } from './shared-styles.ts'
 
 // 关于卡片：dev 页与独立关于页共用（信息单源，避免双处漂移）；品牌组合图小号展示
 @customElement('sf-about-card')

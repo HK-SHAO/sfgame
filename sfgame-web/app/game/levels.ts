@@ -1,6 +1,6 @@
-import { levelFromJson, parseLevelText } from './level-format'
-import type { LvValue } from './state'
-import type { LevelDef, LevelJson } from './types'
+import { levelFromJson, parseLevelText } from './level-format.ts'
+import type { LvValue } from './state.ts'
+import type { LevelDef, LevelJson } from './types.ts'
 // 关卡 JSON 经 ?raw 直读（vite 原生支持、随文件变更触发 HMR），解析在运行时统一走 parseLevelText——无需虚拟模块/构建插件
 import level1 from '../../levels/level-1.json?raw'
 import level2 from '../../levels/level-2.json?raw'

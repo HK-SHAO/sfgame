@@ -1,4 +1,4 @@
-import type { SourceKind } from '../sim/types'
+import type { SourceKind } from '../sim/types.ts'
 
 export interface SourcePlacement {
   x: number

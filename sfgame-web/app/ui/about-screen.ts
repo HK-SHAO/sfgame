@@ -1,7 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import { customElement } from 'lit/decorators.js'
-import { iconBack } from './icons'
-import { artBg, boxReset, pageShell } from './shared-styles'
+import { iconBack } from './icons.ts'
+import { artBg, boxReset, pageShell } from './shared-styles.ts'
 import './about-card'
 
 // 关于页：与 dev/存储页同构，内容全部来自 sf-about-card

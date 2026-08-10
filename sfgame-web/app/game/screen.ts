@@ -1,7 +1,7 @@
-import { resolveLevel } from './levels'
-import type { AppView, LvValue } from './state'
-import { urlState } from './state'
-import type { LevelDef, SourcePlacement } from './types'
+import { resolveLevel } from './levels.ts'
+import type { AppView, LvValue } from './state.ts'
+import { urlState } from './state.ts'
+import type { LevelDef, SourcePlacement } from './types.ts'
 
 export type Screen = 'title' | 'game' | AppView
 

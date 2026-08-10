@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { createBody, stepBody } from '../app/sim/bodies'
-import { createFluid } from '../app/sim/fluid'
-import type { TerrainLike } from '../app/sim/terrain'
+import { createBody, stepBody } from '../app/sim/bodies.ts'
+import { createFluid } from '../app/sim/fluid.ts'
+import type { TerrainLike } from '../app/sim/terrain.ts'
 
 // 解析式地形桩（平面 y=y0，法向朝天）：免烘焙场，逐位精确
 const flat = (y0: number): TerrainLike => ({

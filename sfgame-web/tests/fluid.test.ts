@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { bilinearSample, createFluid, type FluidConfig } from '../app/sim/fluid'
-import { bakeTerrain } from '../app/sim/terrain'
-import { createEngine } from '../app/wasm/engine'
+import { bilinearSample, createFluid, type FluidConfig } from '../app/sim/fluid.ts'
+import { bakeTerrain } from '../app/sim/terrain.ts'
+import { createEngine } from '../app/wasm/engine.ts'
 
 const CFG: FluidConfig = {
   nx: 48,

@@ -6,10 +6,10 @@ import {
   LAND_ALT_AFTER,
   LAND_ALT_BEFORE,
   LAND_IMPACT_MIN,
-} from '../app/core/wind'
-import type { FluidLike } from '../app/sim/fluid'
-import type { Vec2 } from '../app/sim/types'
-import { createBody } from '../app/sim/bodies'
+} from '../app/core/wind.ts'
+import type { FluidLike } from '../app/sim/fluid.ts'
+import type { Vec2 } from '../app/sim/types.ts'
+import { createBody } from '../app/sim/bodies.ts'
 
 // 静态场桩：任意位置返回固定风速
 function stubFluid(vx: number, vy: number): FluidLike {

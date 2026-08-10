@@ -1,6 +1,6 @@
-import { SfDevPanel } from './dev-panel'
-import { SfPerf, type PerfSample } from './perf'
-import { SfLevelEditor } from './level-editor'
+import { SfDevPanel } from './dev-panel.ts'
+import { SfPerf, type PerfSample } from './perf.ts'
+import { SfLevelEditor } from './level-editor.ts'
 
 // controller/sf-game 依赖的性能记录面：dev 面板的独立实现，游戏循环不依赖 dev 具体类
 export interface PerfRecorder {

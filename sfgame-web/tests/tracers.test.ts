@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest'
-import { createEngine } from '../app/wasm/engine'
-import { createFluid, type FluidConfig } from '../app/sim/fluid'
-import { Tracers, TRAIL_LEN } from '../app/sim/particles'
-import { bakeTerrain } from '../app/sim/terrain'
+import { createEngine } from '../app/wasm/engine.ts'
+import { createFluid, type FluidConfig } from '../app/sim/fluid.ts'
+import { Tracers, TRAIL_LEN } from '../app/sim/particles.ts'
+import { bakeTerrain } from '../app/sim/terrain.ts'
 
 const WORLD = { w: 60, h: 40 }
 const GROUND_Y = 38

@@ -4,7 +4,7 @@ import {
   codecs,
   type UrlStateListCodec,
   type UrlStateSource,
-} from '../app/core/url-state'
+} from '../app/core/url-state.ts'
 
 function fakeSource(initial = '') {
   let params = new URLSearchParams(initial)

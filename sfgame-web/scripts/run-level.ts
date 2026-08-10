@@ -2,9 +2,9 @@
 // 打印与参数解析全在 CLI 层；搜索算法本体在 solve-ga（遗传）与 solve-refine（坐标下降），评估原语/worker 池在 solve-lib
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
-import { KNOWN_SOLUTIONS, solutionUrl } from './known-solutions'
-import { geneticSolve } from './solve-ga'
-import { REFINE_STEPS, refineSolution } from './solve-refine'
+import { KNOWN_SOLUTIONS, solutionUrl } from './known-solutions.ts'
+import { geneticSolve } from './solve-ga.ts'
+import { REFINE_STEPS, refineSolution } from './solve-refine.ts'
 import {
   evalCandidate,
   FINE_DT,
@@ -15,7 +15,7 @@ import {
   verifyRobustness,
   type CandidateMetric,
   type SourceTuple,
-} from './solve-lib'
+} from './solve-lib.ts'
 
 const file = process.argv[2]
 if (!file) {

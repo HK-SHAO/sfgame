@@ -1,9 +1,9 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import type { HudState } from '../game/types'
-import type { SourceKind } from '../sim/types'
-import { boxReset, reduceMotion } from './shared-styles'
-import { iconFlame, iconHome, iconPause, iconPlay, iconReset, iconSnow, iconSoundOff, iconSoundOn } from './icons'
+import type { HudState } from '../game/types.ts'
+import type { SourceKind } from '../sim/types.ts'
+import { boxReset, reduceMotion } from './shared-styles.ts'
+import { iconFlame, iconHome, iconPause, iconPlay, iconReset, iconSnow, iconSoundOff, iconSoundOn } from './icons.ts'
 
 // 游戏 HUD 头：从 app.ts 拆出（热冷余量 + 主页/暂停/速率/重置/声音按钮 + deny 抖动）
 @customElement('sf-hud')

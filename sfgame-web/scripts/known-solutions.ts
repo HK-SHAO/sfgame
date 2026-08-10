@@ -2,8 +2,8 @@
 // 全部经 dt=1/60 精筛验证通关、坐标 1 位小数（URL 可放置）；指标为精筛实测值。
 // 质量只看总耗时（通关时间 + 源罚 4s/个 + 贴地罚 1s/s，罚时与游戏同源见 app/game/timer.ts），不比路程。
 // URL 直达用 solutionUrl() 生成（与游戏 state.ts 的 s= 编码逐字符同构）。
-import type { SourceTuple } from './solve-lib'
-import { sourceItem } from '../app/game/state'
+import type { SourceTuple } from './solve-lib.ts'
+import { sourceItem } from '../app/game/state.ts'
 
 export interface KnownSolution {
   src: SourceTuple[]

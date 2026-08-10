@@ -1,6 +1,6 @@
-import { sfx } from './sfx'
-import { haptics } from './haptics'
-import { bgm } from './bgm'
+import { sfx } from './sfx.ts'
+import { haptics } from './haptics.ts'
+import { bgm } from './bgm.ts'
 
 // 语义反馈门面：一个操作事件 = 音效 + 震动的固定配对，全app唯一配对点（一致性）；
 // 离散反馈一律走 fb；连续声层（风声）由 controller 直驱 sfx，背景乐由 fb 解锁/静音协调（暂停由 controller 直驱 bgm）

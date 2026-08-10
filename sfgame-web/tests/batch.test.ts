@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { MeshBatch, VERTEX_STRIDE } from '../app/render/batch'
+import { MeshBatch, VERTEX_STRIDE } from '../app/render/batch.ts'
 
 function vertex(b: MeshBatch, k: number) {
   const o = k * VERTEX_STRIDE

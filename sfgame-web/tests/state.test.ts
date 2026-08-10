@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { codecs } from '../app/core/url-state'
-import { sourceItem } from '../app/game/state'
-import type { SourcePlacement } from '../app/game/types'
+import { codecs } from '../app/core/url-state.ts'
+import { sourceItem } from '../app/game/state.ts'
+import type { SourcePlacement } from '../app/game/types.ts'
 
 test('源编解码：1 位小数往返稳定、非法项丢弃、全程零百分号', () => {
   const cases: SourcePlacement[] = [

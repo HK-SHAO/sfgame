@@ -1,4 +1,4 @@
-import { bootEngine } from './wasm/engine'
+import { bootEngine } from './wasm/engine.ts'
 import engineUrl from './wasm/sfengine.wasm?url'
 
 const fetchBytes = async (url: string) => {
@@ -11,9 +11,9 @@ const fetchBytes = async (url: string) => {
 const ready = await bootEngine(() => fetchBytes(engineUrl))
 
 if (ready) {
-  await import('./ui/app')
+  await import('./ui/app.ts')
   document.body.replaceChildren(document.createElement('sf-app'))
 } else {
-  await import('./ui/unsupported')
+  await import('./ui/unsupported.ts')
   document.body.replaceChildren(document.createElement('sf-unsupported'))
 }

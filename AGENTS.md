@@ -14,7 +14,7 @@
 
 ## 命令（以 package.json 为准）
 
-- 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`
+- 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`。代码层（脚本/插件/测试）已双运行时兼容：bun 或 node ≥24（`import.meta.main` 与 TS type-stripping 依赖）均可直跑；package.json 命令不嵌套包管理器调用，`npm run check` 等同效
 - `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = vitest
 - `bun run dev` = vite（`scripts/plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `assembly/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
 - `bun run build:wasm` = asc 编译单引擎：`assembly/engine.ts`（重导出流体内核 `main.ts`/`core.ts` 与顶点批内核 `batch.ts`）→ `app/wasm/sfengine.wasm`（物理+渲染同一模块同一内存；dev/test/build 均已内置，改 assembly/ 后无需手动跑）

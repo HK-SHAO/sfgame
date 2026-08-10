@@ -1,5 +1,5 @@
-import type { FluidLike } from './fluid'
-import type { TerrainLike } from './terrain'
+import type { FluidLike } from './fluid.ts'
+import type { TerrainLike } from './terrain.ts'
 
 // 质点模型（第一性原理）：只与空气和地形交互。
 // 空气 = 速度向当地风速指数收敛 + 重力；地形 = SDF 边界（法向投影接触解算，质点不穿地）。

@@ -1,7 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { iconDatabase, iconGear, iconHome } from '../ui/icons'
-import { artBg, boxReset, card, pageShell } from '../ui/shared-styles'
+import { iconDatabase, iconGear, iconHome } from '../ui/icons.ts'
+import { artBg, boxReset, card, pageShell } from '../ui/shared-styles.ts'
 import '../ui/about-card'
 
 @customElement('sf-dev-menu')

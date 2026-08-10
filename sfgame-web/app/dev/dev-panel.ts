@@ -1,6 +1,6 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, query } from 'lit/decorators.js'
-import { iconGear } from '../ui/icons'
+import { iconGear } from '../ui/icons.ts'
 
 // 松手惯性：指数阻尼总位移 = 速度/阻尼，一次 transition 缓动到预测终点（含撞边钳制）。
 // 不做逐帧模拟：无 rAF、无状态机，只剩一次样式过渡

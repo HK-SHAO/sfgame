@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { Trail } from '../app/sim/trail'
+import { Trail } from '../app/sim/trail.ts'
 
 test('随时间淡出 + 等距采样 + 环形覆写（停驻时旧轨迹同样老化）', () => {
   const trail = new Trail(16, 0.5, 6)

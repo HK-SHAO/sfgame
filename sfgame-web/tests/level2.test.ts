@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest'
-import { LEVELS_BY_ID } from '../app/game/levels'
-import { LevelSimulation } from '../app/game/simulation'
-import { WasmFluid } from '../app/sim/fluid'
-import { surfaceY } from '../app/sim/terrain'
+import { LEVELS_BY_ID } from '../app/game/levels.ts'
+import { LevelSimulation } from '../app/game/simulation.ts'
+import { WasmFluid } from '../app/sim/fluid.ts'
+import { surfaceY } from '../app/sim/terrain.ts'
 
 const LEVEL_2 = LEVELS_BY_ID.get('fu-yao')!
 

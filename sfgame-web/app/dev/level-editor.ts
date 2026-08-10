@@ -1,9 +1,9 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
-import { parseLevelText } from '../game/level-format'
-import { levelSource } from '../game/levels'
-import { urlState } from '../game/state'
-import { iconAlert, iconChevron } from '../ui/icons'
+import { parseLevelText } from '../game/level-format.ts'
+import { levelSource } from '../game/levels.ts'
+import { urlState } from '../game/state.ts'
+import { iconAlert, iconChevron } from '../ui/icons.ts'
 
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {

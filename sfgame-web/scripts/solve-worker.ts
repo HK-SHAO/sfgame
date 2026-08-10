@@ -1,6 +1,6 @@
 // --solve 并行评估子进程：stdin/stdout 逐行 JSON（{"id","src"} → {"id","m"}），与主进程共用 solve-lib 评估；必须 FINE_DT 精筛步长（粗筛是"另一套物理"，会假阴性）
 import { createInterface } from 'node:readline'
-import { evalCandidate, FINE_DT, initBackend, loadLevel, type CandidateMetric, type SourceTuple } from './solve-lib'
+import { evalCandidate, FINE_DT, initBackend, loadLevel, type CandidateMetric, type SourceTuple } from './solve-lib.ts'
 
 const file = process.argv[2]
 if (!file) {

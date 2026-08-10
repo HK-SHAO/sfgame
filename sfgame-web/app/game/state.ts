@@ -1,7 +1,7 @@
-import { fromBase64Url, toBase64Url } from '../core/base64'
-import { UrlState, codecs, type UrlStateCodec, type UrlStateListCodec } from '../core/url-state'
-import { ID_PATTERN } from './level-validate'
-import type { SourcePlacement } from './types'
+import { fromBase64Url, toBase64Url } from '../core/base64.ts'
+import { UrlState, codecs, type UrlStateCodec, type UrlStateListCodec } from '../core/url-state.ts'
+import { ID_PATTERN } from './level-validate.ts'
+import type { SourcePlacement } from './types.ts'
 
 // 坐标 1 位小数，整数去掉尾部 .0（20.0 → 20）
 export const num = (v: number) => {

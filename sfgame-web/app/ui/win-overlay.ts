@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { SOURCE_PENALTY, formatTime } from '../game/timer'
-import { boxReset } from './shared-styles'
+import { SOURCE_PENALTY, formatTime } from '../game/timer.ts'
+import { boxReset } from './shared-styles.ts'
 
 @customElement('sf-win-overlay')
 export class SfWinOverlay extends LitElement {

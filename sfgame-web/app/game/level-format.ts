@@ -1,6 +1,6 @@
-import { validateLevelJson } from './level-validate'
-import { compileSdf } from './sdf'
-import type { LevelDef, LevelJson } from './types'
+import { validateLevelJson } from './level-validate.ts'
+import { compileSdf } from './sdf.ts'
+import type { LevelDef, LevelJson } from './types.ts'
 
 // 校验通过才出 LevelJson；解析失败与校验失败分道报错（各自定位准确）
 function requireValid(raw: unknown): LevelJson {

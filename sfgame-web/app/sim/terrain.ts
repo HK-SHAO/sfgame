@@ -1,7 +1,7 @@
 // 地形 SDF 烘焙场：加载期把 sdf(x,y) 表达式烘焙到流体同规格的网格（单一事实源）。
 // 此后所有消费方——流体固体掩码（符号）、示踪粒子（2D 采样）、纸飞机（碰撞+法向）、
 // 渲染（逐顶点着色）——都采样同一份场，物理与画面逐位一致；SDF 全域有定义，天然延展到地图外
-import type { Vec2 } from './types'
+import type { Vec2 } from './types.ts'
 
 // 飞机物理只依赖这两个操作（测试可用解析式 stub 替代烘焙场）
 export interface TerrainLike {

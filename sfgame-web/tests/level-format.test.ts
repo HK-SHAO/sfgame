@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest'
-import { parseLevelText } from '../app/game/level-format'
-import { LEVEL_SCHEMA_REF, validateLevelJson } from '../app/game/level-validate'
-import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, isUnlocked, nextLevel } from '../app/game/levels'
-import { compileSdf, SdfError } from '../app/game/sdf'
+import { parseLevelText } from '../app/game/level-format.ts'
+import { LEVEL_SCHEMA_REF, validateLevelJson } from '../app/game/level-validate.ts'
+import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, isUnlocked, nextLevel } from '../app/game/levels.ts'
+import { compileSdf, SdfError } from '../app/game/sdf.ts'
 
 test('SDF 表达式求值：四则/函数/x、y 变量，语法错误抛 SdfError', () => {
   expect(compileSdf('x + 2')(3, 0)).toBe(5)

@@ -1,6 +1,6 @@
-import type { FluidLike } from './fluid'
-import type { TerrainLike } from './terrain'
-import type { WorldBounds } from './types'
+import type { FluidLike } from './fluid.ts'
+import type { TerrainLike } from './terrain.ts'
+import type { WorldBounds } from './types.ts'
 
 const CLOUD_COUNT = 3
 // 半径 ×√(2/3)：视觉面积（感知体积）约为原设计的 2/3

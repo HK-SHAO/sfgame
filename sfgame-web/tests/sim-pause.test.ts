@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { LEVELS_BY_ID } from '../app/game/levels'
-import { LevelSimulation } from '../app/game/simulation'
+import { LEVELS_BY_ID } from '../app/game/levels.ts'
+import { LevelSimulation } from '../app/game/simulation.ts'
 
 const LEVEL_1 = LEVELS_BY_ID.get('luo-yu')!
 const DT = 1 / 60

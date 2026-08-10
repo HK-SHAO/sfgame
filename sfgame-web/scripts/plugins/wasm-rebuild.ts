@@ -33,7 +33,9 @@ export function wasmRebuild(): Plugin {
 
   return {
     name: 'wasm-rebuild',
-    apply: 'serve',
+    // mode 判别而非 apply:'serve'：vitest 也用 serve 命令模式加载 config（apply:'serve' 会命中），
+    // 测试链自带 node scripts/build-wasm.ts，插件只需服务真 dev server
+    apply: ({ mode }) => mode === 'development',
     async configureServer(server) {
       if (!(await compileWasm())) {
         throw new Error('[wasm] 初始编译失败，请先修复 assembly/ 源码')

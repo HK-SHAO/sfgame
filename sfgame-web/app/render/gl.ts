@@ -1,4 +1,4 @@
-import { MeshBatch, VERTEX_STRIDE } from './batch'
+import { MeshBatch, VERTEX_STRIDE } from './batch.ts'
 
 const VS = `
 attribute vec2 aPos;

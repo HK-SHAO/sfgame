@@ -1,8 +1,8 @@
 // 示踪粒子（纯视觉层）：数值内核在 assembly/tracers.ts（WASM，与流体同模块同内存——
 // 采样直调内核零跨界、地形采宿主烘焙的 SDF 场），本模块只是零拷贝视图门面。宿主每 tick 只写热源表并单次调用
-import type { EngineHandle } from '../wasm/engine'
-import type { Terrain } from './terrain'
-import type { WorldBounds } from './types'
+import type { EngineHandle } from '../wasm/engine.ts'
+import type { Terrain } from './terrain.ts'
+import type { WorldBounds } from './types.ts'
 
 export const TRAIL_LEN = 24
 

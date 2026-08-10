@@ -10,18 +10,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && bun run build:wasm && vite build",
+    "build": "tsc -b && node scripts/build-wasm.ts && vite build",
     "preview": "vite preview",
-    "test": "bun run build:wasm && vitest run",
+    "test": "node scripts/build-wasm.ts && vitest run",
     "typecheck": "tsc -b",
-    "build:wasm": "bun run scripts/build-wasm.ts",
-    "check": "bun run typecheck && bun run test && vite build"
+    "build:wasm": "node scripts/build-wasm.ts",
+    "check": "tsc -b && node scripts/build-wasm.ts && vitest run && vite build"
   },
   "dependencies": {
     "lit": "^3.3.3"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/node": "~24",
     "assemblyscript": "^0.28.20",
     "typescript": "~7.0.2",
     "vite": "^8.2.1",

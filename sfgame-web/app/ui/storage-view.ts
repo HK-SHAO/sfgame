@@ -1,8 +1,8 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { name } from '../../package.json'
-import { iconBack, iconDatabase } from './icons'
-import { artBg, boxReset, card, pageShell } from './shared-styles'
+import { iconBack, iconDatabase } from './icons.ts'
+import { artBg, boxReset, card, pageShell } from './shared-styles.ts'
 
 const KEY_PREFIX = `${name}.`
 

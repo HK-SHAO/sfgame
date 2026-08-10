@@ -99,6 +99,10 @@ export class SfHud extends LitElement {
     css`
       :host {
         display: block;
+        /* --hud-h 内聚于此（供 dev-panel 子树继承）；.hud 是 absolute 不撑高，显式 height 才与可视高度一致 */
+        height: var(--hud-h);
+        --hud-pad: 0.5625rem;
+        --hud-h: calc(var(--hud-pad) * 2 + var(--ctl-h) + env(safe-area-inset-top, 0px));
       }
 
       svg {
@@ -128,9 +132,9 @@ export class SfHud extends LitElement {
         align-items: center;
         justify-content: space-between;
         gap: var(--sp-2);
-        padding: calc(0.5625rem + env(safe-area-inset-top, 0px))
-          calc(0.5625rem + env(safe-area-inset-right, 0px)) 0.5625rem
-          calc(0.5625rem + env(safe-area-inset-left, 0px));
+        padding: calc(var(--hud-pad) + env(safe-area-inset-top, 0px))
+          calc(var(--hud-pad) + env(safe-area-inset-right, 0px)) var(--hud-pad)
+          calc(var(--hud-pad) + env(safe-area-inset-left, 0px));
         pointer-events: none;
       }
 

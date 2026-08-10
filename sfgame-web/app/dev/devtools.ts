@@ -22,7 +22,12 @@ export class DevTools implements PerfRecorder {
     const editor = new SfLevelEditor()
     editor.onApply = opts.onApply
     this.panel.append(this.perfEl, editor)
-    document.body.appendChild(this.panel)
+  }
+
+  // 挂入 hud 的 shadow 内（top 锚 hud 底，天然不与 header 重合）；hud 重建后由 app 重挂，
+  // appendChild 幂等：重复挂载只是原位移动
+  mount(host: HTMLElement) {
+    host.shadowRoot!.appendChild(this.panel)
   }
 
   record(sample: PerfSample) {

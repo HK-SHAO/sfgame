@@ -2,8 +2,13 @@ import { LitElement, css, html } from 'lit'
 import { customElement, query } from 'lit/decorators.js'
 import { iconGear } from '../ui/icons'
 
-// 开发面板：:host 是容器，外边距一次性让开四周间距/安全区（gap + env 单处承担）；
-// 内层 .panel 的坐标即容器内 0..clientWidth/Height 纯坐标，拖拽/吸附/钳制零换算
+// 松手惯性：指数阻尼总位移 = 速度/阻尼，一次 transition 缓动到预测终点（含撞边钳制）。
+// 不做逐帧模拟：无 rAF、无状态机，只剩一次样式过渡
+const INERTIA_DAMP = 6
+const INERTIA_ANIM = 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)'
+
+// 开发面板：:host 挂在 hud 的 shadow 内（top 锚 hud 底，天然不与 header 重合）；
+// 外边距让开三边间距/安全区；内层 .panel 坐标即容器内 0..clientWidth/Height 纯坐标
 @customElement('sf-dev-panel')
 export class SfDevPanel extends LitElement {
   private dragging = false
@@ -11,9 +16,12 @@ export class SfDevPanel extends LitElement {
   private y = 0
   private w = 0
   private h = 0
-  // 增量跟手（不依赖 movementX 兼容性）
+  // 增量跟手（不依赖 movementX 兼容性）+ 末段速度供松手惯性
   private prevX = 0
   private prevY = 0
+  private prevT = 0
+  private vx = 0
+  private vy = 0
   private pointerId = -1
   private ready = false
   private resizeObs: ResizeObserver | null = null
@@ -24,8 +32,7 @@ export class SfDevPanel extends LitElement {
     :host {
       position: fixed;
       inset: 0;
-      /* 间距/安全区全由外边距让开（见组件级注释）：内部坐标从 0 起 */
-      margin: calc(var(--dev-gap) + env(safe-area-inset-top, 0px))
+      margin: calc(var(--hud-h))
         calc(var(--dev-gap) + env(safe-area-inset-right, 0px))
         calc(var(--dev-gap) + env(safe-area-inset-bottom, 0px))
         calc(var(--dev-gap) + env(safe-area-inset-left, 0px));
@@ -111,29 +118,29 @@ export class SfDevPanel extends LitElement {
 
   override connectedCallback() {
     super.connectedCallback()
-    window.addEventListener('resize', this.onWinResize)
+    window.addEventListener('resize', this.onBoundsChange)
   }
 
   override disconnectedCallback() {
-    // 拖拽中卸载的兜底：清掉 window 级手势监听，防泄漏
+    // 拖拽中卸载的兜底：清掉窗口级监听，防泄漏
     this.endDrag()
     this.resizeObs?.disconnect()
     this.resizeObs = null
-    window.removeEventListener('resize', this.onWinResize)
+    window.removeEventListener('resize', this.onBoundsChange)
     super.disconnectedCallback()
   }
 
   protected override firstUpdated() {
-    // 默认左下角：位置自此由 JS 持有（transform 表达容器内坐标），面板尺寸变化由 RO 兜底钳制
+    // 默认左上角：位置自此由 JS 持有（transform 表达容器内坐标），面板尺寸变化由 RO 兜底钳制
     void this.updateComplete.then(() => {
       const r = this.panelEl.getBoundingClientRect()
       this.w = r.width
       this.h = r.height
       this.x = 0
-      this.y = this.clientHeight - r.height
+      this.y = 0
       this.applyTransform()
       this.ready = true
-      this.resizeObs = new ResizeObserver(this.onSelfResize)
+      this.resizeObs = new ResizeObserver(this.onBoundsChange)
       this.resizeObs.observe(this.panelEl)
     })
   }
@@ -156,6 +163,8 @@ export class SfDevPanel extends LitElement {
     // e.target 在 shadow DOM 外被重定向成宿主，须用 composedPath()[0] 取真实目标
     const target = e.composedPath()[0] as Element | null
     if (!target || !target.closest('.head')) return
+    // 拖拽跟手前取消可能残留的惯性过渡
+    this.panelEl.style.transition = 'none'
     const r = this.panelEl.getBoundingClientRect()
     this.dragging = true
     this.pointerId = e.pointerId
@@ -163,7 +172,7 @@ export class SfDevPanel extends LitElement {
     this.h = r.height
     this.prevX = e.clientX
     this.prevY = e.clientY
-    this.panelEl.style.transition = 'none'
+    this.prevT = e.timeStamp
     try {
       this.panelEl.setPointerCapture(e.pointerId)
     } catch {
@@ -172,76 +181,61 @@ export class SfDevPanel extends LitElement {
     // 手势收尾挂 window：指针在元素外/窗口内任何位置抬起都能拿到 up，绝不残留 dragging
     window.addEventListener('pointermove', this.onMove)
     window.addEventListener('pointerup', this.onUp)
-    window.addEventListener('pointercancel', this.onUp)
+    window.addEventListener('pointercancel', this.endDrag)
   }
 
   private onMove = (e: PointerEvent) => {
     if (!this.dragging) return
-    this.x = this.clampX(this.x + (e.clientX - this.prevX))
-    this.y = this.clampY(this.y + (e.clientY - this.prevY))
+    const dx = e.clientX - this.prevX
+    const dy = e.clientY - this.prevY
+    const dt = Math.max((e.timeStamp - this.prevT) / 1000, 1e-3)
+    this.vx = dx / dt
+    this.vy = dy / dt
     this.prevX = e.clientX
     this.prevY = e.clientY
+    this.prevT = e.timeStamp
+    this.x = Math.min(Math.max(this.x + dx, 0), this.clientWidth - this.w)
+    this.y = Math.min(Math.max(this.y + dy, 0), this.clientHeight - this.h)
     this.applyTransform()
   }
 
   // 拖拽结束统一清理：无论正常抬起/cancel/卸载，都走这里收尾
-  private endDrag() {
+  private endDrag = () => {
     if (!this.dragging) return
     this.dragging = false
     if (this.panelEl.hasPointerCapture(this.pointerId)) this.panelEl.releasePointerCapture(this.pointerId)
     window.removeEventListener('pointermove', this.onMove)
     window.removeEventListener('pointerup', this.onUp)
-    window.removeEventListener('pointercancel', this.onUp)
+    window.removeEventListener('pointercancel', this.endDrag)
   }
 
+  // 松手惯性：按末段速度预测滑行终点（指数阻尼总位移 v/k，撞边即钳在边界），
+  // 一次 easeOut 过渡滑过去；过渡期间 transform 由浏览器插值，结束时即停
   private onUp = () => {
     this.endDrag()
-    this.snapToEdge()
-  }
-
-  private onWinResize = () => {
-    if (this.dragging || !this.ready) return
-    // 外边距/根字号变化只改边界，按新边界重贴即可
-    this.snapToEdge()
-  }
-
-  // 尺寸变化（内容增减）后钳回容器内（无动画）；吸附动画只在松手/旋转时触发
-  private onSelfResize = () => {
-    if (this.dragging || !this.ready) return
-    const r = this.panelEl.getBoundingClientRect()
-    this.w = r.width
-    this.h = r.height
-    const tx = this.clampX(this.x)
-    const ty = this.clampY(this.y)
-    if (tx === this.x && ty === this.y) return
-    this.x = tx
-    this.y = ty
-    this.panelEl.style.transition = 'none'
+    const rx = this.clientWidth - this.w
+    const ry = this.clientHeight - this.h
+    const x = Math.min(Math.max(this.x + this.vx / INERTIA_DAMP, 0), rx)
+    const y = Math.min(Math.max(this.y + this.vy / INERTIA_DAMP, 0), ry)
+    if (x === this.x && y === this.y) return
+    this.x = x
+    this.y = y
+    this.panelEl.style.transition = INERTIA_ANIM
     this.applyTransform()
   }
 
-  private clampX(v: number) {
-    return Math.min(Math.max(v, 0), this.clientWidth - this.w)
-  }
-
-  private clampY(v: number) {
-    return Math.min(Math.max(v, 0), this.clientHeight - this.h)
-  }
-
-  // 两轴独立贴边：容器四角即 gap 距视口边缘，吸附动画走 transform 过渡
-  private snapToEdge() {
-    // 尺寸取实时 rect：旋转后根字号变化会改面板宽高，拖拽快照的 w/h 已失效
+  // 视口/自身尺寸变化后钳回容器内（无动画：transition 显式归零，不干扰拖拽/惯性）
+  private onBoundsChange = () => {
+    if (this.dragging || !this.ready) return
     const r = this.panelEl.getBoundingClientRect()
     this.w = r.width
     this.h = r.height
-    const rx = this.clientWidth - r.width
-    const ry = this.clientHeight - r.height
-    const tx = this.x <= rx - this.x ? 0 : rx
-    const ty = this.y <= ry - this.y ? 0 : ry
-    if (tx === this.x && ty === this.y) return
-    this.x = tx
-    this.y = ty
-    this.panelEl.style.transition = 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)'
+    const x = Math.min(Math.max(this.x, 0), this.clientWidth - this.w)
+    const y = Math.min(Math.max(this.y, 0), this.clientHeight - this.h)
+    if (x === this.x && y === this.y) return
+    this.x = x
+    this.y = y
+    this.panelEl.style.transition = 'none'
     this.applyTransform()
   }
 

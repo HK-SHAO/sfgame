@@ -1,6 +1,6 @@
 // 全局背景乐「风息」：流式 Audio 元素（整曲不解码进内存）；fb.unlock 手势内启动（幂等可重试）；
 // 静音/隐藏/关卡暂停时暂停省资源；资源失败标记 failed 不再重试；倍率跟随关卡（变调无音高补偿，0.05 音量下掩蔽）
-import bgmUrl from '/bgm-main.mp3?url'
+import bgmUrl from '/bgm-main.ogg?url'
 
 const BGM_VOLUME = 0.05
 // HTMLMediaElement.playbackRate 支持范围；关卡倍率最高 16 恰好在界内

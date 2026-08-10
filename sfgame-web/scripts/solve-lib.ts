@@ -100,6 +100,31 @@ export function better(a: CandidateMetric, b: CandidateMetric): boolean {
   return a.progress > b.progress
 }
 
+export interface RobustnessResult {
+  ok: number
+  total: number
+  failed: string[]
+}
+
+// 扰动鲁棒性：每个源 8 邻域 ±1 位移后重跑，通关占比 ≥75%（6/8）才算宽容好上手（G7）；失败按 x-y-k 罗列
+export function verifyRobustness(level: LevelDef, sources: SourceTuple[], cap = 120): RobustnessResult {
+  const moves = [
+    [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1],
+  ]
+  let ok = 0
+  const failed: string[] = []
+  for (let i = 0; i < sources.length; i++) {
+    const [x, y, k] = sources[i]
+    for (const [dx, dy] of moves) {
+      const perturbed = sources.map((s, j) => (j === i ? [x + dx, y + dy, k] as SourceTuple : s))
+      const r = evalCandidate(level, perturbed, { dt: FINE_DT, cap })
+      if (r.won) ok++
+      else failed.push(`${x + dx}-${y + dy}-${k === 'hot' ? 'h' : 'c'}`)
+    }
+  }
+  return { ok, total: sources.length * moves.length, failed }
+}
+
 export function spotGrid(level: LevelDef): SourceTuple[] {
   const spots: SourceTuple[] = []
   for (let x = 4; x <= level.world.w - 4; x += 2) {

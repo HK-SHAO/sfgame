@@ -85,6 +85,9 @@ const FAN_SPIN_RATE = 8
 const FAN_ELLIPSE_K = 0.5
 const FLAG_RESPONSE_BASE = 1.2
 const FLAG_RESPONSE_WIND = 3
+// 旗面方向满幅风速：u 以下方向向量线性衰减到 0（连续过零），
+// 取代单位方向+硬阈值——阈值处宽约 1 跳变到 0，风向反转时旗面会「啪」地消失再弹出
+const FLAG_DIR_FULL = 0.3
 // 旗杆高：原 5.7 的约 2/3（目标区压低，避免遮挡视线；旗面仍从杆顶垂挂）
 const POLE_HEIGHT = 3.8
 const POLE_W = 0.34
@@ -289,8 +292,9 @@ export class Renderer {
       b.dashRing(g.x, gy - GOAL_LIFT, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
       const air = Renderer.tmpAir
       sim.fluid.sampleVelocity(g.x + 1.6, flagTop + 1.4, air)
-      // 一阶滞后趋近当地风（dt=0 时 k=0 自然不动，无需守卫）
-      const dt = sim.time - this.flagT[i]
+      // 一阶滞后趋近当地风；restart 使 sim.time 回退，负 dt 会让 k 变负巨值、
+      // 状态逐帧炸到 Inf/NaN 后旗面永久消失（Renderer 跨重置持久）——夹到 0
+      const dt = Math.max(0, sim.time - this.flagT[i])
       this.flagT[i] = sim.time
       const k = 1 - Math.exp(-dt * (FLAG_RESPONSE_BASE + Math.hypot(air.x, air.y) * FLAG_RESPONSE_WIND))
       this.flagX[i] += (air.x - this.flagX[i]) * k
@@ -300,8 +304,11 @@ export class Renderer {
       const u = Math.hypot(sx, sy)
       const uN = Math.min(1.4, u)
       const len = 0.9 + uN * 2.2
-      const dx = u > 0.05 ? sx / u : 0
-      const dy = u > 0.05 ? sy / u : 0
+      // 方向向量 = 单位方向 × min(1, u/FULL)：u<FULL 时退化为 sx/FULL，随 sx 线性过零，
+      // 旗面宽度连续收拢→反向展开，零点无突跳
+      const inv = u > 1e-4 ? Math.min(1, u / FLAG_DIR_FULL) / u : 0
+      const dx = sx * inv
+      const dy = sy * inv
       const droop = 0.85 * Math.exp(-uN * 1.6)
       const wave = (0.1 + uN * 0.45) * Math.sin(sim.time * (5 + uN * 4) + i * 1.7)
       const tipX = g.x + dx * len - dy * wave

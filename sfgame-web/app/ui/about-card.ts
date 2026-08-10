@@ -52,7 +52,7 @@ export class SfAboutCard extends LitElement {
 
       .brand {
         display: block;
-        width: 8rem;
+        width: 12rem;
         height: auto;
         margin: 0 auto 0.75rem;
       }

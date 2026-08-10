@@ -9,7 +9,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "bun run scripts/dev.ts",
+    "dev": "vite",
     "build": "tsc -b && bun run build:wasm && vite build",
     "preview": "vite preview",
     "test": "bun run build:wasm && vitest run",

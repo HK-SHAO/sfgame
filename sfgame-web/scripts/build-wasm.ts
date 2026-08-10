@@ -1,8 +1,10 @@
-// 统一 wasm 编译入口（单一来源）：build:wasm / dev.ts / test 共用同一份 asc flags，杜绝双重维护漂移。
+// 统一 wasm 编译入口（单一来源）：build:wasm / dev 插件 / test 共用同一份 asc flags，杜绝双重维护漂移。
 // bun run scripts/build-wasm.ts [--force]：产物比全部 assembly/*.ts 新时跳过编译（mtime 比较，
 // git checkout 场景源码 mtime 刷新、产物不入库保持旧值，判断安全）。
-// asc 经 bunx 调用（不依赖 PATH 注入，直接 bun scripts/... 也能跑）。
+// 用 node:child_process 起 bunx（vite 8 的 config loader 在 node 下执行配置，Bun 全局不可用；
+// bun 直接跑脚本时同样兼容），不依赖 PATH 注入。
 
+import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -18,7 +20,8 @@ export const ASC_FLAGS = [
   'simd',
 ]
 
-const root = import.meta.dir + '/..'
+// 一律以仓库根为 cwd：脚本直接跑与 vite 打包 config 引用（import.meta.dir 不可靠）两条路都成立
+const root = process.cwd()
 const outPath = join(root, 'app/wasm/sfengine.wasm')
 const srcDir = join(root, 'assembly')
 
@@ -46,9 +49,9 @@ export async function compileWasm(opts: { force?: boolean } = {}): Promise<boole
     return true
   }
   const t0 = performance.now()
-  const r = Bun.spawnSync(['bunx', 'asc', ...ASC_FLAGS], { cwd: root })
+  const r = spawnSync('bunx', ['asc', ...ASC_FLAGS], { cwd: root })
   const ms = (performance.now() - t0).toFixed(0)
-  if (r.success) {
+  if (r.status === 0) {
     console.log(`[wasm] 编译 ✓ ${ms}ms`)
     return true
   }

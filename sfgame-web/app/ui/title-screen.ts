@@ -26,8 +26,6 @@ export class SfTitleScreen extends LitElement {
             class="brand"
             src="./logo-title.webp"
             alt="烧风 · 太阳精灵 · 用温度创造风"
-            width="1254"
-            height="1254"
           />
 
           <nav class="groups" aria-label="关卡组">

@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { fb } from '../core/feedback.ts'
@@ -15,7 +15,7 @@ import './win-overlay'
 import './title-screen'
 import './about-screen'
 import './hud.ts'
-import { urlState } from '../game/state.ts'
+import { urlState, type AppView } from '../game/state.ts'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen.ts'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types.ts'
 import { setupKeys } from './keys.ts'
@@ -36,6 +36,7 @@ const defaultHud = (level: LevelDef | undefined): HudState => ({
 
 @customElement('sf-app')
 export class SfApp extends LitElement {
+  // ===== 状态字段 =====
   @state() private screen: Screen = 'title'
   @state() private activeLevel: LevelDef = FIRST_LEVEL
   // 主页选项卡：纯本地 UI 态，不进 URL
@@ -43,44 +44,45 @@ export class SfApp extends LitElement {
   @state() private initialSources: SourcePlacement[] = []
   @state() private hud: HudState = defaultHud(FIRST_LEVEL)
   @state() private muted = fb.muted
-  private winRank = -1
   @state() private rate = 1
   @state() private dev = urlState.get('dev')
+  private winRank = -1
   // 面板由 app 持有：sf-game 重建不销毁
   private devTools: DevTools | null = null
-  // 键盘通道解绑函数
   private disposeKeys: (() => void) | null = null
-  private get speedSteps(): number[] {
-    return this.dev ? [1, 2, 4, 8, 16, 0.5] : [1, 2, 4, 0.5]
-  }
 
   @query('sf-game') private gameEl!: SfGame
   @query('sf-hud') private hudEl!: SfHud
 
+  // ===== 统一语义动作 =====
+  // hud 模板与键盘装配共用（行为唯一来源）：hud 派发的事件只做转发，不重定义动作
+  private actions = {
+    pause: () => this.gameEl?.togglePause(),
+    restart: () => {
+      fb.uiReset()
+      this.gameEl?.restart()
+    },
+    mute: () => {
+      this.muted = fb.toggleMuted()
+      if (!this.muted) fb.uiClick()
+    },
+    back: () => this.backToTitle(),
+    speedDown: () => this.cycleSpeed(-1),
+    speedUp: () => this.cycleSpeed(1),
+  }
+
+  private get speedSteps(): number[] {
+    return this.dev ? [1, 2, 4, 8, 16, 0.5] : [1, 2, 4, 0.5]
+  }
+
+  // ===== 生命周期 =====
   constructor() {
     super()
     fb.unlock()
+    this.bindUrlState()
+    this.bindKeys()
     // 初始加载与外部变化允许脏 lv 净化；本地写路径不净化（见 screen.ts cleanup 注释）
     this.applyScreen(screenFromUrl(true))
-    urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true)))
-    urlState.onChange('v', () => this.applyScreen(screenFromUrl(true)))
-    urlState.onChange('s', (v) => {
-      this.gameEl?.applySources(v)
-      fb.uiClick()
-    })
-    this.disposeKeys = setupKeys(
-      {
-        pause: () => this.gameEl?.togglePause(),
-        speedDown: () => this.cycleSpeed(-1),
-        speedUp: () => this.cycleSpeed(1),
-        restart: () => this.restart(),
-        mute: () => this.toggleSound(),
-        back: () => this.backToTitle(),
-        undo: () => this.undoMove(),
-        redo: () => this.redoMove(),
-      },
-      () => this.screen === 'game',
-    )
   }
 
   override disconnectedCallback() {
@@ -89,41 +91,6 @@ export class SfApp extends LitElement {
     this.devTools?.destroy()
     this.devTools = null
     super.disconnectedCallback()
-  }
-
-  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续
-  private syncDevTools() {
-    if (this.screen === 'game' && this.dev) {
-      if (!this.devTools) this.devTools = new DevTools({ onApply: this.onDevOverride })
-    } else if (this.devTools) {
-      this.devTools.destroy()
-      this.devTools = null
-    }
-  }
-
-  // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验）；旧摆法不随关卡继承
-  private onDevOverride = (text: string) => {
-    urlState.set('lv', { json: text })
-    urlState.clear('s')
-    this.applyScreen(screenFromUrl())
-  }
-
-  // URL 派生单入口：本地写（写读分离不回调）与外部变化（onChange）都经此应用，派生逻辑唯一在 game/screen.ts
-  private applyScreen(s: ScreenState) {
-    this.screen = s.screen
-    // 非 game 屏保留旧关卡：渲染不依赖，且 keyed(activeLevel) 换关重建语义由引用变化驱动
-    if (s.level) this.activeLevel = s.level
-    this.initialSources = s.sources
-    // 退出关卡屏（主页/存储/dev）速率归 1：倍率只在关卡内有意义，BGM 播放速率同步恢复
-    if (s.screen !== 'game' && this.rate !== 1) {
-      this.rate = 1
-      bgm.setRate(1)
-    }
-  }
-
-  private resetHud(level: LevelDef) {
-    this.hud = defaultHud(level)
-    this.winRank = -1
   }
 
   protected override willUpdate(changed: PropertyValues) {
@@ -142,31 +109,47 @@ export class SfApp extends LitElement {
     this.devTools?.mount(this.hudEl)
   }
 
-  private startGame(id: string) {
-    fb.uiEnter()
+  // ===== URL 导航 =====
+  private bindUrlState() {
+    urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true)))
+    urlState.onChange('v', () => this.applyScreen(screenFromUrl(true)))
+    urlState.onChange('s', (v) => {
+      this.gameEl?.applySources(v)
+      fb.uiClick()
+    })
+  }
+
+  // URL 派生单入口：本地写（写读分离不回调）与外部变化（onChange）都经此应用，派生逻辑唯一在 game/screen.ts
+  private applyScreen(s: ScreenState) {
+    this.screen = s.screen
+    // 非 game 屏保留旧关卡：渲染不依赖，且 keyed(activeLevel) 换关重建语义由引用变化驱动
+    if (s.level) this.activeLevel = s.level
+    this.initialSources = s.sources
+    // 退出关卡屏（主页/存储/dev）速率归 1：倍率只在关卡内有意义，BGM 播放速率同步恢复
+    if (s.screen !== 'game' && this.rate !== 1) {
+      this.rate = 1
+      bgm.setRate(1)
+    }
+  }
+
+  // 进关共用：写 lv + 清旧摆法 + 应用 URL 派生 + 上报关卡开始；同屏换关时 willUpdate 检测 activeLevel 变化重置 HUD
+  private enterLevel(id: string) {
     urlState.set('lv', { id })
     urlState.clear('s')
     this.applyScreen(screenFromUrl())
     this.emitLevelStart(this.activeLevel)
   }
 
-  // 语义上报：业务侧只发事件，传输（gtag）由 main.ts 装配；group 随内置关卡分组
-  private emitLevelStart(level: LevelDef) {
-    analytics.emit({
-      type: 'level_start',
-      payload: { levelId: level.id, levelName: level.name },
-    })
+  private startGame(id: string) {
+    fb.uiEnter()
+    this.enterLevel(id)
   }
 
   private playNext() {
     const next = nextLevel(this.activeLevel.id)
     if (next === undefined) return
     fb.uiEnter()
-    // 同屏换关（screen 不变）：willUpdate 检测 activeLevel 变化重置 HUD，防上局 win 卡闪现
-    urlState.set('lv', { id: next })
-    urlState.clear('s')
-    this.applyScreen(screenFromUrl())
-    this.emitLevelStart(this.activeLevel)
+    this.enterLevel(next)
   }
 
   private goBack() {
@@ -184,22 +167,22 @@ export class SfApp extends LitElement {
     this.applyScreen(screenFromUrl())
   }
 
-  private openStorage() {
+  private openView(view: AppView) {
     fb.uiEnter()
-    urlState.set('v', 'storage')
+    urlState.set('v', view)
     this.applyScreen(screenFromUrl())
+  }
+
+  private openStorage() {
+    this.openView('storage')
   }
 
   private openDev() {
-    fb.uiEnter()
-    urlState.set('v', 'dev')
-    this.applyScreen(screenFromUrl())
+    this.openView('dev')
   }
 
   private openAbout() {
-    fb.uiEnter()
-    urlState.set('v', 'about')
-    this.applyScreen(screenFromUrl())
+    this.openView('about')
   }
 
   // replace：切换不进历史（后退不会"撤销切换"）；关闭即清参——dev=0 不落 URL（参数存在即暴露开发者模式入口）
@@ -210,16 +193,19 @@ export class SfApp extends LitElement {
     fb.uiClick()
   }
 
-  private restart() {
-    fb.uiReset()
-    this.gameEl?.restart()
+  // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验）；旧摆法不随关卡继承
+  private onDevOverride = (text: string) => {
+    urlState.set('lv', { json: text })
+    urlState.clear('s')
+    this.applyScreen(screenFromUrl())
   }
 
-  private toggleSound() {
-    this.muted = fb.toggleMuted()
-    if (!this.muted) fb.uiClick()
+  private resetHud(level: LevelDef) {
+    this.hud = defaultHud(level)
+    this.winRank = -1
   }
 
+  // ===== 会话动作 =====
   private cycleSpeed(dir: 1 | -1 = -1) {
     const steps = this.speedSteps
     this.rate = steps[(steps.indexOf(this.rate) + dir + steps.length) % steps.length]
@@ -237,6 +223,7 @@ export class SfApp extends LitElement {
     window.history.forward()
   }
 
+  // ===== hud 事件处理器 =====
   private onGroup(e: CustomEvent<string>) {
     this.activeGroup = e.detail
     fb.uiClick()
@@ -249,31 +236,6 @@ export class SfApp extends LitElement {
     if (next.phase === 'won' && !wasWon) this.recordWin()
   }
 
-  private recordWin() {
-    const lv = urlState.get('lv')
-    const h = levelHash(lv)
-    if (!h) return
-    this.winRank = progress.record(h, {
-      time: this.hud.time,
-      extra: this.hud.extra,
-    })
-    // 正式数据排除内联关卡（dev 编辑器产物）：仅 id 形态（内置关卡）上报
-    if (lv !== null && 'id' in lv) {
-      analytics.emit({
-        type: 'level_complete',
-        payload: {
-          levelId: this.activeLevel.id,
-          levelName: this.activeLevel.name,
-          time: this.hud.time,
-          extra: this.hud.extra,
-          sources: this.hud.sources,
-          totalTime: this.hud.time + this.hud.extra,
-          newRecord: this.winRank === 0,
-        },
-      })
-    }
-  }
-
   private onDeny(e: CustomEvent<DenyDetail>) {
     // chip 抖动（哪个道具不足）由 hud 呈现，全屏波纹已在 sf-game 层播放
     this.hudEl?.deny(e.detail.kind)
@@ -284,32 +246,107 @@ export class SfApp extends LitElement {
     else urlState.set('s', e.detail)
   }
 
-  protected override render() {
-    let content: TemplateResult
-    if (this.screen === 'game') content = this.renderGame()
-    else if (this.screen === 'dev') {
-      // dev 页返回固定回主页并保留当前 dev：history.back 会穿越 replace 之前的旧条目（携带旧 dev 值，已关闭的开发者模式会"复活"）
-      content = html`<sf-dev-menu
-        .dev=${this.dev}
-        @back=${this.backToTitle}
-        @open-storage=${this.openStorage}
-        @toggle-dev=${this.toggleDev}
-      ></sf-dev-menu>`
-    } else if (this.screen === 'storage') {
-      content = html`<sf-storage @back=${this.goBack}></sf-storage>`
-    } else if (this.screen === 'about') {
-      content = html`<sf-about @back=${this.goBack}></sf-about>`
-    } else {
-      content = html`<sf-title-screen
-        .dev=${this.dev}
-        .activeGroup=${this.activeGroup}
-        @group=${this.onGroup}
-        @start=${(e: CustomEvent<string>) => this.startGame(e.detail)}
-        @dev-page=${this.openDev}
-        @about=${this.openAbout}
-      ></sf-title-screen>`
+  private recordWin() {
+    const lv = urlState.get('lv')
+    const h = levelHash(lv)
+    if (!h) return
+    this.winRank = progress.record(h, {
+      time: this.hud.time,
+      extra: this.hud.extra,
+    })
+    // 正式数据排除内联关卡（dev 编辑器产物）：仅 id 形态（内置关卡）上报
+    if (lv !== null && 'id' in lv) this.emitLevelComplete(this.winRank === 0)
+  }
+
+  // ===== 上报（语义事件：业务侧只发事件，传输由 main.ts 装配的适配器接管） =====
+  private emitLevelStart(level: LevelDef) {
+    analytics.emit({
+      type: 'level_start',
+      payload: { levelId: level.id, levelName: level.name },
+    })
+  }
+
+  private emitLevelComplete(newRecord: boolean) {
+    analytics.emit({
+      type: 'level_complete',
+      payload: {
+        levelId: this.activeLevel.id,
+        levelName: this.activeLevel.name,
+        time: this.hud.time,
+        extra: this.hud.extra,
+        sources: this.hud.sources,
+        totalTime: this.hud.time + this.hud.extra,
+        newRecord,
+      },
+    })
+  }
+
+  // ===== dev 工具 =====
+  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续
+  private syncDevTools() {
+    if (this.screen === 'game' && this.dev) {
+      if (!this.devTools) this.devTools = new DevTools({ onApply: this.onDevOverride })
+    } else if (this.devTools) {
+      this.devTools.destroy()
+      this.devTools = null
     }
-    return content
+  }
+
+  // ===== 键盘装配 =====
+  private bindKeys() {
+    this.disposeKeys = setupKeys(
+      {
+        ...this.actions,
+        undo: () => this.undoMove(),
+        redo: () => this.redoMove(),
+      },
+      () => this.screen === 'game',
+    )
+  }
+
+  // ===== 渲染 =====
+  protected override render() {
+    switch (this.screen) {
+      case 'game':
+        return this.renderGame()
+      case 'dev':
+        return this.renderDev()
+      case 'storage':
+        return this.renderStorage()
+      case 'about':
+        return this.renderAbout()
+      default:
+        return this.renderTitle()
+    }
+  }
+
+  private renderTitle() {
+    return html`<sf-title-screen
+      .dev=${this.dev}
+      .activeGroup=${this.activeGroup}
+      @group=${this.onGroup}
+      @start=${(e: CustomEvent<string>) => this.startGame(e.detail)}
+      @dev-page=${this.openDev}
+      @about=${this.openAbout}
+    ></sf-title-screen>`
+  }
+
+  private renderDev() {
+    // dev 页返回固定回主页并保留当前 dev：history.back 会穿越 replace 之前的旧条目（携带旧 dev 值，已关闭的开发者模式会"复活"）
+    return html`<sf-dev-menu
+      .dev=${this.dev}
+      @back=${this.actions.back}
+      @open-storage=${this.openStorage}
+      @toggle-dev=${this.toggleDev}
+    ></sf-dev-menu>`
+  }
+
+  private renderStorage() {
+    return html`<sf-storage @back=${this.goBack}></sf-storage>`
+  }
+
+  private renderAbout() {
+    return html`<sf-about @back=${this.goBack}></sf-about>`
   }
 
   private renderGame() {
@@ -317,12 +354,12 @@ export class SfApp extends LitElement {
     const h = levelHash(urlState.get('lv'))
     const bestTotal = won && h ? progress.best(h)?.total : undefined
     const hasNext = nextLevel(this.activeLevel.id) !== undefined
+    // keyed 按对象身份重建：关卡内容变化时必须重建 sf-game
+    // 事件名用字面量：Lit 模板不支持动态事件名（@${expr} 静默失效）
     return html`
       <main class="game">
         ${keyed(
-          // keyed 按对象身份重建：关卡内容变化时必须重建 sf-game
           this.activeLevel,
-          // 事件名用字面量：Lit 模板不支持动态事件名（@${expr} 静默失效）
           html`<sf-game
             .level=${this.activeLevel}
             .initialSources=${this.initialSources}
@@ -338,11 +375,11 @@ export class SfApp extends LitElement {
           .hud=${this.hud}
           .muted=${this.muted}
           .rate=${this.rate}
-          @back=${this.backToTitle}
-          @pause=${() => this.gameEl?.togglePause()}
-          @speed=${this.cycleSpeed}
-          @restart=${this.restart}
-          @sound=${this.toggleSound}
+          @back=${this.actions.back}
+          @pause=${this.actions.pause}
+          @speed=${this.actions.speedDown}
+          @restart=${this.actions.restart}
+          @sound=${this.actions.mute}
         ></sf-hud>
 
         ${won
@@ -356,8 +393,8 @@ export class SfApp extends LitElement {
               .rank=${this.winRank}
               .hasNext=${hasNext}
               @next=${this.playNext}
-              @replay=${this.restart}
-              @back=${this.backToTitle}
+              @replay=${this.actions.restart}
+              @back=${this.actions.back}
             ></sf-win-overlay>`
           : nothing}
       </main>
@@ -379,18 +416,17 @@ export class SfApp extends LitElement {
         touch-action: manipulation;
       }
 
-    .game {
-      position: relative;
-      height: 100%;
-      background: #fdf7ec;
-    }
+      .game {
+        position: relative;
+        height: 100%;
+        background: #fdf7ec;
+      }
 
-    sf-game {
-      position: absolute;
-      inset: 0;
-    }
-
-  `,
+      sf-game {
+        position: absolute;
+        inset: 0;
+      }
+    `,
   ]
 }
 

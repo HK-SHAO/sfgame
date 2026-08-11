@@ -3,6 +3,7 @@ import { customElement, query, state } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
 import { fb } from '../core/feedback.ts'
 import { bgm } from '../core/bgm.ts'
+import { analytics } from '../core/analytics.ts'
 import { LEVELS, LEVEL_GROUPS, nextLevel, levelHash } from '../game/levels.ts'
 import { progress } from '../game/progress.ts'
 import { SfGame, type DenyDetail } from './sf-game.ts'
@@ -128,6 +129,15 @@ export class SfApp extends LitElement {
     urlState.set('lv', { id })
     urlState.clear('s')
     this.applyScreen(screenFromUrl())
+    this.emitLevelStart(this.activeLevel)
+  }
+
+  // 语义上报：业务侧只发事件，传输（gtag）由 main.ts 装配；group 随内置关卡分组
+  private emitLevelStart(level: LevelDef) {
+    analytics.emit({
+      type: 'level_start',
+      payload: { levelId: level.id, levelName: level.name },
+    })
   }
 
   private playNext() {
@@ -138,6 +148,7 @@ export class SfApp extends LitElement {
     urlState.set('lv', { id: next })
     urlState.clear('s')
     this.applyScreen(screenFromUrl())
+    this.emitLevelStart(this.activeLevel)
   }
 
   private goBack() {
@@ -211,12 +222,28 @@ export class SfApp extends LitElement {
   }
 
   private recordWin() {
-    const h = levelHash(urlState.get('lv'))
+    const lv = urlState.get('lv')
+    const h = levelHash(lv)
     if (!h) return
     this.winRank = progress.record(h, {
       time: this.hud.time,
       extra: this.hud.extra,
     })
+    // 正式数据排除内联关卡（dev 编辑器产物）：仅 id 形态（内置关卡）上报
+    if (lv !== null && 'id' in lv) {
+      analytics.emit({
+        type: 'level_complete',
+        payload: {
+          levelId: this.activeLevel.id,
+          levelName: this.activeLevel.name,
+          time: this.hud.time,
+          extra: this.hud.extra,
+          sources: this.hud.sources,
+          totalTime: this.hud.time + this.hud.extra,
+          newRecord: this.winRank === 0,
+        },
+      })
+    }
   }
 
   private onDeny(e: CustomEvent<DenyDetail>) {

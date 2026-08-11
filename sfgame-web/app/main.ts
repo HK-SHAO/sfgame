@@ -1,5 +1,6 @@
 import { bootEngine } from './wasm/engine.ts'
 import engineUrl from './wasm/sfengine.wasm?url'
+import { mountGtagAnalytics } from './ui/analytics-gtag.ts'
 
 const fetchBytes = async (url: string) => {
   const res = await fetch(url)
@@ -11,6 +12,7 @@ const fetchBytes = async (url: string) => {
 const ready = await bootEngine(() => fetchBytes(engineUrl))
 
 if (ready) {
+  mountGtagAnalytics()
   await import('./ui/app.ts')
   document.body.replaceChildren(document.createElement('sf-app'))
 } else {

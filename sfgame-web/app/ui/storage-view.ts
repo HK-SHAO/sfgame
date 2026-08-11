@@ -35,6 +35,7 @@ export class SfStorage extends LitElement {
   private disarmTimer: ReturnType<typeof setTimeout> | null = null
 
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))
+  private onClearAll = () => this.arm('*')
 
   connectedCallback() {
     super.connectedCallback()
@@ -110,7 +111,7 @@ export class SfStorage extends LitElement {
         <div class="foot">
           <button
             class="clear ${this.armed === '*' ? 'armed' : ''}"
-            @click=${() => this.arm('*')}
+            @click=${this.onClearAll}
             ?disabled=${this.entries.length === 0}
           >
             ${this.armed === '*' ? '确认清空全部' : '清空全部数据'}

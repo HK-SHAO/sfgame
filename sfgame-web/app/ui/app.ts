@@ -145,6 +145,10 @@ export class SfApp extends LitElement {
     this.enterLevel(id)
   }
 
+  private onStart(e: CustomEvent<string>) {
+    this.startGame(e.detail)
+  }
+
   private playNext() {
     const next = nextLevel(this.activeLevel.id)
     if (next === undefined) return
@@ -325,7 +329,7 @@ export class SfApp extends LitElement {
       .dev=${this.dev}
       .activeGroup=${this.activeGroup}
       @group=${this.onGroup}
-      @start=${(e: CustomEvent<string>) => this.startGame(e.detail)}
+      @start=${this.onStart}
       @dev-page=${this.openDev}
       @about=${this.openAbout}
     ></sf-title-screen>`

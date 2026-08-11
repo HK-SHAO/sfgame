@@ -44,6 +44,8 @@ export class SfTitleScreen extends LitElement {
     if (e.detail === 0) this.dispatchEvent(new CustomEvent('about'))
   }
 
+  private onDevPage = () => this.dispatchEvent(new Event('dev-page'))
+
   protected override render() {
     return html`
       <main class="title">
@@ -160,7 +162,7 @@ export class SfTitleScreen extends LitElement {
             </button>`
           : nothing}
         ${this.dev
-          ? html`<button class="link-btn" @click=${() => this.dispatchEvent(new Event('dev-page'))} aria-label="开发者页面">
+          ? html`<button class="link-btn" @click=${this.onDevPage} aria-label="开发者页面">
               ${iconGear}<span>开发者页面</span>
             </button>`
           : nothing}

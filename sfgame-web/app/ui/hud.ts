@@ -24,6 +24,12 @@ export class SfHud extends LitElement {
     return this.rate < 1 ? '0.5×' : `${this.rate}×`
   }
 
+  private onBack = () => this.dispatchEvent(new Event('back'))
+  private onPause = () => this.dispatchEvent(new Event('pause'))
+  private onSpeed = () => this.dispatchEvent(new Event('speed'))
+  private onRestart = () => this.dispatchEvent(new Event('restart'))
+  private onSound = () => this.dispatchEvent(new Event('sound'))
+
   // 放置被拒抖动：目标在 hud 内，动画就地执行
   deny(kind: SourceKind) {
     void this.updateComplete.then(() => {
@@ -46,7 +52,7 @@ export class SfHud extends LitElement {
     return html`
       <header class="hud">
         <div class="hud-left">
-          <button class="icon-btn" @click=${() => this.dispatchEvent(new Event('back'))} aria-label="回到主页" title="回到主页">
+          <button class="icon-btn" @click=${this.onBack} aria-label="回到主页" title="回到主页">
             ${iconHome}<span class="lbl">主页</span>
           </button>
         </div>
@@ -67,22 +73,22 @@ export class SfHud extends LitElement {
           </span>
           <button
             class="icon-btn pause"
-            @click=${() => this.dispatchEvent(new Event('pause'))}
+            @click=${this.onPause}
             aria-label=${this.hud.paused ? '恢复' : '暂停'}
             aria-pressed=${this.hud.paused}
             title=${this.hud.paused ? '恢复' : '暂停'}
           >
             ${this.hud.paused ? iconPlay : iconPause}<span class="lbl">${this.hud.paused ? '恢复' : '暂停'}</span>
           </button>
-          <button class="icon-btn speed" @click=${() => this.dispatchEvent(new Event('speed'))} aria-label="游戏速率 ${this.speedLabel()}">
+          <button class="icon-btn speed" @click=${this.onSpeed} aria-label="游戏速率 ${this.speedLabel()}">
             <span class="lbl">速率</span><b>${this.speedLabel()}</b>
           </button>
-          <button class="icon-btn" @click=${() => this.dispatchEvent(new Event('restart'))} aria-label="重置关卡">
+          <button class="icon-btn" @click=${this.onRestart} aria-label="重置关卡">
             ${iconReset}<span class="lbl">重置</span>
           </button>
           <button
             class="icon-btn"
-            @click=${() => this.dispatchEvent(new Event('sound'))}
+            @click=${this.onSound}
             aria-label=${this.muted ? '开启声音' : '关闭声音'}
             aria-pressed=${!this.muted}
           >

@@ -37,7 +37,7 @@ app/
   dev/           开发者工具（?dev=1）：面板、性能块、关卡 JSON 编辑器
   wasm/          WASM 引擎引导与实例化（单实例单内存；产物 sfengine.wasm 不入库）
 assembly/        AssemblyScript 源码：流体内核 + 顶点批内核 + 示踪粒子 tessellate，编译为同一引擎模块
-levels/          关卡 JSON（level-1..15）+ schema
+levels/          关卡 JSON（level-1..20）+ schema
 scripts/         关卡/求解器离线工具（run-level、solve-*、tune-scan）与 vite 插件（wasm 自动重编、schema 拷贝）
 tests/           vitest 最小集（setup.ts 预热 WASM 内核）
 ```

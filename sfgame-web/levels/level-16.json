@@ -1,0 +1,18 @@
+{
+  "$schema": "./level.schema-1.json",
+  "id": "zhui-xing",
+  "name": "坠星",
+  "tagline": "星落如屿，踏风而上",
+  "win": {
+    "title": "踏星而行",
+    "text": "坠落的星凝成高岛，岛前一堵断崖。爬过断崖会失速坠向谷底，唯有再借一道热柱把飞机送上岛顶的星光里——两段爬升，缺一不可。"
+  },
+  "world": { "w": 100, "h": 64, "cell": 0.8 },
+  "terrain": { "sdf": "min(flat(60), min(box(56,44,3,16), circle(82,44,10)))" },
+  "budget": { "hot": 3, "cold": 1 },
+  "spawn": { "x": -5, "y": 40, "vx": 22 },
+  "goals": [
+    { "x": 82, "r": 14 }
+  ],
+  "ambient": { "x": 0.6, "y": 0, "temp": -0.05 }
+}

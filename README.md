@@ -24,10 +24,10 @@
 - 没有敌人，没有倒计时——只有风，和你想去的方向<br>
   <i>No enemies, no countdown — just wind, and wherever you want to go.</i>
 
-## 15 段旅程 · 15 Journeys
+## 20 段旅程 · 20 Journeys
 
-三个篇章：长风、焚风、烈风。
-<i>Three chapters: Long Wind, Foehn, and Gale.</i>
+四个篇章：长风、焚风、烈风、罡风。
+<i>Four chapters: Long Wind, Foehn, Gale, and Squall.</i>
 
 从第一缕风到越过天堑——燃烧的篝火、顺坡滑落的冷气、摇头的风扇、起伏的潮汐，还有初霜与灼原的极端气候。
 <i>From the first breeze to the great divide — crackling fires, cold air spilling downhill, swaying fans, breathing tides, and the extremes of frost and scorching heat.</i>

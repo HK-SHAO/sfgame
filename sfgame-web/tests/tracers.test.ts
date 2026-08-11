@@ -17,7 +17,6 @@ const CFG: FluidConfig = {
   velDamping: 1,
   tDamping: 1,
   iterations: 12,
-  vorticity: 0,
   margin: 6,
 }
 

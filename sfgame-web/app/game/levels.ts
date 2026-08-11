@@ -17,10 +17,15 @@ import level12 from '../../levels/level-12.json?raw'
 import level13 from '../../levels/level-13.json?raw'
 import level14 from '../../levels/level-14.json?raw'
 import level15 from '../../levels/level-15.json?raw'
+import level16 from '../../levels/level-16.json?raw'
+import level17 from '../../levels/level-17.json?raw'
+import level18 from '../../levels/level-18.json?raw'
+import level19 from '../../levels/level-19.json?raw'
+import level20 from '../../levels/level-20.json?raw'
 
 const LEVEL_TEXTS = [
   level1, level2, level3, level4, level5, level6, level7, level8, level9, level10,
-  level11, level12, level13, level14, level15,
+  level11, level12, level13, level14, level15, level16, level17, level18, level19, level20,
 ]
 
 // 关卡图（主页选项卡 + 解锁/导航的单一事实来源）：JSON 不声明归属，组内顺序 = ids 数组顺序
@@ -34,6 +39,8 @@ export const LEVEL_GROUPS: LevelGroup[] = [
   { name: '焚风', ids: ['ying-huo', 'bing-jiao', 'gu-feng', 'zhong-bai', 'fen-feng'] },
   // 第三组：既有图调参的硬核重编（环境温度原子主登场），组内按难度升序
   { name: '烈风', ids: ['chu-shuang', 'ni-lu', 'ji-bai', 'zhuo-yuan', 'tian-qian'] },
+  // 第四组：SDF 真原语新地形（浮石/隧道/石柱/深槽/拱窗），大地图高难长线
+  { name: '罡风', ids: ['zhui-xing', 'hui-yin', 'tian-ti', 'chuan-tang', 'gui-xu'] },
 ]
 
 // 逐关容错加载：坏关卡只进 LEVEL_ERRORS 清单，绝不抛错——模块加载抛错会让整个 bundle 求值失败 → 应用白屏

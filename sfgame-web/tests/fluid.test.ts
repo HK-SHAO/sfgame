@@ -14,7 +14,6 @@ const CFG: FluidConfig = {
   velDamping: 0.996,
   tDamping: 0.99,
   iterations: 12,
-  vorticity: 0.5,
   margin: 0,
 }
 
@@ -117,7 +116,6 @@ test('ambient.temp 均匀温度偏置驱动全域升沉流', () => {
     velDamping: 1,
     tDamping: 1,
     iterations: 12,
-    vorticity: 0,
     margin: 6,
   }
   const air = { x: 0, y: 0 }
@@ -151,7 +149,6 @@ test('流出边界：风丝滑流出地图，边距吸收外流能量', () => {
     velDamping: 1,
     tDamping: 1,
     iterations: 12,
-    vorticity: 0,
     margin: 6,
   })
   f.setAmbient(1, 0)

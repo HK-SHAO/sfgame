@@ -125,6 +125,7 @@ test('仓库关卡全部合法，协议一致且可往返序列化', () => {
     'luo-yu', 'fu-yao', 'xin-feng', 'chao-xi', 'hui-gui',
     'ying-huo', 'bing-jiao', 'gu-feng', 'zhong-bai', 'fen-feng',
     'chu-shuang', 'ni-lu', 'ji-bai', 'zhuo-yuan', 'tian-qian',
+    'zhui-xing', 'hui-yin', 'tian-ti', 'chuan-tang', 'gui-xu',
   ])
   expect(LEVEL_ERRORS).toEqual([])
   for (const l of LEVELS) {
@@ -139,6 +140,7 @@ test('关卡图：组名与组内顺序（TS 声明，JSON 不携带）', () => 
     ['长风', ['luo-yu', 'fu-yao', 'xin-feng', 'chao-xi', 'hui-gui']],
     ['焚风', ['ying-huo', 'bing-jiao', 'gu-feng', 'zhong-bai', 'fen-feng']],
     ['烈风', ['chu-shuang', 'ni-lu', 'ji-bai', 'zhuo-yuan', 'tian-qian']],
+    ['罡风', ['zhui-xing', 'hui-yin', 'tian-ti', 'chuan-tang', 'gui-xu']],
   ])
 })
 
@@ -170,7 +172,9 @@ test('下一关导航：组内顺延，组尾跨入下一组首关，最后一�
   expect(nextLevel('ying-huo')).toBe('bing-jiao')
   expect(nextLevel('fen-feng')).toBe('chu-shuang')
   expect(nextLevel('zhuo-yuan')).toBe('tian-qian')
-  expect(nextLevel('tian-qian')).toBeUndefined()
+  expect(nextLevel('tian-qian')).toBe('zhui-xing')
+  expect(nextLevel('chuan-tang')).toBe('gui-xu')
+  expect(nextLevel('gui-xu')).toBeUndefined()
   expect(nextLevel('not-a-level')).toBeUndefined()
 })
 

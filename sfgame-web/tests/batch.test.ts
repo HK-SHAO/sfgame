@@ -20,23 +20,17 @@ test('stroke：线段展开为宽度正确的四边形，零长度无顶点', ()
   expect(b.count).toBe(6)
 })
 
-test('polyline：直角转角斜接相连，共线段直通无冗余折角', () => {
+test('ring：闭环折线斜接拼接，带宽带半径正确、alpha 恒定（覆盖非淡变 miter 路径）', () => {
   const b = new MeshBatch()
-  b.polyline(new Float32Array([0, 0, 2, 0, 2, 2]), 6, 1, 1, 1, 1, 1)
-  expect(b.count).toBe(12)
-  const corners = new Set<string>()
-  for (let k = 0; k < 12; k++) {
-    const [x, y] = vertex(b, k)
-    corners.add(`${x.toFixed(4)},${y.toFixed(4)}`)
-  }
-  expect(corners.has('2.5000,-0.5000')).toBe(true)
-  expect(corners.has('1.5000,0.5000')).toBe(true)
-
-  const flat = new MeshBatch()
-  flat.polyline(new Float32Array([0, 0, 1, 0, 2, 0]), 6, 0.4, 1, 1, 1, 1)
-  expect(flat.count).toBe(12)
-  for (let k = 0; k < 12; k++) {
-    expect(Math.abs(vertex(flat, k)[1])).toBeCloseTo(0.2, 5)
+  b.ring(0, 0, 2, 2, 0, 32, 0.5, 1, 1, 1, 0.8)
+  // 闭环 seg=32 → 32 段 × 6 顶点；miter 接头随角变锐外延，段多角钝后收敛到带宽内
+  expect(b.count).toBe(192)
+  for (let k = 0; k < b.count; k++) {
+    const [x, y, , , , a] = vertex(b, k)
+    const d = Math.hypot(x, y)
+    expect(d).toBeGreaterThanOrEqual(1.74)
+    expect(d).toBeLessThanOrEqual(2.26)
+    expect(a).toBeCloseTo(0.8, 5)
   }
 })
 

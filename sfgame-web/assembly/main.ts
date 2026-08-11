@@ -49,8 +49,6 @@ import {
   iterations,
   velDamping,
   tDamping,
-  vorticity,
-  applyVorticity,
   applySponge,
   copyFields,
   advectPass,
@@ -492,8 +490,6 @@ function project(): void {
 
 export function step(dt: f64): void {
   applyBuoyancy(dt)
-  if (vorticity > 0) applyVorticity(dt)
-
   copyFields()
   advectMacCormack(u, u0, dt, velDamping)
   advectMacCormack(v, v0, dt, velDamping)

@@ -67,9 +67,6 @@ export class SfTitleScreen extends LitElement {
                 </button>
               `,
             )}
-            <button class="group-tab soon" disabled aria-label="更多关卡，敬请期待">
-              <span class="gname">期待</span>
-            </button>
           </nav>
 
           <nav class="levels" aria-label="关卡列表">
@@ -255,13 +252,6 @@ export class SfTitleScreen extends LitElement {
         background: var(--card);
         color: var(--ink);
         box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.09);
-      }
-
-      /* 未来关卡占位：灰调不可点，与其余 tab 同形同间距 */
-      .group-tab.soon {
-        opacity: 0.45;
-        cursor: default;
-        box-shadow: none;
       }
 
       .no-levels {

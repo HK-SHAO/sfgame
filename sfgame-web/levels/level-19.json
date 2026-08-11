@@ -1,0 +1,20 @@
+{
+  "$schema": "./level.schema-1.json",
+  "id": "chuan-tang",
+  "name": "穿堂",
+  "tagline": "风过堂，有涨落",
+  "win": {
+    "title": "穿堂而过",
+    "text": "潮风一来一回，堂口忽顺忽逆。前半程翻山立站，后半程借隧道潜行——涨潮抢风，落潮借道，窗口从不等人。"
+  },
+  "world": { "w": 110, "h": 68, "cell": 0.9 },
+  "terrain": { "sdf": "smax(smax(62 - 38*ss((x-24)/3)*ss((48-x)/3) - 42*ss((x-68)/3)*ss((92-x)/3) - y, -capsule(18,50,54,50,7), 2), -capsule(62,48,98,48,7), 2)" },
+  "budget": { "hot": 3, "cold": 2 },
+  "spawn": { "x": -6, "y": 30, "vx": 26 },
+  "goals": [
+    { "x": 36, "r": 11 },
+    { "x": 102, "r": 11 }
+  ],
+  "ambient": { "x": 0.5, "y": 0, "temp": -0.1, "tide": { "period": 16, "ampX": 2.2 } },
+  "fans": [{ "x": 70, "y": 48, "dir": 0, "power": 16 }]
+}

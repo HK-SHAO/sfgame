@@ -24,7 +24,6 @@ function makeCalmFluid() {
     velDamping: 1,
     tDamping: 1,
     iterations: 2,
-    vorticity: 0,
     margin: 0,
   })
 }

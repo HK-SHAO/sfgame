@@ -69,11 +69,6 @@ export class MeshBatch {
   }
 
   // pts/fade 先拷入内核暂存区再 tessellate：跨边界只传指针与标量
-  polyline(pts: Float32Array, n: number, w: number, r: number, g: number, b: number, a: number) {
-    this.ptsView.set(pts.subarray(0, n))
-    this.ex.bPolyline(n, w, r, g, b, a)
-  }
-
   polylineFade(pts: Float32Array, n: number, w: number, r: number, g: number, b: number, alpha: Float32Array) {
     this.ptsView.set(pts.subarray(0, n))
     this.fadeView.set(alpha.subarray(0, n / 2))

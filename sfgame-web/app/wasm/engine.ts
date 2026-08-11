@@ -14,7 +14,6 @@ export interface FluidExports {
     velDamping: number,
     tDamping: number,
     iterations: number,
-    vorticity: number,
     marginCells: number,
   ): number
   clear(): void
@@ -61,7 +60,6 @@ export interface BatchExports {
     x0: number, y0: number, x1: number, y1: number, w: number,
     r: number, g: number, b: number, a: number, round: boolean,
   ): void
-  bPolyline(n: number, w: number, r: number, g: number, b: number, a: number): void
   bPolylineFade(n: number, w: number, r: number, g: number, b: number): void
   bTerrainFieldBuf(): number
   bTerrainFieldCap(): number

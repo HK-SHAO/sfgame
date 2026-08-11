@@ -28,6 +28,11 @@ export const KNOWN_SOLUTIONS: Record<string, KnownSolution> = {
   'ji-bai': { src: [[41, 26.3, 'hot']], time: 13.8, groundTime: 0, total: 17.8 },
   'zhuo-yuan': { src: [[64, 25.9, 'hot']], time: 19.13, groundTime: 0.57, total: 23.7 },
   'tian-qian': { src: [[61.9, 3.5, 'cold']], time: 72.1, groundTime: 21.8, total: 97.9 },
+  'zhui-xing': { src: [[70, 44, 'hot'], [38, 59.3, 'hot'], [66, 44, 'hot']], time: 77.1, groundTime: 23.3, total: 112.4 },
+  'hui-yin': { src: [[20, 50, 'hot'], [70, 21.3, 'cold'], [20, 42, 'hot']], time: 50, groundTime: 0, total: 62 },
+  'tian-ti': { src: [[92, 44, 'hot'], [16, 59.3, 'hot'], [82, 59.3, 'cold'], [62, 52, 'hot']], time: 54, groundTime: 0.2, total: 70.2 },
+  'chuan-tang': { src: [[66, 46, 'cold'], [70, 19.8, 'hot'], [70, 27.8, 'hot']], time: 37.2, groundTime: 9.9, total: 59.1 },
+  'gui-xu': { src: [[46, 46, 'cold'], [26, 6, 'hot'], [18, 46, 'hot']], time: 73.4, groundTime: 14.1, total: 99.5 },
 }
 
 // s= URL 直达参数（如 ?lv=1&s=46-49.3-h）：复用游戏 URL 编码（坐标 1 位小数、整数去 .0）

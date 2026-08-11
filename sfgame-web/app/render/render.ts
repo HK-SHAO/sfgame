@@ -537,7 +537,6 @@ export class Renderer {
     b.polylineFade(pts, m * 2, PLANE_TRAIL_WIDTH, TRAIL_INK[0], TRAIL_INK[1], TRAIL_INK[2], fade)
   }
 
-  private static readonly PLANE_LOCAL = PLANE_LOCAL
   private planeWorld = new Float32Array(8)
 
   private drawPlane(b: MeshBatch, sim: LevelSimulation) {
@@ -546,7 +545,7 @@ export class Renderer {
     const sin = Math.sin(p.angle)
     const w = this.planeWorld
     for (let i = 0; i < 4; i++) {
-      const [lx, ly] = Renderer.PLANE_LOCAL[i]
+      const [lx, ly] = PLANE_LOCAL[i]
       w[i * 2] = p.x + lx * cos - ly * sin
       w[i * 2 + 1] = p.y + lx * sin + ly * cos
     }

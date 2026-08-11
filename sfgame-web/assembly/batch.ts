@@ -293,10 +293,6 @@ function miter(n: i32, w: f64, r: f64, g: f64, bl: f64, baseA: f64, fade: bool):
   }
 }
 
-export function bPolyline(n: i32, w: f64, r: f64, g: f64, bl: f64, a: f64): void {
-  miter(n, w, r, g, bl, a, false)
-}
-
 export function bPolylineFade(n: i32, w: f64, r: f64, g: f64, bl: f64): void {
   miter(n, w, r, g, bl, 0, true)
 }

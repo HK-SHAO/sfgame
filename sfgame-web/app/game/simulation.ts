@@ -15,8 +15,6 @@ const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell' | 'margin'> = {
   velDamping: 0.997,
   tDamping: 0.99,
   iterations: 12,
-  // 0 = 去掉人工增涡（vorticity confinement 是反耗散风格化项，非物理）：场更平静，MacCormack 平流自带锐度
-  vorticity: 0,
 }
 
 // 流体域 = 地图外扩边距：开放大气替身——风/热流出可见区后被边距吸收层清理，不撞墙反射回场内

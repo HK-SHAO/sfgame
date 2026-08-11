@@ -106,6 +106,8 @@ async function cmdSolve() {
       .filter((k) => k === 'h' || k === 'c')
       .map((k) => (k === 'h' ? 'hot' : 'cold')),
   ) as Set<'hot' | 'cold'>
+  // 候选点离地高度下限：贴地源扰动易埋进地形，高鲁棒关卡用 --min-dy 8 抬离地面搜
+  const minDy = Number(opt('--min-dy', '0'))
   const { best, hall } = await geneticSolve({
     level,
     levelFile,
@@ -115,6 +117,7 @@ async function cmdSolve() {
     rng,
     kinds,
     solveCap,
+    minDy,
     onStatus: (gen, ms, best, restart) => {
       if (restart) console.log(`[solve] 第 ${gen} 代 · 停滞重启（重随机）`)
       else console.log(`[solve] 第 ${gen} 代 · ${(ms / 1000).toFixed(0)}s · 最优 ${best ? fmt(best.m) : '—'}`)

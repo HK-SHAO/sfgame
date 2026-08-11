@@ -19,7 +19,6 @@ export const q2 = new Float32Array(MAX_CELLS)
 export const p = new Float32Array(MAX_CELLS)
 export const div = new Float32Array(MAX_CELLS)
 export const divH2 = new Float64Array(MAX_CELLS)
-const curl = new Float32Array(MAX_CELLS)
 export const solidF = new Float32Array(MAX_CELLS)
 // 环境风位流基场：远场单位水平风的贴地绕流（烘焙一次，采样按强度线性叠加）
 export const fxU = new Float32Array(MAX_CELLS)
@@ -53,7 +52,6 @@ let spongeVelIn: f64 = 0
 let spongeVelOut: f64 = 0
 let spongeTOut: f64 = 0
 export let iterations: i32 = 0
-export let vorticity: f64 = 0
 let ambientX: f64 = 0
 let ambientY: f64 = 0
 // 环境温度偏置：不进状态场，消费时叠加（浮力 t+ambientT、sampleTemp）；
@@ -74,7 +72,6 @@ export function init(
   velDamping_: f64,
   tDamping_: f64,
   iterations_: i32,
-  vorticity_: f64,
   marginCells_: i32,
 ): i32 {
   if (nx_ < 3 || ny_ < 3 || nx_ > MAX_NX || ny_ > MAX_NY) return 1
@@ -88,7 +85,6 @@ export function init(
   velDamping = velDamping_
   tDamping = tDamping_
   iterations = iterations_
-  vorticity = vorticity_
   marginCells = marginCells_
   ox = marginCells_
   oy = marginCells_
@@ -359,39 +355,6 @@ export function sampleTemp(wx: f64, wy: f64): f64 {
     <f64>t[c] * (1 - fx) * fy +
     <f64>t[d] * fx * fy
   ) + ambientT
-}
-
-export function applyVorticity(dt: f64): void {
-  const h2 = 2 * cell
-  for (let j = 1; j < ny - 1; j++) {
-    const row = j * nx
-    for (let i = 1; i < nx - 1; i++) {
-      const idx = i + row
-      if (solid[idx]) {
-        curl[idx] = 0
-        continue
-      }
-      curl[idx] = <f32>(
-        (<f64>v[idx + 1] - <f64>v[idx - 1]) / h2 - (<f64>u[idx + nx] - <f64>u[idx - nx]) / h2
-      )
-    }
-  }
-  const f = vorticity * cell * dt
-  for (let j = 2; j < ny - 2; j++) {
-    const row = j * nx
-    for (let i = 2; i < nx - 2; i++) {
-      const idx = i + row
-      if (solid[idx]) continue
-      const dwdx = (Math.abs(<f64>curl[idx + 1]) - Math.abs(<f64>curl[idx - 1])) / h2
-      const dwdy = (Math.abs(<f64>curl[idx + nx]) - Math.abs(<f64>curl[idx - nx])) / h2
-      const len = Math.sqrt(dwdx * dwdx + dwdy * dwdy) + 1e-5
-      const nxN = dwdx / len
-      const nyN = dwdy / len
-      const w = <f64>curl[idx]
-      u[idx] = <f32>(<f64>u[idx] + f * nyN * w)
-      v[idx] = <f32>(<f64>v[idx] - f * nxN * w)
-    }
-  }
 }
 
 export function copyFields(): void {

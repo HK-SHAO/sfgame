@@ -136,12 +136,15 @@ function levelTerrain(level: LevelDef): Terrain {
   return t
 }
 
-export function spotGrid(level: LevelDef): SourceTuple[] {
+// minDy：候选点离地高度下限。贴地源（dy=0.7）扰动 y+1 即埋进地形失效，结构鲁棒上限 5/8，
+// 高鲁棒解需中高位源，用此参数把 GA 搜索域抬离地面
+export function spotGrid(level: LevelDef, minDy = 0): SourceTuple[] {
   const t = levelTerrain(level)
   const spots: SourceTuple[] = []
   for (let x = 4; x <= level.world.w - 4; x += 2) {
     const gy = surfaceY(t, x, level.world.h)
     for (const dy of [0.7, 8, 16]) {
+      if (dy < minDy) continue
       const y = Math.max(3, gy - dy)
       spots.push([x, y, 'hot'], [x, y, 'cold'])
     }

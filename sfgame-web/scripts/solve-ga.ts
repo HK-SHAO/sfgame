@@ -17,13 +17,15 @@ export interface GaOptions {
   rng: () => number
   kinds: Set<'hot' | 'cold'>
   solveCap: number
+  // 候选点离地高度下限（透传 spotGrid）：抬离地面搜高鲁棒解
+  minDy?: number
   // 周期进度（每 5s 一次）与停滞重启上报：restart=true 即本次为重启事件
   onStatus?: (gen: number, elapsedMs: number, best: GaEntry | null, restart: boolean) => void
 }
 
 export async function geneticSolve(opts: GaOptions): Promise<{ best: GaEntry | null; hall: GaEntry[] }> {
-  const { level, levelFile, n, budgetMs, workerCount, rng, kinds, solveCap, onStatus } = opts
-  const spots = spotGrid(level).filter((s) => kinds.has(s[2]))
+  const { level, levelFile, n, budgetMs, workerCount, rng, kinds, solveCap, minDy, onStatus } = opts
+  const spots = spotGrid(level, minDy).filter((s) => kinds.has(s[2]))
   const pool = new WorkerPool(levelFile, workerCount)
   let pop: SourceTuple[][] = []
   while (pop.length < POP) pop.push(randomSources(n, spots, rng))

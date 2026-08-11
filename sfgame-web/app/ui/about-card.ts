@@ -27,8 +27,8 @@ export class SfAboutCard extends LitElement {
           <p>Each level is a small physics experiment: crackling fires, cold air spilling downhill, swaying fans, breathing tides, and the extremes of frost and scorching heat — all waiting for you to read them.</p>
           <p>风的背后是真实流体模拟与严谨数学——从牛顿力学可以推导出热力学方程。风不是魔法，而是温度的翻译。</p>
           <p>Behind the wind is a real fluid simulation and rigorous math — from Newton's laws, the equations of thermodynamics follow. Wind is not magic; it is temperature, translated.</p>
-          <p>15 段旅程，从第一缕风到越过天堑。配上安静的钢琴与风铃，愿你玩得开心。</p>
-          <p>Fifteen journeys, from the first breeze to the great divide, accompanied by gentle piano and wind chimes. Enjoy the flight.</p>
+          <p>20 段旅程，从第一缕风到越过天堑。配上安静的钢琴与风铃，愿你玩得开心。</p>
+          <p>Twenty journeys, from the first breeze to the great divide, accompanied by gentle piano and wind chimes. Enjoy the flight.</p>
         </details>
         <div class="divider" role="separator"></div>
         <p class="line">${description}</p>

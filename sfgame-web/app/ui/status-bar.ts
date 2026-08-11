@@ -36,7 +36,7 @@ export class SfStatusBar extends LitElement {
         <span class="t">用时 ${this.cached.t}</span>
         <span class="p">罚时 ${this.cached.p}</span>
       </span>
-      <span class="ops">轻点放热源 · 长按放冷源 · 点按已放置的源可移除</span>
+      <span class="ops">轻点放热源 · 长按放冷源 · 再点一下即可移除</span>
     `
   }
 

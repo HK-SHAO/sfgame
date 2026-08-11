@@ -1,4 +1,5 @@
 import { name } from '../../package.json'
+import { BUILTIN_LEVEL_HASHES } from './levels.ts'
 
 // localStorage 进度载荷带版本（.progress.v1）：解析容错，损坏/未知版本 → 空进度绝不抛错；
 // 键前缀跟随 package.json name（存储管理页据此识别，勿改）。
@@ -95,8 +96,17 @@ export class PlayerProgress {
     const prev = this.data.levels[levelHash]
     if (prev && prev.total <= full.total) return -1
     this.data.levels[levelHash] = full
+    this.trimInline()
     this.storage.set(JSON.stringify(this.data))
     return 0
+  }
+
+  // 内联 DIY 关卡条目无上限会撑爆 localStorage 配额：超限按写入时间修剪最旧的非内置条目（内置进度永不动）
+  private trimInline() {
+    const inline = Object.keys(this.data.levels).filter((k) => !BUILTIN_LEVEL_HASHES.has(k))
+    if (inline.length <= INLINE_MAX) return
+    inline.sort((a, b) => this.data.levels[a].at - this.data.levels[b].at)
+    for (const k of inline.slice(0, inline.length - INLINE_MAX)) delete this.data.levels[k]
   }
 
   best(levelHash: string): ScoreEntry | undefined {
@@ -109,3 +119,6 @@ export class PlayerProgress {
 }
 
 export const progress = new PlayerProgress(createBrowserStorage())
+
+// 内联条目上限（内置 20 关之外）：超出修剪最旧，长期 dev 使用不撑爆 5MB 配额
+const INLINE_MAX = 50

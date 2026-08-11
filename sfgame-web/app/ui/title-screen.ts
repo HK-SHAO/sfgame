@@ -39,6 +39,13 @@ export class SfTitleScreen extends LitElement {
     this.aboutTimer = null
   }
 
+  override disconnectedCallback() {
+    // 卸载时挂起的 500ms 定时器即刻清掉（多点触控：按住关于的同时切走）
+    if (this.aboutTimer !== null) clearTimeout(this.aboutTimer)
+    this.aboutTimer = null
+    super.disconnectedCallback()
+  }
+
   // 键盘路径（Enter 的 click detail=0）；指针的 click 忽略（about 已由 pointerup 触发）
   private onAboutClick = (e: MouseEvent) => {
     if (e.detail === 0) this.dispatchEvent(new CustomEvent('about'))

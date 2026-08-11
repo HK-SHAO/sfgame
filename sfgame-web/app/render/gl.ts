@@ -122,20 +122,24 @@ export class GlRenderer {
   private constructor(canvas: HTMLCanvasElement, gl: WebGLRenderingContext) {
     this.canvas = canvas
     this.gl = gl
-    canvas.addEventListener('webglcontextlost', (e) => {
-      e.preventDefault()
-      this.lost = true
-    })
-    canvas.addEventListener('webglcontextrestored', () => {
-      this.lost = false
-      if (!this.init()) {
-        console.error('WebGL 资源重建失败，渲染已暂停')
-        return
-      }
-      this.resizeBg()
-      this.bgStale = true
-    })
+    canvas.addEventListener('webglcontextlost', this.onLost)
+    canvas.addEventListener('webglcontextrestored', this.onRestored)
     this.init()
+  }
+
+  private onLost = (e: Event) => {
+    e.preventDefault()
+    this.lost = true
+  }
+
+  private onRestored = () => {
+    this.lost = false
+    if (!this.init()) {
+      console.error('WebGL 资源重建失败，渲染已暂停')
+      return
+    }
+    this.resizeBg()
+    this.bgStale = true
   }
 
   // 选 WebGL1：iOS Safari / Android WebView 全量可用且 GPU 加速
@@ -174,6 +178,15 @@ export class GlRenderer {
     this.bgTexture = null
     this.bgFbo = null
     this.uploadedBytes = 0
+  }
+
+  // 销毁路径专用：dispose 之外还要摘监听 + 强制释放上下文。
+  // 监听不能并入 dispose——init（context-restore 重建）也调 dispose，摘了监听自愈链就断了
+  destroy() {
+    this.dispose()
+    this.canvas.removeEventListener('webglcontextlost', this.onLost)
+    this.canvas.removeEventListener('webglcontextrestored', this.onRestored)
+    this.gl.getExtension('WEBGL_lose_context')?.loseContext()
   }
 
   private init(): boolean {
@@ -305,11 +318,12 @@ export class GlRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
     const bytes = batch.count * VERTEX_STRIDE * 4
     if (bytes > this.uploadedBytes) {
-      gl.bufferData(gl.ARRAY_BUFFER, batch.data, gl.DYNAMIC_DRAW)
-      this.uploadedBytes = batch.data.byteLength
-    } else {
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, batch.data.subarray(0, batch.count * VERTEX_STRIDE))
+      // size 版本分配（零传输）：只声明容量，数据由下方统一 bufferSubData 写入；
+      // 扩容时缓冲内容未定义，但每帧全量重写 [0, count*stride)，无丢失
+      gl.bufferData(gl.ARRAY_BUFFER, bytes, gl.DYNAMIC_DRAW)
+      this.uploadedBytes = bytes
     }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, batch.data.subarray(0, batch.count * VERTEX_STRIDE))
     gl.useProgram(this.program)
     gl.uniform4f(this.uView, viewL, viewT, viewR - viewL, viewB - viewT)
     gl.enableVertexAttribArray(this.aPos)

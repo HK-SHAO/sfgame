@@ -113,6 +113,11 @@ export function levelHash(lv: LvValue): string | undefined {
   return text ? fnv1a(text).toString(36) : undefined
 }
 
+// 内置关卡 hash 集（progress 据此区分内联 DIY 条目做上限修剪；内置进度永不动）
+export const BUILTIN_LEVEL_HASHES: ReadonlySet<string> = new Set(
+  LEVELS.map((l) => levelHash({ id: l.id })).filter((h): h is string => h !== undefined),
+)
+
 // 装饰种子：slug 哈希 + 盐（云与粒子以不同盐派生，同关可复现、互不串号）
 export function levelSeed(id: string, salt = 0): number {
   return (fnv1a(id) ^ salt) >>> 0

@@ -124,6 +124,12 @@ export class Renderer {
     if (!this.gl) console.warn('WebGL 不可用，画布将保持空白')
   }
 
+  // 销毁：GL 资源 + 监听 + 强制释放上下文（每关一个新 context，不显式释放会累积到浏览器活跃上限）
+  dispose() {
+    this.gl?.destroy()
+    this.gl = null
+  }
+
   resize(cssW: number, cssH: number, dpr: number) {
     this.cssW = cssW
     this.cssH = cssH

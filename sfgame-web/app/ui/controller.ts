@@ -143,6 +143,8 @@ export class GameController {
     sfx.fadeOutWind()
     // 离关解除乐暂停：暂停状态下回主页不能把 BGM 永远留在停态
     bgm.setPaused(false)
+    // GPU 资源显式释放（GL 对象/监听/context 全清）；engine 等 JS 大对象由 sf-game 断链后 GC 可达性回收
+    this.renderer.dispose()
   }
 
   restart() {

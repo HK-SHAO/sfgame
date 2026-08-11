@@ -133,6 +133,8 @@ export class SfDevPanel extends LitElement {
   protected override firstUpdated() {
     // 默认左上角：位置自此由 JS 持有（transform 表达容器内坐标），面板尺寸变化由 RO 兜底钳制
     void this.updateComplete.then(() => {
+      // 卸载竞态守卫：updateComplete 决议前被 disconnect 时不再观测已脱离文档的子树（RO 注册表会强引用它）
+      if (!this.isConnected) return
       const r = this.panelEl.getBoundingClientRect()
       this.w = r.width
       this.h = r.height

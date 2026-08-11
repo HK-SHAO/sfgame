@@ -50,6 +50,10 @@ export class SfApp extends LitElement {
   // 面板由 app 持有：sf-game 重建不销毁
   private devTools: DevTools | null = null
   private disposeKeys: (() => void) | null = null
+  // urlState 订阅退订函数（connectedCallback 注册、disconnectedCallback 对称退订）
+  private urlSubs: (() => void)[] = []
+  // 关卡内容 hash 缓存：renderGame 每渲染调用 levelHash 会对全文重算 FNV，这里随关卡变化算一次
+  private activeLevelHash = ''
 
   @query('sf-game') private gameEl!: SfGame
   @query('sf-hud') private hudEl!: SfHud
@@ -79,13 +83,19 @@ export class SfApp extends LitElement {
   constructor() {
     super()
     fb.unlock()
-    this.bindUrlState()
-    this.bindKeys()
     // 初始加载与外部变化允许脏 lv 净化；本地写路径不净化（见 screen.ts cleanup 注释）
     this.applyScreen(screenFromUrl(true))
   }
 
+  override connectedCallback() {
+    super.connectedCallback()
+    // 挂载时注册（幂等：先退旧再注册，元素移动/重挂不累积）；constructor 注册在卸载重挂场景会永久丢失
+    this.bindUrlState()
+    this.bindKeys()
+  }
+
   override disconnectedCallback() {
+    this.disposeUrlState()
     this.disposeKeys?.()
     this.disposeKeys = null
     this.devTools?.destroy()
@@ -111,19 +121,30 @@ export class SfApp extends LitElement {
 
   // ===== URL 导航 =====
   private bindUrlState() {
-    urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true)))
-    urlState.onChange('v', () => this.applyScreen(screenFromUrl(true)))
-    urlState.onChange('s', (v) => {
-      this.gameEl?.applySources(v)
-      fb.uiClick()
-    })
+    this.disposeUrlState()
+    this.urlSubs = [
+      urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true))),
+      urlState.onChange('v', () => this.applyScreen(screenFromUrl(true))),
+      urlState.onChange('s', (v) => {
+        this.gameEl?.applySources(v)
+        fb.uiClick()
+      }),
+    ]
+  }
+
+  private disposeUrlState() {
+    for (const off of this.urlSubs) off()
+    this.urlSubs = []
   }
 
   // URL 派生单入口：本地写（写读分离不回调）与外部变化（onChange）都经此应用，派生逻辑唯一在 game/screen.ts
   private applyScreen(s: ScreenState) {
     this.screen = s.screen
     // 非 game 屏保留旧关卡：渲染不依赖，且 keyed(activeLevel) 换关重建语义由引用变化驱动
-    if (s.level) this.activeLevel = s.level
+    if (s.level) {
+      this.activeLevel = s.level
+      this.activeLevelHash = levelHash(urlState.get('lv')) ?? ''
+    }
     this.initialSources = s.sources
     // 退出关卡屏（主页/存储/dev）速率归 1：倍率只在关卡内有意义，BGM 播放速率同步恢复
     if (s.screen !== 'game' && this.rate !== 1) {
@@ -298,6 +319,7 @@ export class SfApp extends LitElement {
 
   // ===== 键盘装配 =====
   private bindKeys() {
+    this.disposeKeys?.()
     this.disposeKeys = setupKeys(
       {
         ...this.actions,
@@ -355,7 +377,7 @@ export class SfApp extends LitElement {
 
   private renderGame() {
     const won = this.hud.phase === 'won'
-    const h = levelHash(urlState.get('lv'))
+    const h = this.activeLevelHash
     const bestTotal = won && h ? progress.best(h)?.total : undefined
     const hasNext = nextLevel(this.activeLevel.id) !== undefined
     // keyed 按对象身份重建：关卡内容变化时必须重建 sf-game

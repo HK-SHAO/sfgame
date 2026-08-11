@@ -45,7 +45,6 @@ export class SfTitleScreen extends LitElement {
   }
 
   protected override render() {
-    const group = LEVEL_GROUPS.find((g) => g.name === this.activeGroup)
     return html`
       <main class="title">
         <section class="title-card">
@@ -55,94 +54,117 @@ export class SfTitleScreen extends LitElement {
             alt="烧风 · 太阳精灵 · 用温度创造风"
           />
 
-          <nav class="groups" aria-label="关卡组">
-            ${LEVEL_GROUPS.map((g) =>
-              html`
-                <button
-                  class="group-tab ${g.name === this.activeGroup ? 'active' : ''}"
-                  aria-pressed=${g.name === this.activeGroup}
-                  @click=${() => this.dispatchEvent(new CustomEvent<string>('group', { detail: g.name }))}
-                >
-                  <span class="gname">${g.name}</span>
-                </button>
-              `,
-            )}
-          </nav>
-
-          <nav class="levels" aria-label="关卡列表">
-            ${(group?.ids ?? [])
-              .map((id) => LEVELS_BY_ID.get(id))
-              .filter((l): l is LevelDef => l !== undefined)
-              .map((l) => {
-                // dev 模式全关卡可玩（含未解锁）；解锁按关卡 hash 的通关记录判定
-                const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash({ id }) ?? ''))
-                // 最优成绩 = 通关记录合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
-                const best = progress.best(levelHash({ id: l.id }) ?? '')
-                // 耗时评级（≤30 绿 / ≤60 黄 / >60 红）：emoji 直观表意（🏆 纪录 / 🙂 尚可 / 🐌 缓慢）
-                const grade = best
-                  ? best.total > 60
-                    ? { cls: 'poor', emoji: '🐌' }
-                    : best.total > 30
-                      ? { cls: 'fair', emoji: '🙂' }
-                      : { cls: 'good', emoji: '🏆' }
-                  : null
-                // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变；序数按 LEVELS 全局顺序派生，与 slug 解耦
-                const no = String(LEVELS.findIndex((x) => x.id === l.id) + 1).padStart(2, '0')
-                return html`
-                  <button
-                    class="level play ${locked ? 'locked' : ''}"
-                    ?disabled=${locked}
-                    aria-label=${locked ? `第 ${no} 关（未解锁）` : `进入第 ${no} 关`}
-                    @click=${() => this.startLevel(l.id)}
-                  >
-                    <span class="no">第 ${no} 关</span>
-                    <span class="meta">
-                      <span class="name">${l.name}</span>
-                      <span class="concept">${l.tagline}</span>
-                    </span>
-                    ${best && grade
-                      ? html`<span class="best ${grade.cls}" title="最佳耗时">${formatTime(best.total)} ${grade.emoji}</span>`
-                      : nothing}
-                    <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
-                  </button>
-                `
-              })}
-            ${LEVELS.length === 0 ? html`<p class="no-levels">暂无可用关卡</p>` : nothing}
-          </nav>
-
-          ${LEVEL_ERRORS.length > 0
-            ? html`<div class="level-errors" role="alert">
-                <b>关卡加载失败 ${LEVEL_ERRORS.length} 个</b>
-                ${LEVEL_ERRORS.map((m) => html`<p>${m}</p>`)}
-              </div>`
-            : nothing}
+          ${this.renderGroups()}
+          ${this.renderLevels()}
+          ${this.renderErrors()}
 
           <p class="footnote">
             根据菲尔兹奖得主邓煜的数学证明，从牛顿力学可以推导出热力学方程——本游戏所有物理均基于此。
           </p>
 
-          <div class="links">
-            ${!this.dev
-              ? html`<button
-                  class="link-btn"
-                  @pointerdown=${this.onAboutDown}
-                  @pointerup=${this.onAboutUp}
-                  @pointercancel=${this.onAboutCancel}
-                  @pointerleave=${this.onAboutCancel}
-                  @click=${this.onAboutClick}
-                  aria-label="关于"
-                >
-                  ${iconInfo}<span>关于</span>
-                </button>`
-              : nothing}
-            ${this.dev
-              ? html`<button class="link-btn" @click=${() => this.dispatchEvent(new Event('dev-page'))} aria-label="开发者页面">
-                  ${iconGear}<span>开发者页面</span>
-                </button>`
-              : nothing}
-          </div>
+          ${this.renderLinks()}
         </section>
       </main>
+    `
+  }
+
+  // 分组 tab：activeGroup 定位当前组（组内容/顺序单一事实在 LEVEL_GROUPS）
+  private renderGroups() {
+    return html`
+      <nav class="groups" aria-label="关卡组">
+        ${LEVEL_GROUPS.map((g) =>
+          html`
+            <button
+              class="group-tab ${g.name === this.activeGroup ? 'active' : ''}"
+              aria-pressed=${g.name === this.activeGroup}
+              @click=${() => this.dispatchEvent(new CustomEvent<string>('group', { detail: g.name }))}
+            >
+              <span class="gname">${g.name}</span>
+            </button>
+          `,
+        )}
+      </nav>
+    `
+  }
+
+  // 关卡列表：dev 模式全关卡可玩（含未解锁）；解锁按关卡 hash 的通关记录判定
+  private renderLevels() {
+    const group = LEVEL_GROUPS.find((g) => g.name === this.activeGroup)
+    const levels = (group?.ids ?? [])
+      .map((id) => LEVELS_BY_ID.get(id))
+      .filter((l): l is LevelDef => l !== undefined)
+    return html`
+      <nav class="levels" aria-label="关卡列表">
+        ${levels.map((l) => {
+          const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash({ id }) ?? ''))
+          // 最优成绩 = 通关记录合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
+          const best = progress.best(levelHash({ id: l.id }) ?? '')
+          // 耗时评级（≤30 绿 / ≤60 黄 / >60 红）：emoji 直观表意（🏆 纪录 / 🙂 尚可 / 🐌 缓慢）
+          const grade = best
+            ? best.total > 60
+              ? { cls: 'poor', emoji: '🐌' }
+              : best.total > 30
+                ? { cls: 'fair', emoji: '🙂' }
+                : { cls: 'good', emoji: '🏆' }
+            : null
+          // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变；序数按 LEVELS 全局顺序派生，与 slug 解耦
+          const no = String(LEVELS.findIndex((x) => x.id === l.id) + 1).padStart(2, '0')
+          return html`
+            <button
+              class="level play ${locked ? 'locked' : ''}"
+              ?disabled=${locked}
+              aria-label=${locked ? `第 ${no} 关（未解锁）` : `进入第 ${no} 关`}
+              @click=${() => this.startLevel(l.id)}
+            >
+              <span class="no">第 ${no} 关</span>
+              <span class="meta">
+                <span class="name">${l.name}</span>
+                <span class="concept">${l.tagline}</span>
+              </span>
+              ${best && grade
+                ? html`<span class="best ${grade.cls}" title="最佳耗时">${formatTime(best.total)} ${grade.emoji}</span>`
+                : nothing}
+              <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
+            </button>
+          `
+        })}
+        ${LEVELS.length === 0 ? html`<p class="no-levels">暂无可用关卡</p>` : nothing}
+      </nav>
+    `
+  }
+
+  private renderErrors() {
+    return LEVEL_ERRORS.length > 0
+      ? html`<div class="level-errors" role="alert">
+          <b>关卡加载失败 ${LEVEL_ERRORS.length} 个</b>
+          ${LEVEL_ERRORS.map((m) => html`<p>${m}</p>`)}
+        </div>`
+      : nothing
+  }
+
+  // 底部链接：非 dev 模式关于钮（长按 500ms 进开发者页面，隐藏入口），dev 模式开发者页面钮
+  private renderLinks() {
+    return html`
+      <div class="links">
+        ${!this.dev
+          ? html`<button
+              class="link-btn"
+              @pointerdown=${this.onAboutDown}
+              @pointerup=${this.onAboutUp}
+              @pointercancel=${this.onAboutCancel}
+              @pointerleave=${this.onAboutCancel}
+              @click=${this.onAboutClick}
+              aria-label="关于"
+            >
+              ${iconInfo}<span>关于</span>
+            </button>`
+          : nothing}
+        ${this.dev
+          ? html`<button class="link-btn" @click=${() => this.dispatchEvent(new Event('dev-page'))} aria-label="开发者页面">
+              ${iconGear}<span>开发者页面</span>
+            </button>`
+          : nothing}
+      </div>
     `
   }
 

@@ -13,5 +13,5 @@
   "spawn": { "x": -5, "y": 18, "vx": 26 },
   "goals": [{ "x": 54, "r": 6 }],
   "ambient": { "x": 1.8, "y": 0, "temp": -0.2 },
-  "fans": [{ "x": 34, "y": 22, "dir": 3.14, "power": 30, "swing": 1.15, "period": 0.9 }]
+  "fans": [{ "x": 42, "y": 22, "dir": 3.14, "power": 30, "swing": 1.15, "period": 0.9 }]
 }

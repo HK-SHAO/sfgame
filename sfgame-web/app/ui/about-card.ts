@@ -38,8 +38,8 @@ export class SfAboutCard extends LitElement {
             <span>重置关卡</span><span class="kbd-group"><kbd>R</kbd></span>
             <span>声音开关</span><span class="kbd-group"><kbd>M</kbd></span>
             <span>减速 / 加速</span><span class="kbd-group"><kbd>[</kbd><kbd>]</kbd></span>
-            <span>撤销（回上一步）</span><span class="kbd-group"><kbd>Ctrl/Cmd+Z</kbd></span>
-            <span>重做</span><span class="kbd-group"><kbd>Ctrl/Cmd+Shift+Z</kbd><kbd>Ctrl+Y</kbd></span>
+            <span>后退（撤销）</span><span class="kbd-group"><kbd>Ctrl/Cmd+Z</kbd></span>
+            <span>前进（重做）</span><span class="kbd-group"><kbd>Ctrl/Cmd+Shift+Z</kbd><kbd>Ctrl+Y</kbd></span>
           </div>
         </details>
         <div class="divider" role="separator"></div>

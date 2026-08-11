@@ -124,6 +124,11 @@ export class Renderer {
     if (!this.gl) console.warn('WebGL 不可用，画布将保持空白')
   }
 
+  // 渲染可用性：gl 创建失败时由 ui 层告知玩家（画布会保持空白）
+  get available(): boolean {
+    return this.gl !== null
+  }
+
   // 销毁：GL 资源 + 监听 + 强制释放上下文（每关一个新 context，不显式释放会累积到浏览器活跃上限）
   dispose() {
     this.gl?.destroy()

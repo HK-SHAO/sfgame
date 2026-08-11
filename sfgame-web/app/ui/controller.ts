@@ -17,6 +17,9 @@ import { createEngine, type EngineHandle } from '../wasm/engine.ts'
 import { totalPenaltySeconds } from '../game/timer.ts'
 import type { PerfRecorder } from '../dev/devtools.ts'
 
+// WebGL 不可用提醒：设备不支持是持久条件，全会话只弹一次
+let webglWarned = false
+
 const PLANE_TRAIL_MAX_POINTS = 150
 const PLANE_TRAIL_SAMPLE = 0.3
 const LAND_SOUND_MIN_INTERVAL = 150
@@ -84,6 +87,11 @@ export class GameController {
     const { w, h } = level.world
     this.windProbes = buildWindProbes(w, h)
     this.renderer = new Renderer(canvas, this.engine)
+    // 设备不支持 WebGL 是持久条件：只提醒一次，避免每关重复弹
+    if (!this.renderer.available && !webglWarned) {
+      webglWarned = true
+      window.alert('此设备不支持 WebGL，游戏画面无法显示。请更换支持 WebGL 的浏览器或设备。')
+    }
     this.loop = new GameLoop({ tick: this.tick, render: this.render })
     this.input = new GestureInput(canvas, {
       toWorld: (cx, cy) => this.renderer.toWorld(cx, cy),

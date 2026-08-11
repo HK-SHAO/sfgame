@@ -4,7 +4,6 @@
 export interface LevelStartPayload {
   levelId: string
   levelName: string
-  group?: string
 }
 
 export interface LevelCompletePayload extends LevelStartPayload {
@@ -31,10 +30,4 @@ export const analytics = {
       // 静默
     }
   },
-}
-
-// 队列封顶：防 gtag.js 被拦截/离线时永不加载 → dataLayer 无限增长；适配器自选是否启用
-export function cappedPush(queue: unknown[], item: unknown, cap: number): void {
-  queue.push(item)
-  if (queue.length > cap) queue.shift()
 }

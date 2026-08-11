@@ -46,7 +46,7 @@ export const LEVEL_GROUPS: LevelGroup[] = [
 // 逐关容错加载：坏关卡只进 LEVEL_ERRORS 清单，绝不抛错——模块加载抛错会让整个 bundle 求值失败 → 应用白屏
 export const LEVEL_ERRORS: string[] = []
 export const LEVELS_BY_ID = new Map<string, LevelDef>()
-export const LEVEL_SOURCES = new Map<string, string>()
+const LEVEL_SOURCES = new Map<string, string>()
 export function levelSource(id: string): string | undefined {
   return LEVEL_SOURCES.get(id)
 }

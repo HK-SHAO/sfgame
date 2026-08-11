@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { analytics, cappedPush, type AnalyticsEvent } from '../app/core/analytics.ts'
+import { analytics, type AnalyticsEvent } from '../app/core/analytics.ts'
 
 const complete: AnalyticsEvent = {
   type: 'level_complete',
   payload: {
     levelId: 'luo-yu',
     levelName: '落羽',
-    group: '长风',
     time: 12.5,
     extra: 4,
     sources: 2,
@@ -33,11 +32,5 @@ describe('analytics', () => {
     analytics.transport = (e) => spy.push(e)
     analytics.emit(complete)
     expect(spy).toHaveLength(1)
-  })
-
-  it('cappedPush 队列封顶丢最旧', () => {
-    const q: unknown[] = []
-    for (let i = 0; i < 5; i++) cappedPush(q, i, 3)
-    expect(q).toEqual([2, 3, 4])
   })
 })

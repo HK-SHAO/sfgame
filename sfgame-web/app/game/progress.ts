@@ -7,6 +7,9 @@ import { BUILTIN_LEVEL_HASHES } from './levels.ts'
 // 只记最佳过关耗时（不记解摆法），新纪录覆盖旧值
 const PROGRESS_VERSION = 1
 
+// 内联条目上限（内置 20 关之外）：超出修剪最旧，长期 dev 使用不撑爆 5MB 配额
+const INLINE_MAX = 50
+
 export const STORAGE_KEY = `${name}.progress.v${PROGRESS_VERSION}`
 
 export interface ScoreEntry {
@@ -119,6 +122,3 @@ export class PlayerProgress {
 }
 
 export const progress = new PlayerProgress(createBrowserStorage())
-
-// 内联条目上限（内置 20 关之外）：超出修剪最旧，长期 dev 使用不撑爆 5MB 配额
-const INLINE_MAX = 50

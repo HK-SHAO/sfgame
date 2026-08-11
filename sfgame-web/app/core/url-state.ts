@@ -16,7 +16,7 @@ export interface UrlStateSource {
   onChange(cb: () => void): () => void
 }
 
-export interface UrlStateWriteOptions {
+interface UrlStateWriteOptions {
   replace?: boolean
 }
 

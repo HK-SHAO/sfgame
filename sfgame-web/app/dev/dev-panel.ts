@@ -36,6 +36,8 @@ export class SfDevPanel extends LitElement {
         calc(var(--dev-gap) + env(safe-area-inset-right, 0px))
         calc(var(--dev-gap) + env(safe-area-inset-bottom, 0px))
         calc(var(--dev-gap) + env(safe-area-inset-left, 0px));
+      /* iOS 26 home indicator 自动隐藏时 inset-bottom 突变：过渡平滑位移 */
+      transition: margin 180ms ease-out;
       z-index: 9999;
       pointer-events: none;
       /* --dev-* 穿透 shadow 边界，供装配组件复用 */

@@ -42,12 +42,11 @@
 
 ## 技术栈 · Tech Stack
 
-TypeScript · Lit · WebGL · WASM·SIMD 流体内核（AssemblyScript）· Vite · Bun
+TypeScript · Lit · WebGL · WASM SIMD 流体仿真（AssemblyScript）· Vite · Bun
 
 ## 运行 · Run
 
 ```sh
-cd sfgame-web
 bun install
 bun run dev
 ```

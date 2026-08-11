@@ -1,7 +1,7 @@
 {
   "name": "sfgame-web",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "烧风：太阳精灵 · 用温度创造风",
   "author": {
     "name": "HK-SHAO",
@@ -10,12 +10,13 @@
   "type": "module",
   "scripts": {
     "dev": "bun node_modules/vite/bin/vite.js",
-    "build": "bun tsc -b && bun run build:wasm && bun node_modules/vite/bin/vite.js build",
+    "build": "bun run typecheck && bun run test && bun vite build",
     "preview": "bun node_modules/vite/bin/vite.js preview",
     "test": "bun run build:wasm && bun vitest run",
     "typecheck": "bun tsc -b",
     "build:wasm": "bun run scripts/build-wasm.ts",
-    "check": "bun run typecheck && bun run test && bun vite build"
+    "check": "bun run build",
+    "deploy": "bun run build && bunx wrangler pages deploy dist"
   },
   "dependencies": {
     "lit": "^3.3.3"

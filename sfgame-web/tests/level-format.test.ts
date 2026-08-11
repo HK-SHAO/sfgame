@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { parseLevelText } from '../app/game/level-format.ts'
-import { LEVEL_SCHEMA_REF, validateLevelJson } from '../app/game/level-validate.ts'
+import { validateLevelJson } from '../app/game/level-validate.ts'
 import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, isUnlocked, nextLevel } from '../app/game/levels.ts'
 import { compileSdf, SdfError } from '../app/game/sdf.ts'
 
@@ -69,14 +69,18 @@ test('地形原子：smoothstep 三参 GLSL 兼容，bump/gauss 山丘', () => {
 })
 
 test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
-  expect(() => parseLevelText('{"$schema":"./level.schema-1.json","id":"bad id"}')).toThrow(/slug/)
-  // 版本编码在 schema 文件名：指向不存在的版本被拒
-  expect(() => parseLevelText('{"$schema":"./level.schema-2.json","id":1}')).toThrow(/schema/)
+  expect(() => parseLevelText('{"id":"bad id"}')).toThrow(/slug/)
+  // $schema 仅编辑器提示：错版引用不拒绝（schema 与运行时解耦）
+  expect(
+    parseLevelText(
+      '{"$schema":"https://sf.game.shao.fun/level.schema-999.json","id":"lv-1","name":"t","tagline":"t","win":{"title":"t","text":"t"},"world":{"w":76,"h":56,"cell":0.75},"terrain":{"sdf":"40 - y"},"budget":{"hot":1,"cold":0},"spawn":{"x":0},"goals":[{"x":40,"r":5}]}',
+    ),
+  ).toMatchObject({ id: 'lv-1' })
   const json = (o: object) => JSON.stringify(o)
   expect(() =>
     parseLevelText(
       json({
-        $schema: LEVEL_SCHEMA_REF, id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
+        id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
         world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y +' },
         budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
       }),
@@ -85,7 +89,7 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
   expect(() =>
     parseLevelText(
       json({
-        $schema: LEVEL_SCHEMA_REF, id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
+        id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
         terrain: { sdf: '40 - y' }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
       }),
     ),
@@ -93,7 +97,7 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
   expect(() =>
     parseLevelText(
       json({
-        $schema: LEVEL_SCHEMA_REF, id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
+        id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
         world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y' },
         budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 0 }],
       }),
@@ -103,7 +107,7 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
   expect(() =>
     parseLevelText(
       json({
-        $schema: LEVEL_SCHEMA_REF, id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
+        id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
         world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '999 - y' },
         budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
       }),
@@ -112,7 +116,7 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
   expect(() =>
     parseLevelText(
       json({
-        $schema: LEVEL_SCHEMA_REF, id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
+        id: 'lv-1', name: 't', tagline: 't', win: { title: 't', text: 't' },
         world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '-y' },
         budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
       }),
@@ -129,7 +133,6 @@ test('仓库关卡全部合法，协议一致且可往返序列化', () => {
   ])
   expect(LEVEL_ERRORS).toEqual([])
   for (const l of LEVELS) {
-    expect(l.json.$schema).toBe(LEVEL_SCHEMA_REF)
     expect(validateLevelJson(l.json)).toEqual([])
     expect(parseLevelText(JSON.stringify(l.json))).toEqual(l.json)
   }
@@ -181,7 +184,7 @@ test('下一关导航：组内顺延，组尾跨入下一组首关，最后一�
 test('新原子校验：fixed/fans 合法放行、非法被拒', () => {
   const json = (o: object) => JSON.stringify(o)
   const base = {
-    $schema: LEVEL_SCHEMA_REF, id: 'lv-20', name: 't', tagline: 't', win: { title: 't', text: 't' },
+    id: 'lv-20', name: 't', tagline: 't', win: { title: 't', text: 't' },
     world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y' },
     budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
   }
@@ -208,7 +211,7 @@ test('新原子校验：fixed/fans 合法放行、非法被拒', () => {
 test('ambient.temp 校验：[-10, 10] 内放行，越界/非数值被拒', () => {
   const json = (o: object) => JSON.stringify(o)
   const base = {
-    $schema: LEVEL_SCHEMA_REF, id: 'lv-21', name: 't', tagline: 't', win: { title: 't', text: 't' },
+    id: 'lv-21', name: 't', tagline: 't', win: { title: 't', text: 't' },
     world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y' },
     budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
   }
@@ -229,17 +232,16 @@ test('ambient.temp 校验：[-10, 10] 内放行，越界/非数值被拒', () =>
   bad((x) => (x.ambient = { x: 1, y: 0, temp: 'hot' }), /temp/)
 })
 
-test('$schema 版本校验、顶层未知字段拒绝、错误带精确路径与实值', () => {
+test('顶层未知字段拒绝、错误带精确路径与实值', () => {
   const json = (o: object) => JSON.stringify(o)
   const base = {
-    $schema: LEVEL_SCHEMA_REF, id: 'lv-22', name: 't', tagline: 't', win: { title: 't', text: 't' },
+    id: 'lv-22', name: 't', tagline: 't', win: { title: 't', text: 't' },
     world: { w: 76, h: 56, cell: 0.75 }, terrain: { sdf: '40 - y' },
     budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
   }
-  // 当前版本引用放行；错版（旧文件名/未来版本）被拒；未知顶层字段（笔误）被拒
+  // 合法放行；未知顶层字段（笔误）被拒
   const j = parseLevelText(json(base)) as unknown as Record<string, unknown>
   expect(validateLevelJson(j)).toEqual([])
-  expect(validateLevelJson({ ...j, $schema: './level.schema.json' }).join('\n')).toMatch(/\$schema = "\.\/level\.schema\.json"，必须为/)
   const clone = structuredClone(j)
   clone.budet = 3
   expect(validateLevelJson(clone).join('\n')).toMatch(/未知字段 "budet"/)

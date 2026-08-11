@@ -1,5 +1,5 @@
 {
-  "$schema": "./level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
   "id": "gu-feng",
   "name": "鼓风",
   "tagline": "不等风来，造风而行",

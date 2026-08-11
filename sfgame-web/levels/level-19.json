@@ -1,5 +1,5 @@
 {
-  "$schema": "./level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
   "id": "chuan-tang",
   "name": "穿堂",
   "tagline": "风过堂，有涨落",

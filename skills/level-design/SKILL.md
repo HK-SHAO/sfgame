@@ -13,7 +13,7 @@ description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计�
 
 ```json
 {
-  "$schema": "./level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
   "id": "xin-feng",
   "name": "信风",
   "tagline": "多站之旅",
@@ -27,7 +27,7 @@ description: 为「烧风」（sfgame-web，Lit 3 + WebGL 物理益智）设计�
 }
 ```
 
-协议规范 = `sfgame-web/levels/level.schema-1.json`（JSON Schema draft-07，编辑器自动补全/校验；`$schema` 相对路径引用随文件移动仍可解析）。协议版本唯一编码在文件名 `level.schema-N.json`——关卡 `$schema` 必须精确等于当前版本引用，缺省/错版被运行时拒绝（改版 = 版本号 +1 + 文件名/`$id`/常量同步换，旧关卡一律失效）。`id` 为小写 slug（`^[a-z0-9][a-z0-9-]{0,31}$`，URL 直传零转义、语义化命名；显示序号由关卡顺序派生，与 id 解耦）。URL 单参数 `lv` 双形态：slug 直达内置关卡，内联关卡 = base64url JSON（判别 = 先 slug 后 JSON 的 fallback，见 `app/game/state.ts`）。schema 只表达不依赖世界的静态约束；world 依赖的动态边界（x≤w 等）与 SDF 语法、固/气共存、网格 16..256 由运行时校验强制（`app/game/level-validate.ts`，两处镜像由 `tests/level-schema.test.ts` 守护）。构建产物 dist 根目录含同文件。
+协议规范 = `sfgame-web/levels/level.schema-1.json`（JSON Schema draft-07，编辑器自动补全/校验；关卡 `$schema` 绝对 URL 指向线上部署的协议文件，dist 根由 copy 插件随包发布）。`$schema` 是编辑器提示（可选字段），运行时校验以 `app/game/level-validate.ts` 为准、不依赖 `$schema` 值（schema 与运行时解耦，改版不拒绝旧关卡）。`id` 为小写 slug（`^[a-z0-9][a-z0-9-]{0,31}$`，URL 直传零转义、语义化命名；显示序号由关卡顺序派生，与 id 解耦）。URL 单参数 `lv` 双形态：slug 直达内置关卡，内联关卡 = base64url JSON（判别 = 先 slug 后 JSON 的 fallback，见 `app/game/state.ts`）。schema 只表达不依赖世界的静态约束；world 依赖的动态边界（x≤w 等）与 SDF 语法、固/气共存、网格 16..256 由运行时校验强制（`app/game/level-validate.ts`，两处镜像由 `tests/level-schema.test.ts` 守护）。构建产物 dist 根目录含同文件。
 
 序列化选型：**JSON**（`JSON.parse` 零依赖解析，浏览器/脚本通用；不支持注释——设计说明放本 skill 或提交信息）；地形只用**一条 SDF 表达式字符串**（有符号距离场：>0 空气 / <0 实体，高度场 H(x)−y 是其中一种写法；精准、高密度、可表达洞穴/悬挑，可移植到任意数学工具），刻意不用采样折线（不精准）也不引 path（与表达式重叠、求值复杂——堆积功能）。
 

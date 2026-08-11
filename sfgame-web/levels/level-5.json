@@ -1,5 +1,5 @@
 {
-  "$schema": "./level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
   "id": "hui-gui",
   "name": "回归",
   "tagline": "万物循环，终将归来",

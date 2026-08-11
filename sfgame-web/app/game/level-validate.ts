@@ -3,9 +3,6 @@
 // 错误逐字段 JSON 路径 + 实值；world 非法时动态边界自动失效（undefined），只查结构不级联误报
 import { compileSdf, SdfError } from './sdf.ts'
 
-export const LEVEL_SCHEMA = 1
-// 协议版本唯一编码点：文件名 level.schema-N.json 携带版本，关卡 $schema 须精确指向当前版本引用
-export const LEVEL_SCHEMA_REF = `./level.schema-${LEVEL_SCHEMA}.json`
 // 关卡 id = 小写 slug（URL 直传零转义、语义化命名）；URL 内联判别（state.ts）依赖此字符集
 export const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/
 export const GOAL_R_MAX = 15
@@ -83,9 +80,7 @@ const KNOWN_TOP = new Set([
 ])
 
 function checkMeta(ctx: Ctx, j: Record<string, unknown>) {
-  if (j.$schema !== LEVEL_SCHEMA_REF) {
-    ctx.errs.push(`${ctx.id} $schema = ${JSON.stringify(j.$schema)}，必须为 ${LEVEL_SCHEMA_REF}`)
-  }
+  // $schema 仅编辑器提示，不校验值（schema 与运行时解耦，错版不拒绝）
   if (typeof j.id !== 'string' || !ID_PATTERN.test(j.id)) {
     ctx.errs.push(`${ctx.id} id = ${JSON.stringify(j.id)}，必须为小写 slug（字母/数字/连字符，≤32 字符）`)
   }

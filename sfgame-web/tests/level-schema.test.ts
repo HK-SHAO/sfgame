@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import schemaText from '../levels/level.schema-1.json?raw'
-import { GOAL_R_MAX, ID_PATTERN, LEVEL_SCHEMA, LEVEL_SCHEMA_REF, LIST_MAX, SWING_MAX, TEMP_LIMIT } from '../app/game/level-validate.ts'
+import { GOAL_R_MAX, ID_PATTERN, LIST_MAX, SWING_MAX, TEMP_LIMIT } from '../app/game/level-validate.ts'
 import { LEVEL_ERRORS, LEVELS } from '../app/game/levels.ts'
 import { validateLevelJson } from '../app/game/level-validate.ts'
 
@@ -10,7 +10,6 @@ interface JsonSchema {
   $id?: string
   $schema?: string
   type?: string
-  const?: number
   description?: string
   minimum?: number
   maximum?: number
@@ -28,13 +27,10 @@ const prop = (p: string) => schema.properties![p]
 
 test('schema 文件：draft-07、项目匹配 $id、根附加属性关闭、必需字段与协议一致', () => {
   expect(schema.$schema).toBe('http://json-schema.org/draft-07/schema#')
-  expect(schema.$id).toMatch(/^https:\/\/raw\.githubusercontent\.com\/HK-SHAO\/sfgame\//)
+  expect(schema.$id).toBe('https://sf.game.shao.fun/level.schema-1.json')
   expect(schema.required).toEqual([
-    '$schema', 'id', 'name', 'tagline', 'win', 'world', 'terrain', 'budget', 'spawn', 'goals',
+    'id', 'name', 'tagline', 'win', 'world', 'terrain', 'budget', 'spawn', 'goals',
   ])
-  // 版本单一编码点：schema 文件 const 与运行时 LEVEL_SCHEMA_REF 同源推导
-  expect(prop('$schema').const).toBe(LEVEL_SCHEMA_REF)
-  expect(LEVEL_SCHEMA_REF).toBe(`./level.schema-${LEVEL_SCHEMA}.json`)
 })
 
 test('schema 静态边界与运行时校验常量镜像一致', () => {
@@ -48,10 +44,9 @@ test('schema 静态边界与运行时校验常量镜像一致', () => {
   expect(prop('budget').properties!.hot.type).toBe('integer')
 })
 
-test('仓库关卡：全部相对引用当前版本 schema 且通过运行时校验', () => {
+test('仓库关卡：全部通过运行时校验', () => {
   expect(LEVEL_ERRORS).toEqual([])
   for (const l of LEVELS) {
-    expect(l.json.$schema).toBe(LEVEL_SCHEMA_REF)
     expect(validateLevelJson(l.json)).toEqual([])
   }
 })

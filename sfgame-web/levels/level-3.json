@@ -1,5 +1,5 @@
 {
-  "$schema": "./level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
   "id": "xin-feng",
   "name": "信风",
   "tagline": "风为信使，逐站递送",

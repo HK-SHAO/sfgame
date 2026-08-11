@@ -1,5 +1,5 @@
 {
-  "$schema": "./level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
   "id": "chu-shuang",
   "name": "初霜",
   "tagline": "空气里有了凉意",

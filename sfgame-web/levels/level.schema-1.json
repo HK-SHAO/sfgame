@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/HK-SHAO/sfgame/main/sfgame-web/levels/level.schema-1.json",
+  "$id": "https://sf.game.shao.fun/level.schema-1.json",
   "title": "烧风关卡（协议 v1）",
   "description": "烧风关卡协议 v1：放置热/冷源造风，送纸飞机抵达站点。坐标 y 向下；goals/fixed/fans 须落在世界内，spawn 可在画布外 ±20 单位；网格数 = round(w/cell) 须在 16..256。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "id", "name", "tagline", "win", "world", "terrain", "budget", "spawn", "goals"],
+  "required": ["id", "name", "tagline", "win", "world", "terrain", "budget", "spawn", "goals"],
   "properties": {
-    "$schema": { "type": "string", "const": "./level.schema-1.json", "description": "协议版本自 schema 文件名编码（level.schema-N.json），恒为当前版本引用" },
+    "$schema": { "type": "string", "description": "编辑器补全提示（可选），仅 IDE 使用" },
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,31}$", "description": "关卡标识（小写 slug：字母/数字/连字符，≤32 字符，全局唯一）" },
     "name": { "type": "string", "minLength": 1, "description": "关卡名" },
     "tagline": { "type": "string", "minLength": 1, "description": "副标题（选关页展示）" },

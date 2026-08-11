@@ -1,5 +1,5 @@
 {
-  "$schema": "./level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
   "id": "ji-bai",
   "name": "疾摆",
   "tagline": "节拍骤然加密",

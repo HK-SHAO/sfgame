@@ -30,6 +30,18 @@ export class SfAboutCard extends LitElement {
           <p>20 段旅程，从第一缕风到越过天堑。配上安静的钢琴与风铃，愿你玩得开心。</p>
           <p>Twenty journeys, from the first breeze to the great divide, accompanied by gentle piano and wind chimes. Enjoy the flight.</p>
         </details>
+        <details class="keys">
+          <summary>快捷键 <span class="caret" aria-hidden="true">›</span></summary>
+          <div class="keys-grid">
+            <span>返回主页</span><span class="kbd-group"><kbd>Esc</kbd></span>
+            <span>暂停 / 继续</span><span class="kbd-group"><kbd>Space</kbd><kbd>P</kbd></span>
+            <span>重置关卡</span><span class="kbd-group"><kbd>R</kbd></span>
+            <span>声音开关</span><span class="kbd-group"><kbd>M</kbd></span>
+            <span>减速 / 加速</span><span class="kbd-group"><kbd>[</kbd><kbd>]</kbd></span>
+            <span>撤销（回上一步）</span><span class="kbd-group"><kbd>Ctrl/Cmd+Z</kbd></span>
+            <span>重做</span><span class="kbd-group"><kbd>Ctrl/Cmd+Shift+Z</kbd><kbd>Ctrl+Y</kbd></span>
+          </div>
+        </details>
         <div class="divider" role="separator"></div>
         <p class="line">${description}</p>
         <p class="line">作者：${author.name}</p>
@@ -62,7 +74,7 @@ export class SfAboutCard extends LitElement {
         /* 品牌插槽恒定方形：换图比例变化只 letterbox，不随文件抖动 */
         aspect-ratio: 1 / 1;
         object-fit: contain;
-        margin: 0 auto 0.75rem;
+        margin: 0 auto 0;
       }
 
       .wip {
@@ -73,7 +85,8 @@ export class SfAboutCard extends LitElement {
         text-align: center;
       }
 
-      .intro summary {
+      .intro summary,
+      .keys summary {
         list-style: none;
         cursor: pointer;
         margin: 0 0 var(--sp-2);
@@ -86,22 +99,26 @@ export class SfAboutCard extends LitElement {
         transition: color 120ms ease-out;
       }
 
-      .intro summary:hover {
+      .intro summary:hover,
+      .keys summary:hover {
         color: var(--ink);
       }
 
       /* 展开提示箭头：闭合指向右，展开旋转 90° */
-      .intro summary .caret {
+      .intro summary .caret,
+      .keys summary .caret {
         display: inline-block;
         font-weight: 700;
         transition: transform 160ms ease-out;
       }
 
-      .intro[open] summary .caret {
+      .intro[open] summary .caret,
+      .keys[open] summary .caret {
         transform: rotate(90deg);
       }
 
-      .intro summary::-webkit-details-marker {
+      .intro summary::-webkit-details-marker,
+      .keys summary::-webkit-details-marker {
         display: none;
       }
 
@@ -115,6 +132,37 @@ export class SfAboutCard extends LitElement {
 
       .intro p:last-child {
         margin-bottom: 0;
+      }
+
+      /* 键位表：两列 grid 整体居中，键位列右对齐、动作列左对齐，两条竖线全表对齐（列宽取本列最宽内容） */
+      .keys-grid {
+        display: grid;
+        grid-template-columns: auto auto;
+        justify-content: center;
+        column-gap: 0.75rem;
+        row-gap: 0.25rem;
+        font-size: 0.75rem;
+        color: var(--ink-soft);
+      }
+
+      .kbd-group {
+        display: flex;
+        gap: 0.25rem;
+        justify-content: flex-end;
+      }
+
+      kbd {
+        display: inline-block;
+        padding: 0.125rem 0.375rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.6875rem;
+        line-height: 1.4;
+        color: var(--ink-soft);
+        background: rgba(255, 253, 248, 0.7);
+        border: 1px solid rgba(61, 52, 39, 0.12);
+        border-bottom-width: 2px;
+        border-radius: var(--r-sm);
+        white-space: nowrap;
       }
 
       .divider {

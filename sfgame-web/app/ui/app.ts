@@ -16,8 +16,10 @@ import './title-screen'
 import './about-screen'
 import './hud.ts'
 import { urlState } from '../game/state.ts'
+import type { LvValue } from '../game/state.ts'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen.ts'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types.ts'
+import { setupKeys } from './keys.ts'
 import { boxReset } from './shared-styles.ts'
 
 const FIRST_LEVEL = LEVELS[0]
@@ -47,6 +49,9 @@ export class SfApp extends LitElement {
   @state() private dev = urlState.get('dev')
   // 面板由 app 持有：sf-game 重建不销毁
   private devTools: DevTools | null = null
+  // 键盘通道解绑函数与快捷键导航标志（详见 undoMove）
+  private disposeKeys: (() => void) | null = null
+  private expectNav: 'back' | 'forward' | null = null
   private get speedSteps(): number[] {
     return this.dev ? [1, 2, 4, 8, 16, 0.5] : [1, 2, 4, 0.5]
   }
@@ -59,15 +64,43 @@ export class SfApp extends LitElement {
     fb.unlock()
     // 初始加载与外部变化允许脏 lv 净化；本地写路径不净化（见 screen.ts cleanup 注释）
     this.applyScreen(screenFromUrl(true))
-    urlState.onChange('lv', () => this.applyScreen(screenFromUrl(true)))
+    urlState.onChange('lv', () => {
+      const nav = this.expectNav
+      this.expectNav = null
+      if (nav !== null && !this.sameLevelAs(urlState.get('lv'))) {
+        // 快捷键撤销/重做越过关卡边界（跨关/回主页）：反向弹回，恢复导航会再走本回调正常应用
+        window.history[nav === 'back' ? 'forward' : 'back']()
+        return
+      }
+      this.applyScreen(screenFromUrl(true))
+    })
     urlState.onChange('v', () => this.applyScreen(screenFromUrl(true)))
     urlState.onChange('s', (v) => {
       this.gameEl?.applySources(v)
       fb.uiClick()
     })
+    // 复位快捷键导航标志：urlState 的 popstate 监听先注册先触发（sync → onChange），本监听在其后复位
+    window.addEventListener('popstate', () => {
+      this.expectNav = null
+    })
+    this.disposeKeys = setupKeys(
+      {
+        pause: () => this.gameEl?.togglePause(),
+        speedDown: () => this.cycleSpeed(-1),
+        speedUp: () => this.cycleSpeed(1),
+        restart: () => this.restart(),
+        mute: () => this.toggleSound(),
+        back: () => this.backToTitle(),
+        undo: () => this.undoMove(),
+        redo: () => this.redoMove(),
+      },
+      () => this.screen === 'game',
+    )
   }
 
   override disconnectedCallback() {
+    this.disposeKeys?.()
+    this.disposeKeys = null
     this.devTools?.destroy()
     this.devTools = null
     super.disconnectedCallback()
@@ -202,11 +235,29 @@ export class SfApp extends LitElement {
     if (!this.muted) fb.uiClick()
   }
 
-  private cycleSpeed() {
+  private cycleSpeed(dir: 1 | -1 = -1) {
     const steps = this.speedSteps
-    this.rate = steps[(steps.indexOf(this.rate) - 1 + steps.length) % steps.length]
+    this.rate = steps[(steps.indexOf(this.rate) + dir + steps.length) % steps.length]
     bgm.setRate(this.rate)
     fb.uiClick()
+  }
+
+  // 撤销/重做 = 浏览器历史：每次摆法是带 sf 标记的 pushState 条目（url-state 写读分离保证 popstate 应用后不回写）；
+  // expectNav 仅快捷键置位，原生后退/前进不设——主动跨关导航合法，不受越界护栏干扰
+  private undoMove() {
+    if (!window.history.state || !window.history.state.sf) return // 直达进入无应用内历史
+    this.expectNav = 'back'
+    window.history.back()
+  }
+
+  private redoMove() {
+    this.expectNav = 'forward'
+    window.history.forward()
+  }
+
+  // 越界判定：lv 形态与当前关卡不一致（跨关/回主页）即越界；内联关卡不可比，一律视为越界
+  private sameLevelAs(lv: LvValue): boolean {
+    return lv !== null && 'id' in lv && lv.id === this.activeLevel.id
   }
 
   private onGroup(e: CustomEvent<string>) {

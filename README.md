@@ -8,7 +8,7 @@
 <p align="center"><i>Create wind with temperature, and carry the paper plane home.</i></p>
 
 <p align="center">
-  <a href="https://shaofun.itch.io/sfgame"><b>▶ 立即试玩 · Play Now</b></a>
+  <a href="https://sf.game.shao.fun"><b>▶ 立即试玩 · Play Now</b></a>
 </p>
 
 ## 怎么玩 · How to Play

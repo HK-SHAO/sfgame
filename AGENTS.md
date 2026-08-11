@@ -15,6 +15,7 @@
 ## 命令（以 package.json 为准）
 
 - 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`。脚本/插件运行时入口一律 bun（`bun run scripts/…`）；vite 经 `bun node_modules/vite/bin/vite.js` 以 bun 运行时执行（bin 的 node shebang 会被 bun 尊重而落到 node，直接给文件路径才能保证 config 内 Bun 全局可用——wasm-rebuild 插件依赖它）
+- 依赖经根 `package.json` workspaces（sfgame-web + cloudflare）统一管理：根目录一次 `bun install` 装齐，单一根 `bun.lock`；新依赖加到对应子包 package.json 后根目录重装
 - `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = vitest
 - `bun run dev` = vite（`scripts/plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `assembly/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
 - `bun run build:wasm` = asc 编译单引擎：`assembly/engine.ts`（重导出流体内核 `main.ts`/`core.ts` 与顶点批内核 `batch.ts`）→ `app/wasm/sfengine.wasm`（物理+渲染同一模块同一内存；dev/test/build 均已内置，改 assembly/ 后无需手动跑）

@@ -1,0 +1,16 @@
+{
+  "name": "sfgame",
+  "private": true,
+  "workspaces": [
+    "sfgame-web",
+    "cloudflare"
+  ],
+  "scripts": {
+    "build": "bun run --cwd ./sfgame-web build",
+    "dev": "bun run --cwd ./sfgame-web dev",
+    "deploy": "bun run build && bun run --cwd cloudflare deploy"
+  },
+  "devDependencies": {
+     "@types/bun": "latest"
+  }
+}

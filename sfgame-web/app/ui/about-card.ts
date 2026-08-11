@@ -38,6 +38,7 @@ export class SfAboutCard extends LitElement {
           <a href="https://github.com/HK-SHAO/sfgame" target="_blank" rel="noopener">GitHub</a>
           <a href="https://shaofun.itch.io/sfgame" target="_blank" rel="noopener">itch.io</a>
         </div>
+        <p class="copyright">版权所有 © ${new Date().getFullYear()} HK-SHAO</p>
       </section>
     `
   }
@@ -154,6 +155,14 @@ export class SfAboutCard extends LitElement {
       .links a:hover {
         color: var(--ink);
         box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
+      }
+
+      .copyright {
+        margin: var(--sp-3) 0 0;
+        font-size: 0.75rem;
+        color: var(--ink-soft);
+        opacity: 0.7;
+        text-align: center;
       }
     `,
   ]

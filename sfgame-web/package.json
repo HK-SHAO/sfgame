@@ -15,14 +15,12 @@
     "test": "bun run build:wasm && bun vitest run",
     "typecheck": "bun tsc -b",
     "build:wasm": "bun run scripts/build-wasm.ts",
-    "check": "bun run build",
-    "deploy": "bun run build && bunx wrangler pages deploy dist"
+    "check": "bun run build"
   },
   "dependencies": {
     "lit": "^3.3.3"
   },
   "devDependencies": {
-    "@types/node": "~24",
     "assemblyscript": "^0.28.20",
     "typescript": "~7.0.2",
     "vite": "^8.2.1",

@@ -14,19 +14,16 @@ priv enum Node {
   Call(Fn, Array[Node])
 }
 
-// 直连 JS Math.*：与 TS 实现逐位同源（含 NaN 传播、hypot 缩放算法等边角语义）
+// 直连 JS Math.*（模块导入式 FFI）：与 TS 实现逐位同源（含 NaN 传播等边角语义）
 
 ///|
-extern "js" fn js_min(a : Double, b : Double) -> Double =
-  #|(a, b) => Math.min(a, b)
+fn js_min(a : Double, b : Double) -> Double = "Math" "min"
 
 ///|
-extern "js" fn js_max(a : Double, b : Double) -> Double =
-  #|(a, b) => Math.max(a, b)
+fn js_max(a : Double, b : Double) -> Double = "Math" "max"
 
 ///|
-extern "js" fn js_abs(a : Double) -> Double =
-  #|(a) => Math.abs(a)
+fn js_abs(a : Double) -> Double = "Math" "abs"
 
 // 不用 Math.hypot：V8/JSC 末位实现不一致（实测 1 ulp 分歧），改用 IEEE 精确运算
 // sqrt(a²+b²) 保证跨引擎逐位确定；游戏坐标量级（≤数百）无溢出/下溢顾虑

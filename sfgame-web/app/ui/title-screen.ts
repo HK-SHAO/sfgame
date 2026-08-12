@@ -332,9 +332,9 @@ export class SfTitleScreen extends LitElement {
         border-radius: var(--r-lg);
         corner-shape: squircle;
         transition: transform 120ms ease-out, box-shadow 120ms ease-out;
-        /* 逐个进场：--i 由模板注入索引，70ms 错峰（一组 5 项 ≈0.68s 收尾）；both 保持 delay 期隐藏，动画后 transform 归位不碍 hover 过渡 */
-        animation: level-in 400ms ease-out both;
-        animation-delay: calc(var(--i) * 70ms);
+        /* 逐个进场：--i 由模板注入索引，50ms 错峰（一组 5 项 ≈0.5s 收尾）；both 保持 delay 期隐藏，动画后 transform 归位不碍 hover 过渡 */
+        animation: level-in 300ms ease-out both;
+        animation-delay: calc(var(--i) * 50ms);
       }
 
       @keyframes level-in {

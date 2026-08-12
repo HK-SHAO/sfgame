@@ -28,7 +28,5 @@ test "mulberry32 同种子序列确定" {
   @test.assert_eq(a1, b1)
   @test.assert_eq(a2, b2)
   // 值域 [0, 1)
-  guard a1 >= 0.0 && a1 < 1.0 else {
-    fail("rnd 应落在 [0,1)")
-  }
+  guard a1 >= 0.0 && a1 < 1.0 else { fail("rnd 应落在 [0,1)") }
 }

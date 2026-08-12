@@ -1,0 +1,22 @@
+// SDF 表达式求值器：编译到 js 目标，供 TS 门面（app/game/sdf.ts）直接 import。
+// 与引擎包同源双目标：数值语义由 tests/sdf-golden.json 位级钉死
+pkgtype(kind: "foreign_library")
+
+supported_targets = "js"
+
+import {
+  "moonbitlang/core/math",
+  "moonbitlang/core/string",
+}
+
+import {
+  "moonbitlang/core/test",
+} for "test"
+
+import {
+  "moonbitlang/core/test",
+} for "wbtest"
+
+options(
+  link: { "js": { "exports": [ "compile" ], "format": "esm" } },
+)

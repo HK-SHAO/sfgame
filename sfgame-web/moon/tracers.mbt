@@ -4,32 +4,74 @@
 
 ///|
 let t_count : Int = 400
+
+///|
 let t_trail_len : Int = 24
+
+///|
 let t_trail_sample : Double = 0.45
+
+///|
 let t_respawn_tries : Int = 8
+
+///|
 let t_plume_radius : Double = 1.6
+
+///|
 let t_plume_life_min : Double = 0.9
+
+///|
 let t_plume_life_span : Double = 1.2
 // 自然死亡转生羽流的概率：稳态羽流密度 ≈ 死亡率×概率×羽流寿命，与原强夺式注入同量级
+
+///|
 let t_plume_chance : Double = 0.7
+
+///|
 let t_plume_tries : Int = 4
 // 地形场容量：流体网格最大规格上限，超限 init 拒绝
+
+///|
 let sdf_capacity : Int = 19200
+
+///|
 let src_capacity : Int = 32
 
 ///|
 let tx : FixedArray[Float] = FixedArray::make(t_count, 0.0)
+
+///|
 let ty : FixedArray[Float] = FixedArray::make(t_count, 0.0)
+
+///|
 let t_life : FixedArray[Float] = FixedArray::make(t_count, 0.0)
+
+///|
 let t_max_life : FixedArray[Float] = FixedArray::make(t_count, 0.0)
+
+///|
 let t_odo : FixedArray[Float] = FixedArray::make(t_count, 0.0)
+
+///|
 let t_last_odo : FixedArray[Float] = FixedArray::make(t_count, 0.0)
+
+///|
 let trail_x : FixedArray[Float] = FixedArray::make(t_count * t_trail_len, 0.0)
+
+///|
 let trail_y : FixedArray[Float] = FixedArray::make(t_count * t_trail_len, 0.0)
+
+///|
 let trail_t : FixedArray[Float] = FixedArray::make(t_count * t_trail_len, 0.0)
+
+///|
 let trail_n : FixedArray[Byte] = FixedArray::make(t_count, b'\x00')
 // 地形 SDF 场：宿主烘焙后原样上传（与流体掩码/飞机碰撞同源），格心值、双线性采样
+
+///|
 let t_sdf : FixedArray[Float] = FixedArray::make(sdf_capacity, 0.0)
+
+///|
 let src_buf : FixedArray[Float] = FixedArray::make(src_capacity * 2, 0.0)
 
 ///|
@@ -63,6 +105,7 @@ let ts : TState = TState::{
 }
 
 // mulberry32：UInt 算术自然回绕、>> 为逻辑右移，与 JS/AS 的 imul + >>> 位级等价
+
 ///|
 fn rnd() -> Double {
   ts.rng_state = ts.rng_state + 0x6d2b79f5U
@@ -73,6 +116,7 @@ fn rnd() -> Double {
 }
 
 // 双线性采样烘焙场：clamp 约定与流体 sample 同构（域外取边缘值 = 地形延展）
+
 ///|
 fn sdf_at(x : Double, y : Double) -> Double {
   let mut gx = x / ts.scell - 0.5 + ts.sox
@@ -93,9 +137,9 @@ fn sdf_at(x : Double, y : Double) -> Double {
   let fy = gy - j0.to_double()
   let a = i0 + j0 * ts.snx
   t_sdf[a].to_double() * (1.0 - fx) * (1.0 - fy) +
-    t_sdf[a + 1].to_double() * fx * (1.0 - fy) +
-    t_sdf[a + ts.snx].to_double() * (1.0 - fx) * fy +
-    t_sdf[a + ts.snx + 1].to_double() * fx * fy
+  t_sdf[a + 1].to_double() * fx * (1.0 - fy) +
+  t_sdf[a + ts.snx].to_double() * (1.0 - fx) * fy +
+  t_sdf[a + ts.snx + 1].to_double() * fx * fy
 }
 
 ///|
@@ -115,7 +159,7 @@ fn record_trail(i : Int) -> Unit {
     trail_t[base + n] = Float::from_double(ts.time)
     trail_n[i] = (n + 1).to_byte()
   } else {
-    for k in 0 ..< (t_trail_len - 1) {
+    for k in 0..<(t_trail_len - 1) {
       trail_x[base + k] = trail_x[base + k + 1]
       trail_y[base + k] = trail_y[base + k + 1]
       trail_t[base + k] = trail_t[base + k + 1]
@@ -129,10 +173,11 @@ fn record_trail(i : Int) -> Unit {
 
 // 有热源时自然死亡按概率转生为羽流：粒子本已淡出完毕，无 alpha 突变；
 // 旧式强夺活粒子会让被夺者可见轨迹瞬消
+
 ///|
 fn respawn(i : Int, scatter : Bool) -> Unit {
   if !scatter && ts.src_now > 0 && rnd() < t_plume_chance {
-    for _ in 0 ..< t_plume_tries {
+    for _ in 0..<t_plume_tries {
       let s = (rnd() * ts.src_now.to_double()).to_int()
       let ang = rnd() * @math.PI * 2.0
       let rad = rnd() * t_plume_radius
@@ -143,14 +188,16 @@ fn respawn(i : Int, scatter : Bool) -> Unit {
       }
       tx[i] = Float::from_double(x)
       ty[i] = Float::from_double(y)
-      t_max_life[i] = Float::from_double(t_plume_life_min + rnd() * t_plume_life_span)
+      t_max_life[i] = Float::from_double(
+        t_plume_life_min + rnd() * t_plume_life_span,
+      )
       t_life[i] = t_max_life[i]
       reset_trail(i)
       record_trail(i)
       return
     }
   }
-  for _ in 0 ..< t_respawn_tries {
+  for _ in 0..<t_respawn_tries {
     // 拒绝采样：全场随机投点，落在离地表 ≥1.5 的空气区才出生（SDF 天然兼容任意地形）
     let x = 0.5 + rnd() * (ts.world_w - 1.0)
     let y = 2.0 + rnd() * (ts.world_h - 3.0)
@@ -177,6 +224,7 @@ fn respawn(i : Int, scatter : Bool) -> Unit {
 }
 
 // SDF 场须先由宿主写入 t_sdf 再调用；count/trailLen/场容量与编译期容量不符返回非 0（拒绝创建）
+
 ///|
 pub fn tracers_init(
   count : Int,
@@ -207,7 +255,7 @@ pub fn tracers_init(
   ts.soy = soy
   ts.rng_state = seed
   ts.time = 0.0
-  for i in 0 ..< t_count {
+  for i in 0..<t_count {
     respawn(i, true)
   }
   0
@@ -218,7 +266,7 @@ pub fn tracers_step(dt : Double, src_count : Int) -> Unit {
   ts.time = ts.time + dt
   ts.src_now = src_count
   let m = ts.margin
-  for i in 0 ..< t_count {
+  for i in 0..<t_count {
     t_life[i] = Float::from_double(t_life[i].to_double() - dt)
     if t_life[i].to_double() <= 0.0 {
       respawn(i, false)
@@ -229,7 +277,9 @@ pub fn tracers_step(dt : Double, src_count : Int) -> Unit {
     let ny = ty[i].to_double() + (out_y() + (rnd() - 0.5) * 0.5) * dt
     let dx = nx - tx[i].to_double()
     let dy = ny - ty[i].to_double()
-    t_odo[i] = Float::from_double(t_odo[i].to_double() + (dx * dx + dy * dy).sqrt())
+    t_odo[i] = Float::from_double(
+      t_odo[i].to_double() + (dx * dx + dy * dy).sqrt(),
+    )
     tx[i] = Float::from_double(nx)
     ty[i] = Float::from_double(ny)
     if t_odo[i].to_double() - t_last_odo[i].to_double() >= t_trail_sample {

@@ -3,6 +3,10 @@
 // 运行期增长会 detach 宿主缓存的 typed view，故从配置层面禁止（与 AS stub runtime 同契约）
 pkgtype(kind: "foreign_library")
 
+// 引擎内核只编 wasm；sdf 子包只编 js（双目标共存于同一模块）
+
+supported_targets = "wasm"
+
 import {
   "moonbitlang/core/math",
   "moonbitlang/core/cmp",

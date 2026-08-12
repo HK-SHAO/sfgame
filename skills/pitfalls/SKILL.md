@@ -470,6 +470,7 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **±0 豁免**：AS 自身在零符号位上不一致（SIMD 路径 f64x2.min/max 走 wasm 语义 min(−0,+0)=−0，标量尾列比较链忽略零符号），"含零符号逐位一致"本就不是良定义不变量；对拍时零值只比数值不比符号，golden hash 钉死的是迁移后实现的输出。
 **附带**：Moonbit 内核为纯 wasm MVP 标量实现（无 SIMD 指令），I8 的 bun SIMD 误编译问题不再可能；SIMD 引导门槛随之移除（旧浏览器兼容面扩大）。FixedArray 经内联 WAT 取数据区首地址交宿主零拷贝 view，该 ABI 非文档化，由 canary 握手测试（tests/engine-wasm.test.ts）守护。
 **信号**：改 moon/ 数值代码后 engine-golden 失败——先确认是否有意改物理；有意则人工确认后更新基线，无意即回归。
+**附注（Math.* 跨引擎末位分歧）**：Math.hypot 在 V8 与 JSC 末位实现不一致（实测 hypot(2.5, 7.1) 差 1 ulp）——golden 捕获运行时与 vitest 运行时不同即误报。sdf 内核距离一律 sqrt(a²+b²)（IEEE 精确运算，跨引擎逐位确定）；min/max/abs 经 extern "js" 直通 Math.*（语义含 NaN 传播需逐位同源，且这三者跨引擎一致）。
 
 ### H3 Lit 3 样式在 `shadowRoot.adoptedStyleSheets`
 无 `<style>` 标签，查生效规则读 `cssRules` 的 `cssText`。

@@ -13,6 +13,8 @@ export const boxReset = css`
   /* 文档 color-scheme 不传入 shadow root（WebKit 已知缺陷）：深色系统下滚动条/控件会渲染成黑，须逐组件钉死浅色 */
   :host {
     color-scheme: light;
+    /* 禁 iOS 双击放大：Safari 的 touch-action 不跨 shadow 边界（:host 只约束本组件内空白区），交互元素须自身声明，见下 */
+    touch-action: manipulation;
   }
 
   /* UA 字体不一（如 button/textarea 用系统字体）：统一继承组件字体 */
@@ -22,6 +24,14 @@ export const boxReset = css`
   summary {
     font: inherit;
     color: inherit;
+  }
+
+  /* iOS 双击缩放：user-scalable=no 在 iOS10+ 被忽略（辅助放大），且 :host 的 touch-action 不跨 shadow DOM 边界
+     （Safari 缺陷）——可点元素须自身声明；manipulation 保留滚动/捏合，仅禁双击放大与 300ms 延迟 */
+  button,
+  summary,
+  a {
+    touch-action: manipulation;
   }
 `
 

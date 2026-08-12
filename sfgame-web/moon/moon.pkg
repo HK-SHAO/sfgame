@@ -1,0 +1,23 @@
+// 外部宿主（JS）直调的数值库：无 _start、零 import，导出面即全部接口。
+// 内存静态定型（内核缓冲全为静态 FixedArray，运行期零分配）：min=max 把容量钉死在三内核总需求之上，
+// 运行期增长会 detach 宿主缓存的 typed view，故从配置层面禁止（与 AS stub runtime 同契约）
+pkgtype(kind: "foreign_library")
+
+import {
+  "moonbitlang/core/test",
+} for "test"
+
+import {
+  "moonbitlang/core/test",
+} for "wbtest"
+
+options(
+  link: {
+    "wasm": {
+      "exports": [ "canary_buf", "canary_len", "canary_set", "canary_get" ],
+      "export-memory-name": "memory",
+      // 384 页 = 24MB：三内核静态缓冲约 8.5MB + 运行期 FixedArray 头/GC 堆余量，一次钉死
+      "memory-limits": { "min": 384, "max": 384 },
+    },
+  },
+)

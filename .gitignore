@@ -49,8 +49,10 @@ coverage
 .claude/
 .qoder/
 .opencode/
-# wasm 编译产物（bun run build:wasm 生成）
+# wasm 编译产物（bun run build:wasm / build:mbt 生成）
 sfgame-web/app/wasm/*.wasm
+# Moonbit 构建目录
+sfgame-web/moon/_build/
 # AI 会话导出文件（非项目内容）
 *-export-*.md
 dist.zip

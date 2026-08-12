@@ -12,9 +12,11 @@
     "dev": "bun node_modules/vite/bin/vite.js",
     "build": "bun run typecheck && bun run test && bun vite build",
     "preview": "bun node_modules/vite/bin/vite.js preview",
-    "test": "bun run build:wasm && bun vitest run",
+    "test": "bun run build:wasm && bun run build:mbt && bun run test:moon && bun vitest run",
     "typecheck": "bun tsc -b",
     "build:wasm": "bun run scripts/build-wasm.ts",
+    "build:mbt": "bun run scripts/build-mbt.ts",
+    "test:moon": "cd moon && moon test",
     "check": "bun run build"
   },
   "dependencies": {

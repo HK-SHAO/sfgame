@@ -16,6 +16,7 @@
     "typecheck": "bun tsc -b",
     "build:wasm": "bun run scripts/build-wasm.ts",
     "test:moon": "cd moon && moon test && moon test sdf --target js",
+    "bench:moon": "cd moon && moon bench",
     "check": "bun run build"
   },
   "dependencies": {

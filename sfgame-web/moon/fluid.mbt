@@ -112,6 +112,7 @@ let pm : Params = Params::{
 // 导出名 init（对齐 assembly 契约）；Moonbit 保留无参 fn init 作包初始化，故本地名 fluid_init
 
 ///|
+#export_name("init")
 pub fn fluid_init(
   nx_ : Int,
   ny_ : Int,
@@ -151,6 +152,7 @@ pub fn fluid_init(
 }
 
 ///|
+#export_name("clear")
 pub fn clear() -> Unit {
   let bytes = pm.nx * pm.ny * 4
   mem_fill(addr_of_f32(u), 0, bytes)
@@ -160,6 +162,7 @@ pub fn clear() -> Unit {
 }
 
 ///|
+#export_name("setAmbient")
 pub fn set_ambient(x : Double, y : Double, temp : Double) -> Unit {
   pm.ambient_x = x
   pm.ambient_y = y
@@ -270,6 +273,7 @@ fn bake_ambient_basis() -> Unit {
 }
 
 ///|
+#export_name("rebuildSolid")
 pub fn rebuild_solid() -> Unit {
   let nx = pm.nx
   let ny = pm.ny
@@ -292,6 +296,7 @@ pub fn rebuild_solid() -> Unit {
 // 随后的平流/压强投影把注入量塑造成带卷吸的射流
 
 ///|
+#export_name("addForce")
 pub fn add_force(
   wx : Double,
   wy : Double,
@@ -348,6 +353,7 @@ pub fn add_force(
 }
 
 ///|
+#export_name("addHeat")
 pub fn add_heat(wx : Double, wy : Double, amount : Double) -> Unit {
   let nx = pm.nx
   let ny = pm.ny
@@ -396,6 +402,7 @@ pub fn add_heat(wx : Double, wy : Double, amount : Double) -> Unit {
 }
 
 ///|
+#export_name("sampleVelocity")
 pub fn sample_velocity(wx : Double, wy : Double) -> Unit {
   let nx = pm.nx
   let ny = pm.ny
@@ -450,11 +457,13 @@ pub fn sample_velocity(wx : Double, wy : Double) -> Unit {
 }
 
 ///|
+#export_name("outX")
 pub fn out_x() -> Double {
   pm.out_vx
 }
 
 ///|
+#export_name("outY")
 pub fn out_y() -> Double {
   pm.out_vy
 }
@@ -462,6 +471,7 @@ pub fn out_y() -> Double {
 // 感受到的总温度 = 场温 + 环境偏置（与浮力消费同一事实源）
 
 ///|
+#export_name("sampleTemp")
 pub fn sample_temp(wx : Double, wy : Double) -> Double {
   let nx = pm.nx
   let ny = pm.ny
@@ -851,6 +861,7 @@ fn project() -> Unit {
 }
 
 ///|
+#export_name("step")
 pub fn step(dt : Double) -> Unit {
   apply_buoyancy(dt)
   copy_fields()
@@ -873,31 +884,37 @@ fn enforce_boundary() -> Unit {
 }
 
 ///|
+#export_name("fieldU")
 pub fn field_u() -> Int {
   addr_of_f32(u)
 }
 
 ///|
+#export_name("fieldV")
 pub fn field_v() -> Int {
   addr_of_f32(v)
 }
 
 ///|
+#export_name("fieldT")
 pub fn field_t() -> Int {
   addr_of_f32(t)
 }
 
 ///|
+#export_name("solidBuf")
 pub fn solid_buf() -> Int {
   addr_of_u8(solid)
 }
 
 ///|
+#export_name("fieldFxU")
 pub fn field_fx_u() -> Int {
   addr_of_f32(fx_u)
 }
 
 ///|
+#export_name("fieldFxV")
 pub fn field_fx_v() -> Int {
   addr_of_f32(fx_v)
 }

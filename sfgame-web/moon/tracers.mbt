@@ -226,6 +226,7 @@ fn respawn(i : Int, scatter : Bool) -> Unit {
 // SDF 场须先由宿主写入 t_sdf 再调用；count/trailLen/场容量与编译期容量不符返回非 0（拒绝创建）
 
 ///|
+#export_name("tracersInit")
 pub fn tracers_init(
   count : Int,
   trail_len : Int,
@@ -262,6 +263,7 @@ pub fn tracers_init(
 }
 
 ///|
+#export_name("tracersStep")
 pub fn tracers_step(dt : Double, src_count : Int) -> Unit {
   ts.time = ts.time + dt
   ts.src_now = src_count
@@ -296,66 +298,79 @@ pub fn tracers_step(dt : Double, src_count : Int) -> Unit {
 }
 
 ///|
+#export_name("tTime")
 pub fn t_time() -> Double {
   ts.time
 }
 
 ///|
+#export_name("tXBuf")
 pub fn t_x_buf() -> Int {
   addr_of_f32(tx)
 }
 
 ///|
+#export_name("tYBuf")
 pub fn t_y_buf() -> Int {
   addr_of_f32(ty)
 }
 
 ///|
+#export_name("tLifeBuf")
 pub fn t_life_buf() -> Int {
   addr_of_f32(t_life)
 }
 
 ///|
+#export_name("tMaxLifeBuf")
 pub fn t_max_life_buf() -> Int {
   addr_of_f32(t_max_life)
 }
 
 ///|
+#export_name("tTrailXBuf")
 pub fn t_trail_x_buf() -> Int {
   addr_of_f32(trail_x)
 }
 
 ///|
+#export_name("tTrailYBuf")
 pub fn t_trail_y_buf() -> Int {
   addr_of_f32(trail_y)
 }
 
 ///|
+#export_name("tTrailTBuf")
 pub fn t_trail_t_buf() -> Int {
   addr_of_f32(trail_t)
 }
 
 ///|
+#export_name("tTrailNBuf")
 pub fn t_trail_n_buf() -> Int {
   addr_of_u8(trail_n)
 }
 
 ///|
+#export_name("tSdfBuf")
 pub fn t_sdf_buf() -> Int {
   addr_of_f32(t_sdf)
 }
 
 ///|
+#export_name("tSdfCap")
 pub fn t_sdf_cap() -> Int {
   sdf_capacity
 }
 
 ///|
+#export_name("tSrcBuf")
 pub fn t_src_buf() -> Int {
   addr_of_f32(src_buf)
 }
 
 ///|
+#export_name("tSrcCap")
 pub fn t_src_cap() -> Int {
   src_capacity
 }

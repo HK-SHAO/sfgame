@@ -17,6 +17,8 @@ import {
   "moonbitlang/core/test",
 } for "wbtest"
 
+// compile 用 #export_name 源码内标注；此处只管模块格式
+
 options(
-  link: { "js": { "exports": [ "compile" ], "format": "esm" } },
+  link: { "js": { "format": "esm" } },
 )

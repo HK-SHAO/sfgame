@@ -108,56 +108,67 @@ let bs : BState = BState::{
 }
 
 ///|
+#export_name("bCapacity")
 pub fn b_capacity() -> Int {
   capacity
 }
 
 ///|
+#export_name("bPtsCap")
 pub fn b_pts_cap() -> Int {
   pts_cap
 }
 
 ///|
+#export_name("bFadeCap")
 pub fn b_fade_cap() -> Int {
   fade_cap
 }
 
 ///|
+#export_name("bData")
 pub fn b_data() -> Int {
   addr_of_f32(data)
 }
 
 ///|
+#export_name("bPtsBuf")
 pub fn b_pts_buf() -> Int {
   addr_of_f32(pts_buf)
 }
 
 ///|
+#export_name("bFadeBuf")
 pub fn b_fade_buf() -> Int {
   addr_of_f32(fade_buf)
 }
 
 ///|
+#export_name("bTracerBuf")
 pub fn b_tracer_buf() -> Int {
   addr_of_f32(tracer_buf)
 }
 
 ///|
+#export_name("bTracerCap")
 pub fn b_tracer_cap() -> Int {
   tracer_cap
 }
 
 ///|
+#export_name("bTracerStride")
 pub fn b_tracer_stride() -> Int {
   tracer_stride
 }
 
 ///|
+#export_name("bCount")
 pub fn b_count() -> Int {
   bs.count
 }
 
 ///|
+#export_name("bReset")
 pub fn b_reset() -> Unit {
   bs.count = 0
 }
@@ -182,6 +193,7 @@ fn push(
 }
 
 ///|
+#export_name("bTri")
 pub fn b_tri(
   x0 : Double,
   y0 : Double,
@@ -203,6 +215,7 @@ pub fn b_tri(
 }
 
 ///|
+#export_name("bRect")
 pub fn b_rect(
   x0 : Double,
   y0 : Double,
@@ -225,6 +238,7 @@ pub fn b_rect(
 }
 
 ///|
+#export_name("bRectVGrad")
 pub fn b_rect_vgrad(
   x0 : Double,
   y0 : Double,
@@ -290,6 +304,7 @@ fn disc(
 }
 
 ///|
+#export_name("bDisc")
 pub fn b_disc(
   cx : Double,
   cy : Double,
@@ -382,6 +397,7 @@ fn stroke(
 }
 
 ///|
+#export_name("bStroke")
 pub fn b_stroke(
   x0 : Double,
   y0 : Double,
@@ -513,6 +529,7 @@ fn miter(
 }
 
 ///|
+#export_name("bPolylineFade")
 pub fn b_polyline_fade(
   n : Int,
   w : Double,
@@ -542,16 +559,19 @@ fn push_tg(x : Double, y : Double, d : Double) -> Unit {
 }
 
 ///|
+#export_name("bTerrainFieldBuf")
 pub fn b_terrain_field_buf() -> Int {
   addr_of_f32(tg_field)
 }
 
 ///|
+#export_name("bTerrainFieldCap")
 pub fn b_terrain_field_cap() -> Int {
   tg_cap
 }
 
 ///|
+#export_name("bTerrainField")
 pub fn b_terrain_field(
   nx : Int,
   ny : Int,
@@ -585,6 +605,7 @@ pub fn b_terrain_field(
 }
 
 ///|
+#export_name("bTerrainDraw")
 pub fn b_terrain_draw(i0 : Int, j0 : Int, i1 : Int, j1 : Int) -> Unit {
   if bs.tg_nx < 2 || bs.tg_ny < 2 {
     return
@@ -729,6 +750,7 @@ pub fn b_terrain_draw(i0 : Int, j0 : Int, i1 : Int, j1 : Int) -> Unit {
 // 替代逐粒子 polylineFade + disc（每帧约 800 次跨界 → 1 次）
 
 ///|
+#export_name("bTracers")
 pub fn b_tracers(count : Int, w : Double, head_r : Double) -> Unit {
   let lim = if count < tracer_cap { count } else { tracer_cap }
   for i in 0..<lim {
@@ -756,6 +778,7 @@ pub fn b_tracers(count : Int, w : Double, head_r : Double) -> Unit {
 }
 
 ///|
+#export_name("bDiscGrad")
 pub fn b_disc_grad(
   cx : Double,
   cy : Double,
@@ -793,6 +816,7 @@ pub fn b_disc_grad(
 }
 
 ///|
+#export_name("bRing")
 pub fn b_ring(
   cx : Double,
   cy : Double,
@@ -891,6 +915,7 @@ fn arc(
 }
 
 ///|
+#export_name("bArc")
 pub fn b_arc(
   cx : Double,
   cy : Double,
@@ -908,6 +933,7 @@ pub fn b_arc(
 }
 
 ///|
+#export_name("bDashRing")
 pub fn b_dash_ring(
   cx : Double,
   cy : Double,

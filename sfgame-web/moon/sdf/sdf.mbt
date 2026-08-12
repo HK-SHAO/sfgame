@@ -550,6 +550,7 @@ fn compile_node(n : Node) -> ((Double, Double) -> Double raise) raise {
 // 返回 raise 闭包：JS 侧每次调用得到 Result 包装（Ok 值 / Err 消息），门面负责解包
 
 ///|
+#export_name("compile")
 pub fn compile(src : String) -> ((Double, Double) -> Double raise) raise {
   compile_node(parse(Parser::{ src, i: 0 }))
 }

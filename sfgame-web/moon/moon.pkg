@@ -14,7 +14,30 @@ import {
 options(
   link: {
     "wasm": {
-      "exports": [ "canary_buf", "canary_len", "canary_set", "canary_get" ],
+      "exports": [
+        "canary_buf",
+        "canary_len",
+        "canary_set",
+        "canary_get",
+        // 流体内核（导出名与 assembly 引擎对齐，宿主契约不变）
+        "fluid_init:init",
+        "clear",
+        "set_ambient:setAmbient",
+        "rebuild_solid:rebuildSolid",
+        "add_heat:addHeat",
+        "add_force:addForce",
+        "step",
+        "sample_velocity:sampleVelocity",
+        "out_x:outX",
+        "out_y:outY",
+        "sample_temp:sampleTemp",
+        "field_u:fieldU",
+        "field_v:fieldV",
+        "field_t:fieldT",
+        "solid_buf:solidBuf",
+        "field_fx_u:fieldFxU",
+        "field_fx_v:fieldFxV",
+      ],
       "export-memory-name": "memory",
       // 384 页 = 24MB：三内核静态缓冲约 8.5MB + 运行期 FixedArray 头/GC 堆余量，一次钉死
       "memory-limits": { "min": 384, "max": 384 },

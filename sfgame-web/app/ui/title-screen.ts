@@ -5,7 +5,7 @@ import { progress } from '../game/progress.ts'
 import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
 import { artBg, boxReset, reduceMotion } from './shared-styles.ts'
-import { iconGear, iconInfo, iconLock } from './icons.ts'
+import { iconChevron, iconGear, iconInfo, iconLock } from './icons.ts'
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
 @customElement('sf-title-screen')
@@ -68,7 +68,7 @@ export class SfTitleScreen extends LitElement {
           ${this.renderErrors()}
 
           <p class="footnote">
-            根据菲尔兹奖得主邓煜的数学证明，从牛顿力学可以推导出热力学方程——本游戏所有物理均基于此。
+            灵感来自菲尔兹奖得主邓煜的成果，从牛顿硬球物理可以推导出玻尔兹曼和 NS 方程——本游戏内物理基于此。
           </p>
 
           ${this.renderLinks()}
@@ -130,10 +130,12 @@ export class SfTitleScreen extends LitElement {
                 <span class="name">${l.name}</span>
                 <span class="concept">${l.tagline}</span>
               </span>
-              ${best && grade
-                ? html`<span class="best ${grade.cls}" title="最佳耗时">${formatTime(best.total)} ${grade.emoji}</span>`
-                : nothing}
-              <span class="go" aria-hidden="true">${locked ? iconLock : '›'}</span>
+              <span class="side">
+                ${best && grade
+                  ? html`<span class="best ${grade.cls}" title="最佳耗时">${formatTime(best.total)} ${grade.emoji}</span>`
+                  : nothing}
+                <span class="go" aria-hidden="true">${locked ? iconLock : iconChevron}</span>
+              </span>
             </button>
           `
         })}
@@ -378,17 +380,22 @@ export class SfTitleScreen extends LitElement {
         color: var(--ink-soft);
       }
 
-      .level .go {
+      /* 动作组：成绩徽章与箭头同组贴近（组内 --sp-2），与信息组分隔（--sp-4） */
+      .level .side {
         flex: none;
-        font-size: 1.5rem;
-        line-height: 1;
+        display: flex;
+        align-items: center;
+        gap: var(--sp-2);
+      }
+
+      .level .go {
         color: var(--hot);
-        font-weight: 600;
+        display: flex;
+        align-items: center;
       }
 
       /* 最佳成绩徽章：仅有关卡记录时出现；耗时评级配色（优秀绿 = 纪录语义 / 一般琥珀 / 不优秀红） */
       .level .best {
-        flex: none;
         padding: 0.1875rem 0.5rem;
         font-size: 0.75rem;
         font-weight: 600;

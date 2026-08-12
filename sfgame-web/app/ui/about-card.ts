@@ -152,11 +152,13 @@ export class SfAboutCard extends LitElement {
       }
 
       kbd {
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         padding: 0.125rem 0.375rem;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 0.6875rem;
-        line-height: 1.4;
+        line-height: 1;
         color: var(--ink-soft);
         background: rgba(255, 253, 248, 0.7);
         border: 1px solid rgba(61, 52, 39, 0.12);

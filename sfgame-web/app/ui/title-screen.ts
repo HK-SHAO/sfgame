@@ -57,11 +57,9 @@ export class SfTitleScreen extends LitElement {
     return html`
       <main class="title">
         <section class="title-card">
-          <img
-            class="brand"
-            src="./logo-title.webp"
-            alt="烧风 · 太阳精灵 · 用温度创造风"
-          />
+          <h1 class="brand">
+            <img src="./logo-title.webp" alt="烧风 · 太阳精灵 · 用温度创造风" />
+          </h1>
 
           ${this.renderGroups()}
           ${this.renderLevels()}
@@ -236,14 +234,22 @@ export class SfTitleScreen extends LitElement {
       }
 
       .brand {
+        /* h1 语义标题（SEO/无障碍读 img alt）；font-size/line-height 归零：h1 默认字号会撑高模板行内空白，img 是 block 不受影响 */
         display: block;
         width: 12rem;
         max-width: 100%;
+        margin: 0 auto 0.625rem;
+        font-size: 0;
+        line-height: 0;
+      }
+
+      .brand img {
+        display: block;
+        width: 100%;
         height: auto;
         /* 品牌插槽恒定方形：换图比例变化只 letterbox，不随文件抖动 */
         aspect-ratio: 1 / 1;
         object-fit: contain;
-        margin: 0 auto 0.625rem;
       }
 
       .levels {

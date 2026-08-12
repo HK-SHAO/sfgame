@@ -1,10 +1,11 @@
 import { LitElement, css, html, nothing } from 'lit'
+import { keyed } from 'lit/directives/keyed.js'
 import { customElement, property } from 'lit/decorators.js'
 import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash } from '../game/levels.ts'
 import { progress } from '../game/progress.ts'
 import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
-import { artBg, boxReset, reduceMotion } from './shared-styles.ts'
+import { artBg, boxReset, brandIn, reduceMotion } from './shared-styles.ts'
 import { iconChevron, iconGear, iconInfo, iconLock } from './icons.ts'
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
@@ -102,7 +103,7 @@ export class SfTitleScreen extends LitElement {
       .filter((l): l is LevelDef => l !== undefined)
     return html`
       <nav class="levels" aria-label="关卡列表">
-        ${levels.map((l) => {
+        ${levels.map((l, i) => {
           const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash({ id }) ?? ''))
           // 最优成绩 = 通关记录合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
           const best = progress.best(levelHash({ id: l.id }) ?? '')
@@ -116,9 +117,10 @@ export class SfTitleScreen extends LitElement {
             : null
           // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变；序数按 LEVELS 全局顺序派生，与 slug 解耦
           const no = String(LEVELS.findIndex((x) => x.id === l.id) + 1).padStart(2, '0')
-          return html`
+          return keyed(l.id, html`
             <button
               class="level play ${locked ? 'locked' : ''}"
+              style=${`--i: ${i}`}
               ?disabled=${locked}
               aria-label=${locked ? `第 ${no} 关（未解锁）` : `进入第 ${no} 关`}
               @click=${() => this.startLevel(l.id)}
@@ -135,7 +137,7 @@ export class SfTitleScreen extends LitElement {
                 <span class="go" aria-hidden="true">${locked ? iconLock : iconChevron}</span>
               </span>
             </button>
-          `
+          `)
         })}
         ${LEVELS.length === 0 ? html`<p class="no-levels">暂无可用关卡</p>` : nothing}
       </nav>
@@ -181,6 +183,7 @@ export class SfTitleScreen extends LitElement {
     boxReset,
     reduceMotion,
     artBg,
+    brandIn,
     css`
       :host {
         display: block;
@@ -329,6 +332,16 @@ export class SfTitleScreen extends LitElement {
         border-radius: var(--r-lg);
         corner-shape: squircle;
         transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+        /* 逐个进场：--i 由模板注入索引，70ms 错峰（一组 5 项 ≈0.68s 收尾）；both 保持 delay 期隐藏，动画后 transform 归位不碍 hover 过渡 */
+        animation: level-in 400ms ease-out both;
+        animation-delay: calc(var(--i) * 70ms);
+      }
+
+      @keyframes level-in {
+        from {
+          opacity: 0;
+          transform: translateY(0.5rem);
+        }
       }
 
       .level.play {

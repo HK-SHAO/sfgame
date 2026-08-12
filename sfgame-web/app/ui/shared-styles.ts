@@ -47,6 +47,21 @@ export const reduceMotion = css`
   }
 `
 
+// 品牌图进场：淡入 + 轻微上浮（0.5rem≈6px），500ms 一次不循环；both 保证动画前后状态稳定不闪。
+// 主页与 about 卡片共用同一参数（动画单源，避免双处漂移）
+export const brandIn = css`
+  @keyframes brand-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+  }
+
+  .brand {
+    animation: brand-in 500ms ease-out both;
+  }
+`
+
 // 暖色背景渐变：主页与终端页共用（左上发光）；pageShell 用右上变体（84% 10%，有意区分页面壳）。
 // 单源 token 定义在 styles.css :root（shadow DOM 继承自定义属性），此处仅引用
 export const warmBg = css`

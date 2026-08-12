@@ -4,6 +4,11 @@
 pkgtype(kind: "foreign_library")
 
 import {
+  "moonbitlang/core/math",
+  "moonbitlang/core/cmp",
+}
+
+import {
   "moonbitlang/core/test",
 } for "test"
 
@@ -37,6 +42,33 @@ options(
         "solid_buf:solidBuf",
         "field_fx_u:fieldFxU",
         "field_fx_v:fieldFxV",
+        // 顶点批内核（导出名与 assembly 引擎对齐）
+        "b_capacity:bCapacity",
+        "b_pts_cap:bPtsCap",
+        "b_fade_cap:bFadeCap",
+        "b_data:bData",
+        "b_pts_buf:bPtsBuf",
+        "b_fade_buf:bFadeBuf",
+        "b_tracer_buf:bTracerBuf",
+        "b_tracer_cap:bTracerCap",
+        "b_tracer_stride:bTracerStride",
+        "b_count:bCount",
+        "b_reset:bReset",
+        "b_tri:bTri",
+        "b_rect:bRect",
+        "b_rect_vgrad:bRectVGrad",
+        "b_stroke:bStroke",
+        "b_polyline_fade:bPolylineFade",
+        "b_terrain_field_buf:bTerrainFieldBuf",
+        "b_terrain_field_cap:bTerrainFieldCap",
+        "b_terrain_field:bTerrainField",
+        "b_terrain_draw:bTerrainDraw",
+        "b_tracers:bTracers",
+        "b_disc:bDisc",
+        "b_disc_grad:bDiscGrad",
+        "b_ring:bRing",
+        "b_arc:bArc",
+        "b_dash_ring:bDashRing",
       ],
       "export-memory-name": "memory",
       // 384 页 = 24MB：三内核静态缓冲约 8.5MB + 运行期 FixedArray 头/GC 堆余量，一次钉死

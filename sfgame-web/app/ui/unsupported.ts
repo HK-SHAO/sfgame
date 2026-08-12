@@ -2,7 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement } from 'lit/decorators.js'
 import { boxReset, warmBg } from './shared-styles.ts'
 
-// 终端页：WASM·SIMD 不可用时由 main.ts 挂载（无游戏可玩，不提供任何入口）
+// 终端页：WebAssembly 不可用时由 main.ts 挂载（无游戏可玩，不提供任何入口）
 @customElement('sf-unsupported')
 export class SfUnsupported extends LitElement {
   protected override render() {
@@ -10,8 +10,8 @@ export class SfUnsupported extends LitElement {
       <main class="page">
         <div class="card">
           <h1>此设备无法运行</h1>
-          <p>物理模拟需要 WebAssembly · SIMD</p>
-          <p>(Chrome 91+、Safari 16.4+、Firefox 89+)</p>
+          <p>物理模拟需要 WebAssembly</p>
+          <p>(Chrome 57+、Safari 11+、Firefox 52+)</p>
           <p>请升级浏览器或更换设备后重试。</p>
         </div>
       </main>

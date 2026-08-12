@@ -1,20 +1,21 @@
 # 烧风（sfgame-web）
 
 用温度差创造风：放置热源与冷源造风，让纸飞机乘风抵达旗帜。
-Lit 3 + WebGL 渲染，AssemblyScript 编译的 WASM·SIMD 流体内核，vite 构建，bun 运行时。
+Lit 3 + WebGL 渲染，Moonbit 编译的 WASM 数值内核（流体 + 顶点批 + 示踪粒子），vite 构建，bun 运行时。
 
 ## 运行
 
 ```sh
 bun install
-bun run dev       # vite 开发；插件自动编译 wasm 并监视 assembly/ 变更重编
-bun run test      # build:wasm + vitest 单元测试
+bun run dev       # vite 开发；插件自动编译 wasm 并监视 moon/ 变更重编
+bun run test      # build:wasm + test:moon + vitest 单元测试
 bun run check     # fail-fast 一键验证：typecheck → test → vite build
 bun run build     # 产物到 dist/（相对路径部署，单 bundle）
 bun run preview   # 预览产物
 ```
 
-物理内核为 WASM·SIMD 唯一实现，不支持的环境启动时明示无法运行，绝不静默回退。
+数值内核由 [Moonbit](https://www.moonbitlang.com) 编译为 wasm（需先安装 moon 工具链），
+纯 wasm MVP 无 SIMD 门槛；不支持的环境启动时明示无法运行，绝不静默回退。
 
 ## 玩法
 
@@ -36,7 +37,7 @@ app/
   ui/            玩家界面：Lit 组件（标题/HUD/胜利/关于…）、控制器、手势输入
   dev/           开发者工具（?dev=1）：面板、性能块、关卡 JSON 编辑器
   wasm/          WASM 引擎引导与实例化（单实例单内存；产物 sfengine.wasm 不入库）
-assembly/        AssemblyScript 源码：流体内核 + 顶点批内核 + 示踪粒子 tessellate，编译为同一引擎模块
+moon/            Moonbit 数值内核：流体内核 + 顶点批内核 + 示踪粒子 tessellate，编译为同一引擎模块
 levels/          关卡 JSON（level-1..20）+ schema
 scripts/         关卡/求解器离线工具（run-level、solve-*、tune-scan）与 vite 插件（wasm 自动重编、schema 拷贝）
 tests/           vitest 最小集（setup.ts 预热 WASM 内核）

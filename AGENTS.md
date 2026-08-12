@@ -16,11 +16,12 @@
 
 - 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`。脚本/插件运行时入口一律 bun（`bun run scripts/…`）；vite 经 `bun node_modules/vite/bin/vite.js` 以 bun 运行时执行（bin 的 node shebang 会被 bun 尊重而落到 node，直接给文件路径才能保证 config 内 Bun 全局可用——wasm-rebuild 插件依赖它）
 - 依赖经根 `package.json` workspaces（sfgame-web + cloudflare）统一管理：根目录一次 `bun install` 装齐，单一根 `bun.lock`；新依赖加到对应子包 package.json 后根目录重装
-- `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = vitest
-- `bun run dev` = vite（`scripts/plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `assembly/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
-- `bun run build:wasm` = asc 编译单引擎：`assembly/engine.ts`（重导出流体内核 `main.ts`/`core.ts` 与顶点批内核 `batch.ts`）→ `app/wasm/sfengine.wasm`（物理+渲染同一模块同一内存；dev/test/build 均已内置，改 assembly/ 后无需手动跑）
+- `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = build:wasm + test:moon + vitest
+- `bun run dev` = vite（`scripts/plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `moon/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
+- `bun run build:wasm` = Moonbit 数值内核编译（`moon build --release --target wasm`，moon 工具链需先装）：`sfgame-web/moon/` 流体+顶点批+示踪三内核单模块 → `app/wasm/sfengine.wasm`（物理+渲染同一模块同一内存；dev/test/build 均已内置，改 moon/ 后无需手动跑）
+- `bun run test:moon` = moon 模块单元/白盒测试（`cd moon && moon test`，含 ffi 寻址约定与内核不变量）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
-- 关卡工具：`bun run scripts/run-level.ts levels/level-N.json --verify … --solve … --sim N`（物理内核恒为 WASM·SIMD；详见 `skills/level-design/SKILL.md` §5-6）
+- 关卡工具：`bun run scripts/run-level.ts levels/level-N.json --verify … --solve … --sim N`（物理内核恒为 WASM·Moonbit 内核；详见 `skills/level-design/SKILL.md` §5-6）
 - `bun run test` 通过 `tests/setup.ts` 预热 WASM 引擎（缺产物会抛错提示先 build:wasm）
 
 ## 类型配置
@@ -31,11 +32,12 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 分层不变量：`app/core/`、`app/game/`、`app/sim/` 无 DOM，可在 node 无头测试（tests 只 import game/sim/core、render/batch 与 wasm/engine 预热；core 的浏览器面必须可注入，如 url-state 的 URL 源）。DOM 仅在 `app/ui/`（玩家界面）与 `app/dev/`（开发者工具）；`app/render/` 是 WebGL 渲染层，其中 `batch.ts` 为纯计算可无头测试。
 
-- `app/wasm/` — WASM 引擎引导与实例化（单实例 = 单内存；产物 `app/wasm/sfengine.wasm`，gitignore）。流体内核与顶点批内核同模块，渲染零拷贝直读流体场（`bilinearSample` 与 wasm 采样逐位同构）
-- `app/sim/` — 物理内核（欧拉流体网格、纸飞机质点、示踪粒子、云）。纸飞机物理参数归口 `bodies.ts`（全游戏唯一刚体，不按实例配置）：悬停风速 HOVER_WIND = gravity/dragK 是"风 vs 重力孰大"唯一调参口径；接触解算 = 法向投影 + 切向库仑摩擦（μ=0.3，摩擦角 ≈16.7°：切向重力生效，比摩擦角陡的坡无风下滑、垂直墙不可穿透），落地不弹跳；无墙——地形 SDF 是唯一边界，全域有定义天然延展，飞机可上天/飞出地图，飞丢即玩家自担。地形 = `terrain.ts` 烘焙场（加载期把 `terrain.sdf` 表达式烘焙到流体同规格网格，单一事实源：流体固体掩码经 `setTerrain` 注入、飞机碰撞/放源吸附、示踪粒子 2D 采样、渲染逐顶点着色采样同一份场；SDF 表达式内核在 `app/game/sdf.ts`，原语皆精确距离 + min/max/smin/smax 组合，可表达洞穴/悬挑）。流体内核为 WASM·SIMD 唯一实现：`fluid.ts`（FluidLike 接口 + WasmFluid 门面 + createFluid 工厂，可注入引擎实例），`assembly/` 为 AssemblyScript 源码；内核加载失败在 main.ts 明示无法运行，绝不静默回退。环境风 = 预烘焙位流基场（地形变更时解一次 Laplace，贴地绕流/顺坡爬升）× 强度，采样时线性叠加，不进 step 流水线（潮汐 = 强度时间序列，线性叠加保幅保相）。流体域 = 地图外扩边距（`FLUID_MARGIN=10` 世界单位，左/右/上；世界↔网格换算含 origin 偏移，地形烘焙场与 `bilinearSample` 均须带）+ 边距带 sponge 吸收层（外流能量就地衰减，防封闭盒熵增）；vorticity confinement 已移除（=0，反耗散风格化项，人工搅动源）——冷热源是熵整形装置（冷减热增），不削弱
+- `app/wasm/` — WASM 引擎引导与实例化（单实例 = 单内存；产物 `app/wasm/sfengine.wasm`，gitignore）。流体+顶点批+示踪三内核同模块，渲染零拷贝直读流体场（`bilinearSample` 与 wasm 采样逐位同构）
+- `moon/` — Moonbit 数值内核模块（AssemblyScript 已于 2026-08 迁出）：foreign_library 零 import、静态内存零运行期分配（min=max 钉死容量，增长会 detach 宿主视图）、FixedArray 数据区首地址经导出函数交宿主建零拷贝 view（非文档化 ABI，tests/engine-wasm.test.ts canary 握手守护）。fluid.mbt/batch.mbt/tracers.mbt 三内核 + 各自 wbtest；moon.pkg 管理 wasm 链接导出面（导出名对齐宿主 TS 接口）
+- `app/sim/` — 物理内核（欧拉流体网格、纸飞机质点、示踪粒子、云）。纸飞机物理参数归口 `bodies.ts`（全游戏唯一刚体，不按实例配置）：悬停风速 HOVER_WIND = gravity/dragK 是"风 vs 重力孰大"唯一调参口径；接触解算 = 法向投影 + 切向库仑摩擦（μ=0.3，摩擦角 ≈16.7°：切向重力生效，比摩擦角陡的坡无风下滑、垂直墙不可穿透），落地不弹跳；无墙——地形 SDF 是唯一边界，全域有定义天然延展，飞机可上天/飞出地图，飞丢即玩家自担。地形 = `terrain.ts` 烘焙场（加载期把 `terrain.sdf` 表达式烘焙到流体同规格网格，单一事实源：流体固体掩码经 `setTerrain` 注入、飞机碰撞/放源吸附、示踪粒子 2D 采样、渲染逐顶点着色采样同一份场；SDF 表达式内核在 `app/game/sdf.ts`，原语皆精确距离 + min/max/smin/smax 组合，可表达洞穴/悬挑）。流体内核为 WASM 唯一实现（Moonbit 标量内核，f32 存储/f64 中间量）：`fluid.ts`（FluidLike 接口 + WasmFluid 门面 + createFluid 工厂，可注入引擎实例），数值源码在 `moon/`；内核加载失败在 main.ts 明示无法运行，绝不静默回退。数值输出由 tests/engine-golden.test.ts 的 golden hash 钉死在迁移基线——混沌流场下位漂移会改变已录通关耗时的可复现性，改物理必须先人工确认再更新基线。环境风 = 预烘焙位流基场（地形变更时解一次 Laplace，贴地绕流/顺坡爬升）× 强度，采样时线性叠加，不进 step 流水线（潮汐 = 强度时间序列，线性叠加保幅保相）。流体域 = 地图外扩边距（`FLUID_MARGIN=10` 世界单位，左/右/上；世界↔网格换算含 origin 偏移，地形烘焙场与 `bilinearSample` 均须带）+ 边距带 sponge 吸收层（外流能量就地衰减，防封闭盒熵增）；vorticity confinement 已移除（=0，反耗散风格化项，人工搅动源）——冷热源是熵整形装置（冷减热增），不削弱
 - `app/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`state.ts`（URL 状态 schema 单例：lv/s/v/dev）、`levels.ts`（关卡加载/分组/解锁 + lv 双形态解析 + 关卡内容 hash）、`progress.ts`（通关记录：每关最佳总耗时与关卡 hash 绑定）
 - `app/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）
-- `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面遮挡；纸飞机与其拖尾在画面顶层，不被地面遮挡，画在旗/源/风扇之后；地形 = marching squares 固体填充：烘焙格心 SDF 场每关上传顶点批内核一次，每帧按视域单调用切 d=0 等值线（格内线性插值，矢量级锐边，鞍点拆独立三角、越界格钳场外推延展；地表色=旧描边色按 SDF 深度指数渐近混向原填充色，特征长度 GROUND_DEPTH_LEN=8））、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `assembly/batch.ts`，静态容量零分配，可无头测试）
+- `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面遮挡；纸飞机与其拖尾在画面顶层，不被地面遮挡，画在旗/源/风扇之后；地形 = marching squares 固体填充：烘焙格心 SDF 场每关上传顶点批内核一次，每帧按视域单调用切 d=0 等值线（格内线性插值，矢量级锐边，鞍点拆独立三角、越界格钳场外推延展；地表色=旧描边色按 SDF 深度指数渐近混向原填充色，特征长度 GROUND_DEPTH_LEN=8））、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `moon/batch.mbt`，静态容量零分配，可无头测试）
 - `app/dev/` — ?dev=1 开发者工具：面板 + 性能块 + 关卡 JSON 编辑器（默认折叠）+ 开发者页面，由 app 持有跨关卡重建延续
 - `app/core/` — 固定步长循环、音效与反馈（离散反馈一律走 `feedback.ts` 门面 = `sfx.ts` 音频 + `haptics.ts` 震动唯一配对点；连续风声层由 controller 直驱 sfx）、性能治理（`governor.ts` 降级策略 / `wind.ts` 风强度与落地判定，均纯逻辑可无头测试）、通用 URL 状态模块、分析上报门面（`analytics.ts` 语义 schema + 可注入 transport，传输适配器在 `ui/analytics-gtag.ts`——换上报服务只改适配器 + main.ts 装配）
 
@@ -65,6 +67,6 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 ## 验证策略
 
-- `tests/` 保持最小集（十余秒跑完）：只测核心模块的白盒行为（流体/刚体/循环/URL 状态/关卡协议/注册解通关），不做整局玩法与 E2E；删测试可以大胆，新增须证明无可替代
+- `tests/` 保持最小集（十余秒跑完）：只测核心模块的白盒行为（流体/刚体/循环/URL 状态/关卡协议/注册解通关/引擎位稳定性 golden hash），不做整局玩法与 E2E；删测试可以大胆，新增须证明无可替代
 - 布局问题用 headless Chrome 数值化探针验证（方法见 pitfalls H1）
 - 游戏体验验证依赖用户/玩家反馈，非必要或无用户要求，研发不得进行 Computer Use 或 E2E 脚本验证实验。这个目标是为了减少 token 浪费。涉及到 UI 的不受此约束。

@@ -1,6 +1,6 @@
 ---
 name: pitfalls
-description: 本项目（Lit 3 + WebGL + WASM·SIMD + vite/bun 单页游戏）实踩并验证过的疑难杂症避坑手册。当遇到以下信号时使用：布局右溢/间距消失、居中元素宽度只有一半、滚动条异常、刷新后状态丢失、后退/前进不生效、iOS 或移动端卡顿/无声/手势异常、模拟时间判定失效、长测试超时。每条含症状、根因、修法、可提前识别的信号。修问题先查本手册，再查网络。
+description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun 单页游戏）实踩并验证过的疑难杂症避坑手册。当遇到以下信号时使用：布局右溢/间距消失、居中元素宽度只有一半、滚动条异常、刷新后状态丢失、后退/前进不生效、iOS 或移动端卡顿/无声/手势异常、模拟时间判定失效、长测试超时、内核数值位漂移。每条含症状、根因、修法、可提前识别的信号。修问题先查本手册，再查网络。
 ---
 
 # 疑难杂症避坑手册
@@ -60,6 +60,7 @@ description: 本项目（Lit 3 + WebGL + WASM·SIMD + vite/bun 单页游戏）�
 - 只有 iOS Safari 卡、其他平台都好 → I6（Metal 后端渲染路径）
 - headless Chrome 截图/验证画面空白或只有背景色 → I7
 - AS/wasm 移植后数值"差不多但不对"（整数字面量相除截断）→ I9
+- 改内核数值后通关记录不可复现/逐位对照失败 → I10（golden hash 基线；Moonbit 移植的位级一致方法论）
 - vite dev 自动化访问 127.0.0.1 失败（000）→ I2
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
 
@@ -462,6 +463,13 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **根因**：AS 静态类型：`7 / 27` 两操作数推断为 i32，整数除法截断为 0；JS 同写法是浮点除。
 **修法**：显式浮点 `<f64>7 / 27`（或 `7.0 / 27.0`）。移植 JS 数值代码后必须跑逐位对照（旧/新实现同场景比对 Float32Array），别靠目测。
 **信号**：AS/wasm 移植后视觉"差不多但不对"、逐位对照出现整常数差异。
+
+### I10 数值内核迁移 Moonbit：位级一致方法论与 ±0 豁免（2026-08）
+**背景**：数值内核自 AssemblyScript 迁移至 Moonbit（moon/ 模块，wasm 目标）。混沌流场（李雅普诺夫放大）下任何舍入漂移都会指数放大、改变通关可复现性，故迁移验证必须逐位。
+**方法**：双引擎同输入对拍——同场景驱动新旧两实现，比对场字节（Uint32 视角）；PRNG（mulberry32）用 UInt 回绕 + 逻辑右移对齐 JS imul+>>>。迁移完成、旧实现删除后，把基线固化为 tests/engine-golden.test.ts 的 golden hash（FNV-1a），永久守护位稳定性。
+**±0 豁免**：AS 自身在零符号位上不一致（SIMD 路径 f64x2.min/max 走 wasm 语义 min(−0,+0)=−0，标量尾列比较链忽略零符号），"含零符号逐位一致"本就不是良定义不变量；对拍时零值只比数值不比符号，golden hash 钉死的是迁移后实现的输出。
+**附带**：Moonbit 内核为纯 wasm MVP 标量实现（无 SIMD 指令），I8 的 bun SIMD 误编译问题不再可能；SIMD 引导门槛随之移除（旧浏览器兼容面扩大）。FixedArray 经内联 WAT 取数据区首地址交宿主零拷贝 view，该 ABI 非文档化，由 canary 握手测试（tests/engine-wasm.test.ts）守护。
+**信号**：改 moon/ 数值代码后 engine-golden 失败——先确认是否有意改物理；有意则人工确认后更新基线，无意即回归。
 
 ### H3 Lit 3 样式在 `shadowRoot.adoptedStyleSheets`
 无 `<style>` 标签，查生效规则读 `cssRules` 的 `cssText`。

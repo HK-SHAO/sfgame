@@ -1,35 +1,24 @@
-// 统一 wasm 编译入口（单一来源）：build:wasm / dev 插件 / test 共用同一份 asc flags，杜绝双重维护漂移。
-// bun run scripts/build-wasm.ts [--force]：产物比全部 assembly/*.ts 新时跳过编译（mtime 比较，
-// git checkout 场景源码 mtime 刷新、产物不入库保持旧值，判断安全）。
-// asc 经 bunx 调用（不依赖 PATH 注入，直接 bun scripts/... 也能跑）；dev 插件的重编路径同样走这里（Bun.spawnSync）。
+// 引擎编译入口（单一来源）：build:wasm / dev 插件 / test 共用同一份流程。
+// 引擎 = sfgame-web/moon 的 Moonbit 数值内核（流体 + 顶点批 + 示踪三内核合一，wasm 目标）。
+// bun run scripts/build-wasm.ts [--force]：产物比全部 moon/ 源码新时跳过编译（mtime 比较）。
+// 判 stale 后一律 moon clean 再编：moon 增量链接对 moon.pkg 变更可能失活（实测导出面残留），
+// 全量重编 ~1s 级，换取产物与配置必然一致
 
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { cpSync, existsSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const ASC_FLAGS = [
-  'assembly/engine.ts',
-  '-o',
-  'app/wasm/sfengine.wasm',
-  '-O3',
-  '--noAssert',
-  '--runtime',
-  'stub',
-  '--enable',
-  'simd',
-]
-
-// 一律以仓库根为 cwd：脚本直接跑与 vite 打包 config 内联引用（import.meta.dir 经 esbuild 内联后不可靠）都成立
 const root = process.cwd()
+const moonDir = join(root, 'moon')
 const outPath = join(root, 'app/wasm/sfengine.wasm')
-const srcDir = join(root, 'assembly')
+const artifactSrc = join(moonDir, '_build/wasm/release/build/sfengine.wasm')
 
-// assembly/ 下所有 .ts 的最晚 mtime；目录缺失返回 null
 function latestSrcMtime(): number | null {
-  if (!existsSync(srcDir)) return null
   let latest = 0
-  for (const name of readdirSync(srcDir, { recursive: true })) {
-    if (typeof name === 'string' && name.endsWith('.ts')) {
-      latest = Math.max(latest, statSync(join(srcDir, name)).mtimeMs)
+  for (const name of readdirSync(moonDir, { recursive: true })) {
+    const s = String(name)
+    if (s.startsWith('_build')) continue
+    if (s.endsWith('.mbt') || s.endsWith('moon.pkg') || s.endsWith('moon.mod')) {
+      latest = Math.max(latest, statSync(join(moonDir, s)).mtimeMs)
     }
   }
   return latest || null
@@ -47,15 +36,17 @@ export async function compileWasm(opts: { force?: boolean } = {}): Promise<boole
     return true
   }
   const t0 = performance.now()
-  const r = Bun.spawnSync(['bunx', 'asc', ...ASC_FLAGS], { cwd: root })
+  rmSync(join(moonDir, '_build'), { recursive: true, force: true })
+  const r = Bun.spawnSync(['moon', 'build', '--release', '--target', 'wasm'], { cwd: moonDir })
   const ms = (performance.now() - t0).toFixed(0)
-  if (r.success) {
-    console.log(`[wasm] 编译 ✓ ${ms}ms`)
-    return true
+  if (!r.success) {
+    console.error(`[wasm] 编译 ✗（保留旧产物）${ms}ms`)
+    if (r.stderr) process.stderr.write(r.stderr)
+    return false
   }
-  console.error(`[wasm] 编译 ✗（保留旧产物）${ms}ms`)
-  if (r.stderr) process.stderr.write(r.stderr)
-  return false
+  cpSync(artifactSrc, outPath)
+  console.log(`[wasm] 编译 ✓ ${ms}ms`)
+  return true
 }
 
 if (import.meta.main) {

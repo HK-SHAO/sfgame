@@ -1,4 +1,4 @@
-// 欧拉稳定流体（Jos Stam）：浮力 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风。环境风不进步流水线：预烘焙位流基场（贴地绕流，顺坡爬升），采样时按强度线性叠加；数值内核在 assembly/core.ts（WASM·SIMD），本模块只是门面与纯计算辅助
+// 欧拉稳定流体（Jos Stam）：浮力 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风。环境风不进步流水线：预烘焙位流基场（贴地绕流，顺坡爬升），采样时按强度线性叠加；数值内核在 moon/fluid.mbt（WASM 标量，f32 存储/f64 中间量），本模块只是门面与纯计算辅助
 import type { Vec2 } from './types.ts'
 import { createEngine, type EngineHandle } from '../wasm/engine.ts'
 
@@ -35,7 +35,7 @@ export interface FluidLike {
   step(dt: number): void
 }
 
-// 渲染零拷贝采样：与 assembly/core.ts sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、
+// 渲染零拷贝采样：与 moon/fluid.mbt sampleVelocity/sampleTemp 逐位同构（clamp [0, n-1.001]、双线性、
 // 网格原点偏移 originX/Y（格）、环境风 = 基场×强度叠加）
 export function bilinearSample(
   u: Float32Array,
@@ -87,7 +87,7 @@ export function bilinearSample(
   )
 }
 
-// stub runtime 零运行期分配：内存在实例化时定型，视图生命周期内恒定，可安全缓存
+// 内核静态内存零运行期分配：内存在实例化时定型，视图生命周期内恒定，可安全缓存
 export class WasmFluid implements FluidLike {
   readonly nx: number
   readonly ny: number
@@ -195,7 +195,7 @@ export class WasmFluid implements FluidLike {
   }
 }
 
-// 唯一工厂：未加载 / 超容量（assembly 编译期 MAX_NX×MAX_NY）一律显式抛错——无声退化等于带病启动；
+// 唯一工厂：未加载 / 超容量（moon 编译期 max_nx×max_ny）一律显式抛错——无声退化等于带病启动；
 // engine 可选：不传自建独立实例（测试/无头脚本隔离）
 export function createFluid(cfg: FluidConfig, engine?: EngineHandle): WasmFluid {
   const f = WasmFluid.create(cfg, engine)

@@ -1,5 +1,5 @@
-// WASM 引擎引导与实例化（assembly/engine.ts → sfengine.wasm）：流体内核 + 顶点批内核同一实例共享内存。
-// 内存静态定型（stub runtime 零运行期分配），视图生命周期内恒定，可安全缓存。
+// WASM 引擎引导与实例化（moon/ 数值内核 → sfengine.wasm）：流体 + 顶点批 + 示踪内核同一实例共享内存。
+// 内存静态定型（运行期零分配），视图生命周期内恒定，可安全缓存。
 // 门面在 sim/fluid.ts（物理）与 render/batch.ts（顶点批）；本模块不感知二者，只定义 wasm 导出面与单实例工厂
 
 export interface FluidExports {
@@ -140,25 +140,10 @@ export function initEngine(bytes: ArrayBuffer | Uint8Array): boolean {
   }
 }
 
-// func () -> v128 { v128.const 0 }：validate 通过即支持 WASM SIMD（Chrome 91+/FF 89+/Safari 16.4+）
-const SIMD_PROBE = new Uint8Array([
-  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7b, 0x03,
-  0x02, 0x01, 0x00, 0x0a, 0x16, 0x01, 0x14, 0x00, 0xfd, 0x0c, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0x0b,
-])
-
-export function simdAvailable(): boolean {
-  try {
-    return typeof WebAssembly !== 'undefined' && WebAssembly.validate(SIMD_PROBE)
-  } catch {
-    return false
-  }
-}
-
 // 平台无关引导：调用方按运行环境提供取字节实现（浏览器 fetch 资源 / node-bun 读文件）；
-// SIMD 探测失败或加载失败一律返回 false，绝不抛
+// 加载失败一律返回 false，绝不抛。内核为纯 wasm MVP 标量实现（Moonbit 编译），无 SIMD 门槛
 export async function bootEngine(load: () => Promise<ArrayBuffer | Uint8Array>): Promise<boolean> {
-  if (typeof WebAssembly === 'undefined' || !simdAvailable()) return false
+  if (typeof WebAssembly === 'undefined') return false
   try {
     return initEngine(await load())
   } catch {
@@ -166,17 +151,12 @@ export async function bootEngine(load: () => Promise<ArrayBuffer | Uint8Array>):
   }
 }
 
-// 每实例独立内存（测试隔离）；实例化失败即抛错——绝无静默回退
+// 每实例独立内存（测试隔离）；实例化失败即抛错——绝无静默回退。
+// 内核零 import（foreign_library），无需宿主提供环境函数
 export function createEngine(): EngineHandle {
   if (!wasmModule) throw new Error('WASM 引擎未加载')
   try {
-    const inst = new WebAssembly.Instance(wasmModule, {
-      env: {
-        abort(_msg: number, _file: number, line: number, col: number) {
-          throw new Error(`WASM 内核异常（行 ${line}:${col}）`)
-        },
-      },
-    })
+    const inst = new WebAssembly.Instance(wasmModule, {})
     const ex = inst.exports as unknown as EngineExports
     return { ex, memory: ex.memory, ambient: { x: 0, y: 0, t: 0 }, origin: { x: 0, y: 0 } }
   } catch {

@@ -1,4 +1,4 @@
-// Moonbit 引擎产物引导契约：零 import、导出 memory、canary 双向握手。
+// Moonbit 引擎产物引导契约：零 import、导出 memory、容量钉死、canary 双向握手。
 // 寻址约定（导出地址 = FixedArray 数据区首）是全部零拷贝 view 的前提，
 // 宿主写→内核读回、内核写→宿主读双向校验，工具链升级变更布局时响亮失败
 import { readFileSync } from 'node:fs'
@@ -14,7 +14,7 @@ interface MbExports {
 }
 
 function boot(): MbExports {
-  const p = fileURLToPath(new URL('../app/wasm/sfengine.mbt.wasm', import.meta.url))
+  const p = fileURLToPath(new URL('../app/wasm/sfengine.wasm', import.meta.url))
   const m = new WebAssembly.Module(readFileSync(p))
   // 外部宿主直调库：不允许任何 import（出现即链接契约漂移）
   expect(WebAssembly.Module.imports(m)).toHaveLength(0)

@@ -62,7 +62,7 @@ export function evalCandidate(
     const p = sim.plane
     // 流场发散（NaN/Inf）即内核在此运行时不可信：抛错而非继续产出假"通关"
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
-      throw new Error('流场发散（NaN）：当前运行时无法正确执行 WASM·SIMD 流体内核')
+      throw new Error('流场发散（NaN）：当前运行时无法正确执行 WASM 流体内核')
     }
     pathLen += Math.hypot(p.x - px, p.y - py)
     px = p.x

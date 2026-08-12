@@ -42,7 +42,7 @@
 
 ## 技术栈 · Tech Stack
 
-TypeScript · Lit · WebGL · WASM SIMD 流体仿真（AssemblyScript）· Vite · Bun
+TypeScript · Lit · WebGL · WASM 数值内核（Moonbit）· Vite · Bun
 
 ## 运行 · Run
 

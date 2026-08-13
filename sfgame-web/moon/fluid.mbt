@@ -41,9 +41,7 @@ let q2 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
 
 ///|
 let p : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
-
-///|
-let div : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+// 散度 × h²（f64）：project_div 直接产出，GS 消费（不存 f32 中间量，少一趟扫描）
 
 ///|
 let div_h2 : FixedArray[Double] = FixedArray::make(max_cells, 0.0)
@@ -54,9 +52,6 @@ let fx_u : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
 
 ///|
 let fx_v : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
-
-///|
-let solid_list : FixedArray[Int] = FixedArray::make(max_cells, 0)
 // 空气索引表（rebuild_solid 按行主序重建，地形静态跨步复用）：扫描只迭代空气格免固体分支；
 // bulk = 四邻全空气主体格走 GS 免检查快路径（红黑相位内遍历顺序无关，见文件头）
 
@@ -77,6 +72,9 @@ let air_odd : FixedArray[Int] = FixedArray::make(max_cells, 0)
 
 ///|
 let bulk : FixedArray[Byte] = FixedArray::make(max_cells, b'\x00')
+
+///|
+let solid_list : FixedArray[Int] = FixedArray::make(max_cells, 0)
 
 ///|
 priv struct Params {
@@ -722,7 +720,6 @@ fn apply_buoyancy(dt : Double) -> Unit {
   let a_t = pm.ambient_t
   let nx = pm.nx
   let ny = pm.ny
-  // 固体格也要施加：v[solid] 经 copy_fields 进 v0 被平流采样读到（合法中间态，见 pitfalls G19）
   for j in 1..<(ny - 1) {
     let row = j * nx
     for i in 1..<(nx - 1) {
@@ -809,11 +806,9 @@ fn project_div() -> Unit {
     } else {
       v[idx - nx].to_double()
     }
-    div[idx] = Float::from_double((u_r - u_l + v_d - v_u) * inv2h)
-  }
-  for m in 0..<ac {
-    let idx = air_list[m]
-    div_h2[idx] = h2 * div[idx].to_double()
+    // f32 往返保留（与旧 div 数组 + 二次扫描逐位一致），直接产出 div_h2 省一趟扫描
+    let d = Float::from_double((u_r - u_l + v_d - v_u) * inv2h)
+    div_h2[idx] = h2 * d.to_double()
   }
 }
 

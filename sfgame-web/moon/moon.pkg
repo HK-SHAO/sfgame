@@ -3,7 +3,7 @@
 // 运行期增长会 detach 宿主缓存的 typed view，故从配置层面禁止（与 AS stub runtime 同契约）
 pkgtype(kind: "foreign_library")
 
-// 引擎内核只编 wasm；sdf 子包只编 js（双目标共存于同一模块）
+// 引擎内核只编 wasm（SDF 表达式求值器为纯 TS，在 app/game/sdf.ts，不经 moon）
 
 supported_targets = "wasm"
 

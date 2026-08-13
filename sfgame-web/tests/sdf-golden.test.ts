@@ -1,6 +1,7 @@
-// SDF 求值器 golden 基线：moon/sdf（js 目标）输出对 TS 原实现基线（tests/sdf-golden.json，
-// 迁移前捕获）逐位一致——地形表达式直接决定碰撞/渲染烘焙结果，且 js 目标 Math.* 直通，
-// 任何语义漂移（解析/求值/NaN 边角）都必须响亮失败
+// SDF 求值器 golden 基线：纯 TS 实现（app/game/sdf.ts）输出对基线逐位一致——
+// 地形表达式直接决定碰撞/渲染烘焙结果，任何语义漂移（解析/求值/NaN 边角）都必须响亮失败。
+// 确定性算术（四则/min/max/abs/sqrt/smoothstep/smin/smax）逐位钉死（toBe）；
+// trig/exp 走原生 Math（跨引擎 ≤1 ulp，经 f32 烘焙场存储后被抹平），标 approx 用容差守护语义漂移
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
@@ -8,18 +9,20 @@ import { compileSdf, SdfError } from '../app/game/sdf.ts'
 
 interface Golden {
   grid: [number, number][]
-  cases: { expr: string; values: number[] }[]
+  cases: { expr: string; values: number[]; approx?: boolean }[]
 }
 
 const golden = JSON.parse(
   readFileSync(fileURLToPath(new URL('./sdf-golden.json', import.meta.url)), 'utf8'),
 ) as Golden
 
-test('SDF golden 基线：10 表达式全网格逐位一致', () => {
+test('SDF golden 基线：确定性算术逐位一致 + trig/exp 容差一致', () => {
   for (const c of golden.cases) {
     const f = compileSdf(c.expr)
     golden.grid.forEach(([x, y], i) => {
-      expect(f(x, y), `${c.expr} @(${x},${y})`).toBe(c.values[i])
+      const got = f(x, y)
+      if (c.approx) expect(got, `${c.expr} @(${x},${y})`).toBeCloseTo(c.values[i], 12)
+      else expect(got, `${c.expr} @(${x},${y})`).toBe(c.values[i])
     })
   }
 })

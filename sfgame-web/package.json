@@ -15,7 +15,7 @@
     "test": "bun test:moon && vitest run",
     "typecheck": "bun tsc -b",
     "build:wasm": "bun scripts/build-wasm.ts",
-    "test:moon": "cd moon && moon test && moon test sdf --target js",
+    "test:moon": "cd moon && moon test",
     "bench:moon": "cd moon && moon bench",
     "check": "bun run build && bun run test"
   },

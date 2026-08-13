@@ -11,8 +11,10 @@ const MAX_TICKS_PER_FRAME = 24
 // 欠账上限 = 单帧封顶量：高倍速低帧率时超出部分丢时间（时间膨胀）而非无限累积——
 // 否则切回低倍速后仍按封顶满转还债数秒，视觉上倍速切换延迟生效
 const MAX_ACC = MAX_TICKS_PER_FRAME * SIM_DT
-// 高速率下每批 TICKS_PER_TASK 步后 setTimeout(0) 让出主线程，防长任务冻结 UI
-const TICKS_PER_TASK = 6
+// 高速率下每批 TICKS_PER_TASK 步后 setTimeout(0) 让出主线程，防长任务冻结 UI。
+// 16x 下每帧 16 tick：批从 6 提到 12 后每帧让出 2 次 → 1 次（setTimeout(0) 最少 ~1ms，
+// 是 16x 高帧成本帧里纯浪费的调度时延）；单批最坏 ~28ms（满网格 2.3ms×12）仍在长任务阈值内
+const TICKS_PER_TASK = 12
 
 // 定步长：每 tick dt 恒为 SIM_DT，倍速只改 tick 频率，轨迹位级一致
 export class GameLoop {

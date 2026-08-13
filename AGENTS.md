@@ -22,7 +22,7 @@
   - wasm 目标 → `app/wasm/sfengine.wasm`（流体+顶点批+示踪三内核单模块单内存）
   - js 目标 → `app/game/sdfjs/sdf.js`（SDF 表达式求值器，门面 `app/game/sdf.ts`；产物 gitignore，d.ts 入库）
 - `bun run test:moon` = moon 模块单元/白盒测试（wasm 引擎 + js sdf 两包，含 ffi 寻址约定与内核不变量）
-- `bun run bench:moon` = 内核性能基线（moon bench；满网格流体步 ≈2.3ms，迁移基线 1.16× AS SIMD）
+- `bun run bench:moon` = 内核性能基线（moon bench；满网格流体步 ≈2.0ms：标量 Moonbit 1.16× AS SIMD + 空气索引表优化 -16%，位精确）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
 - 关卡工具：`bun run scripts/run-level.ts levels/level-N.json --verify … --solve … --sim N`（物理内核恒为 WASM·Moonbit 内核；详见 `skills/level-design/SKILL.md` §5-6）
 - `bun run test` 通过 `tests/setup.ts` 预热 WASM 引擎（缺产物会抛错提示先 build:wasm）

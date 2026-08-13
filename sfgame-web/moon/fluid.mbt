@@ -58,6 +58,28 @@ let fx_v : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
 
 ///|
 let solid_list : FixedArray[Int] = FixedArray::make(max_cells, 0)
+// 空气索引表（rebuild_solid 时按行主序重建；地形静态，表跨步复用）：
+// 各全网格扫描只迭代空气格，免固体分支；GS 红黑相位内单元格独立（von Neumann
+// 邻域全异奇偶），遍历顺序与旧逐行扫描逐位等价。bulk = 四邻全空气的主体格，
+// GS 走免固体检查快路径（多数格命中）
+
+///|
+let air_list : FixedArray[Int] = FixedArray::make(max_cells, 0)
+
+///|
+let air_i : FixedArray[Int] = FixedArray::make(max_cells, 0)
+
+///|
+let air_j : FixedArray[Int] = FixedArray::make(max_cells, 0)
+
+///|
+let air_even : FixedArray[Int] = FixedArray::make(max_cells, 0)
+
+///|
+let air_odd : FixedArray[Int] = FixedArray::make(max_cells, 0)
+
+///|
+let bulk : FixedArray[Byte] = FixedArray::make(max_cells, b'\x00')
 
 ///|
 priv struct Params {
@@ -82,6 +104,9 @@ priv struct Params {
   mut out_vx : Double
   mut out_vy : Double
   mut solid_count : Int
+  mut air_count : Int
+  mut air_even_count : Int
+  mut air_odd_count : Int
 }
 
 ///|
@@ -107,6 +132,9 @@ let pm : Params = Params::{
   out_vx: 0.0,
   out_vy: 0.0,
   solid_count: 0,
+  air_count: 0,
+  air_even_count: 0,
+  air_odd_count: 0,
 }
 
 // 导出名 init（对齐 assembly 契约）；Moonbit 保留无参 fn init 作包初始化，故本地名 fluid_init
@@ -147,6 +175,8 @@ pub fn fluid_init(
   pm.ambient_y = 0.0
   pm.ambient_t = 0.0
   clear()
+  // 全空气域基线表（solid 初始全 0）；真实地形经 rebuildSolid 重建
+  build_air_lists()
   bake_ambient_basis()
   0
 }
@@ -273,6 +303,46 @@ fn bake_ambient_basis() -> Unit {
 }
 
 ///|
+fn build_air_lists() -> Unit {
+  let nx = pm.nx
+  let ny = pm.ny
+  mem_fill(addr_of_u8(bulk), 0, nx * ny)
+  let mut c = 0
+  let mut ce = 0
+  let mut co = 0
+  // 只收录内域格（1..nx-2 × 1..ny-2）：与旧循环边界一致，越界邻居恒不出现
+  for j in 1..<(ny - 1) {
+    let row = j * nx
+    for i in 1..<(nx - 1) {
+      let idx = i + row
+      if solid[idx] != b'\x00' {
+        continue
+      }
+      air_list[c] = idx
+      air_i[c] = i
+      air_j[c] = j
+      c = c + 1
+      if ((i + j) & 1) == 0 {
+        air_even[ce] = idx
+        ce = ce + 1
+      } else {
+        air_odd[co] = idx
+        co = co + 1
+      }
+      if solid[idx - 1] == b'\x00' &&
+        solid[idx + 1] == b'\x00' &&
+        solid[idx - nx] == b'\x00' &&
+        solid[idx + nx] == b'\x00' {
+        bulk[idx] = b'\x01'
+      }
+    }
+  }
+  pm.air_count = c
+  pm.air_even_count = ce
+  pm.air_odd_count = co
+}
+
+///|
 #export_name("rebuildSolid")
 pub fn rebuild_solid() -> Unit {
   let nx = pm.nx
@@ -289,6 +359,7 @@ pub fn rebuild_solid() -> Unit {
     }
   }
   pm.solid_count = c
+  build_air_lists()
   bake_ambient_basis()
 }
 
@@ -522,45 +593,39 @@ fn advect_pass(
   let nx = pm.nx
   let ny = pm.ny
   let dt0 = dt / pm.cell * sign
-  for j in 1..<(ny - 1) {
-    let row = j * nx
-    for i in 1..<(nx - 1) {
-      let idx = i + row
-      if solid[idx] != b'\x00' {
-        dst[idx] = 0.0
-        continue
-      }
-      let mut x = i.to_double() - dt0 * u0[idx].to_double()
-      let mut y = j.to_double() - dt0 * v0[idx].to_double()
-      if x < 0.5 {
-        x = 0.5
-      } else if x > nx.to_double() - 1.5 {
-        x = nx.to_double() - 1.5
-      }
-      if y < 0.5 {
-        y = 0.5
-      } else if y > ny.to_double() - 1.5 {
-        y = ny.to_double() - 1.5
-      }
-      let i0 = x.to_int()
-      let j0 = y.to_int()
-      let fx = x - i0.to_double()
-      let fy = y - j0.to_double()
-      let a = i0 + j0 * nx
-      let b = a + 1
-      let c = a + nx
-      let d = c + 1
-      dst[idx] = Float::from_double(
-        src[a].to_double() * (1.0 - fx) * (1.0 - fy) +
-        src[b].to_double() * fx * (1.0 - fy) +
-        src[c].to_double() * (1.0 - fx) * fy +
-        src[d].to_double() * fx * fy,
-      )
+  let ac = pm.air_count
+  for m in 0..<ac {
+    let idx = air_list[m]
+    let mut x = air_i[m].to_double() - dt0 * u0[idx].to_double()
+    let mut y = air_j[m].to_double() - dt0 * v0[idx].to_double()
+    if x < 0.5 {
+      x = 0.5
+    } else if x > nx.to_double() - 1.5 {
+      x = nx.to_double() - 1.5
     }
+    if y < 0.5 {
+      y = 0.5
+    } else if y > ny.to_double() - 1.5 {
+      y = ny.to_double() - 1.5
+    }
+    let i0 = x.to_int()
+    let j0 = y.to_int()
+    let fx = x - i0.to_double()
+    let fy = y - j0.to_double()
+    let a = i0 + j0 * nx
+    let b = a + 1
+    let c = a + nx
+    let d = c + 1
+    dst[idx] = Float::from_double(
+      src[a].to_double() * (1.0 - fx) * (1.0 - fy) +
+      src[b].to_double() * fx * (1.0 - fy) +
+      src[c].to_double() * (1.0 - fx) * fy +
+      src[d].to_double() * fx * fy,
+    )
   }
 }
 
-// MacCormack 补偿单格：9 邻域 min/max 钳制防过冲，末乘阻尼
+// MacCormack 补偿单格：9 邻域 min/max 钳制防过冲，末乘阻尼（固体格由 enforce_boundary 清零，不写）
 
 ///|
 fn correct_cell(
@@ -569,10 +634,6 @@ fn correct_cell(
   src : FixedArray[Float],
   damping : Double,
 ) -> Unit {
-  if solid[idx] != b'\x00' {
-    dst[idx] = 0.0
-    return
-  }
   let nx = pm.nx
   let mut lo = src[idx].to_double()
   let mut hi = lo
@@ -649,13 +710,9 @@ fn advect_maccormack(
 ) -> Unit {
   advect_pass(q1, src, dt, 1.0)
   advect_pass(q2, q1, dt, -1.0)
-  let nx = pm.nx
-  let ny = pm.ny
-  for j in 1..<(ny - 1) {
-    let row = j * nx
-    for i in 1..<(nx - 1) {
-      correct_cell(row + i, dst, src, damping)
-    }
+  let ac = pm.air_count
+  for m in 0..<ac {
+    correct_cell(air_list[m], dst, src, damping)
   }
 }
 
@@ -665,7 +722,9 @@ fn apply_buoyancy(dt : Double) -> Unit {
   let a_t = pm.ambient_t
   let nx = pm.nx
   let ny = pm.ny
-  // 总温度 = 场温 + 环境偏置（ambient_t=0 时逐位不变）
+  // 总温度 = 场温 + 环境偏置（ambient_t=0 时逐位不变）。注意：固体格也要施加
+  // （旧行为：v[solid] = -k·a_t 会经 copy_fields 进入 v0，被平流回溯采样读到）——
+  // 这是中间状态的一部分，跳过会破坏 ambient_t≠0 时的逐位一致性；末段 enforce_boundary 照常清零
   for j in 1..<(ny - 1) {
     let row = j * nx
     for i in 1..<(nx - 1) {
@@ -729,86 +788,82 @@ fn project_div() -> Unit {
   let inv2h = 1.0 / (2.0 * h)
   let h2 = h * h
   let nx = pm.nx
-  let ny = pm.ny
-  for j in 1..<(ny - 1) {
-    let row = j * nx
-    for i in 1..<(nx - 1) {
-      let idx = i + row
-      if solid[idx] != b'\x00' {
-        div[idx] = 0.0
-        p[idx] = 0.0
-        continue
-      }
-      let u_r : Double = if solid[idx + 1] != b'\x00' {
-        0.0
-      } else {
-        u[idx + 1].to_double()
-      }
-      let u_l : Double = if solid[idx - 1] != b'\x00' {
-        0.0
-      } else {
-        u[idx - 1].to_double()
-      }
-      let v_d : Double = if solid[idx + nx] != b'\x00' {
-        0.0
-      } else {
-        v[idx + nx].to_double()
-      }
-      let v_u : Double = if solid[idx - nx] != b'\x00' {
-        0.0
-      } else {
-        v[idx - nx].to_double()
-      }
-      div[idx] = Float::from_double((u_r - u_l + v_d - v_u) * inv2h)
+  let ac = pm.air_count
+  for m in 0..<ac {
+    let idx = air_list[m]
+    let u_r : Double = if solid[idx + 1] != b'\x00' {
+      0.0
+    } else {
+      u[idx + 1].to_double()
     }
+    let u_l : Double = if solid[idx - 1] != b'\x00' {
+      0.0
+    } else {
+      u[idx - 1].to_double()
+    }
+    let v_d : Double = if solid[idx + nx] != b'\x00' {
+      0.0
+    } else {
+      v[idx + nx].to_double()
+    }
+    let v_u : Double = if solid[idx - nx] != b'\x00' {
+      0.0
+    } else {
+      v[idx - nx].to_double()
+    }
+    div[idx] = Float::from_double((u_r - u_l + v_d - v_u) * inv2h)
   }
-  let n = nx * ny
-  for i in 0..<n {
-    div_h2[i] = h2 * div[i].to_double()
+  for m in 0..<ac {
+    let idx = air_list[m]
+    div_h2[idx] = h2 * div[idx].to_double()
   }
 }
 
 // 红黑 Gauss-Seidel + warm-start 压强（12 迭代收敛）：同奇偶相内单元格互不依赖，
-// 相内遍历顺序不影响读取值，故逐行扫描与 AS 组车道版逐位等价
+// 相内遍历顺序不影响读取值（air_even/odd 表行主序与旧逐行扫描逐位等价）。
+// bulk 主体格四邻全空气，免固体邻居检查直读（多数格命中）；边界格走含固体替换的完整路径
 
 ///|
 fn project_gs() -> Unit {
   let nx = pm.nx
-  let ny = pm.ny
   for _ in 0..<pm.iterations {
-    for parity in 0..<2 {
-      for j in 1..<(ny - 1) {
-        let i0 : Int = if ((parity ^ (j & 1)) & 1) == 1 { 1 } else { 2 }
-        let row = j * nx
-        let mut i = i0
-        while i < nx - 1 {
-          let idx = i + row
-          if solid[idx] == b'\x00' {
-            let p_l : Double = if solid[idx - 1] != b'\x00' {
-              p[idx].to_double()
-            } else {
-              p[idx - 1].to_double()
-            }
-            let p_r : Double = if solid[idx + 1] != b'\x00' {
-              p[idx].to_double()
-            } else {
-              p[idx + 1].to_double()
-            }
-            let p_u : Double = if solid[idx - nx] != b'\x00' {
-              p[idx].to_double()
-            } else {
-              p[idx - nx].to_double()
-            }
-            let p_d : Double = if solid[idx + nx] != b'\x00' {
-              p[idx].to_double()
-            } else {
-              p[idx + nx].to_double()
-            }
-            p[idx] = Float::from_double(
-              (p_l + p_r + p_u + p_d - div_h2[idx]) * 0.25,
-            )
+    for phase in 0..<2 {
+      let list = if phase == 0 { air_even } else { air_odd }
+      let n = if phase == 0 { pm.air_even_count } else { pm.air_odd_count }
+      for k in 0..<n {
+        let idx = list[k]
+        if bulk[idx] != b'\x00' {
+          p[idx] = Float::from_double(
+            (p[idx - 1].to_double() +
+            p[idx + 1].to_double() +
+            p[idx - nx].to_double() +
+            p[idx + nx].to_double() - div_h2[idx]) *
+            0.25,
+          )
+        } else {
+          let p_l : Double = if solid[idx - 1] != b'\x00' {
+            p[idx].to_double()
+          } else {
+            p[idx - 1].to_double()
           }
-          i = i + 2
+          let p_r : Double = if solid[idx + 1] != b'\x00' {
+            p[idx].to_double()
+          } else {
+            p[idx + 1].to_double()
+          }
+          let p_u : Double = if solid[idx - nx] != b'\x00' {
+            p[idx].to_double()
+          } else {
+            p[idx - nx].to_double()
+          }
+          let p_d : Double = if solid[idx + nx] != b'\x00' {
+            p[idx].to_double()
+          } else {
+            p[idx + nx].to_double()
+          }
+          p[idx] = Float::from_double(
+            (p_l + p_r + p_u + p_d - div_h2[idx]) * 0.25,
+          )
         }
       }
     }
@@ -819,37 +874,31 @@ fn project_gs() -> Unit {
 fn project_grad() -> Unit {
   let inv2h = 1.0 / (2.0 * pm.cell)
   let nx = pm.nx
-  let ny = pm.ny
-  for j in 1..<(ny - 1) {
-    let row = j * nx
-    for i in 1..<(nx - 1) {
-      let idx = i + row
-      if solid[idx] != b'\x00' {
-        continue
-      }
-      let p_l : Double = if solid[idx - 1] != b'\x00' {
-        p[idx].to_double()
-      } else {
-        p[idx - 1].to_double()
-      }
-      let p_r : Double = if solid[idx + 1] != b'\x00' {
-        p[idx].to_double()
-      } else {
-        p[idx + 1].to_double()
-      }
-      let p_u : Double = if solid[idx - nx] != b'\x00' {
-        p[idx].to_double()
-      } else {
-        p[idx - nx].to_double()
-      }
-      let p_d : Double = if solid[idx + nx] != b'\x00' {
-        p[idx].to_double()
-      } else {
-        p[idx + nx].to_double()
-      }
-      u[idx] = Float::from_double(u[idx].to_double() - (p_r - p_l) * inv2h)
-      v[idx] = Float::from_double(v[idx].to_double() - (p_d - p_u) * inv2h)
+  let ac = pm.air_count
+  for m in 0..<ac {
+    let idx = air_list[m]
+    let p_l : Double = if solid[idx - 1] != b'\x00' {
+      p[idx].to_double()
+    } else {
+      p[idx - 1].to_double()
     }
+    let p_r : Double = if solid[idx + 1] != b'\x00' {
+      p[idx].to_double()
+    } else {
+      p[idx + 1].to_double()
+    }
+    let p_u : Double = if solid[idx - nx] != b'\x00' {
+      p[idx].to_double()
+    } else {
+      p[idx - nx].to_double()
+    }
+    let p_d : Double = if solid[idx + nx] != b'\x00' {
+      p[idx].to_double()
+    } else {
+      p[idx + nx].to_double()
+    }
+    u[idx] = Float::from_double(u[idx].to_double() - (p_r - p_l) * inv2h)
+    v[idx] = Float::from_double(v[idx].to_double() - (p_d - p_u) * inv2h)
   }
 }
 

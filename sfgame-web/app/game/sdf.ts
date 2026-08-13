@@ -3,7 +3,7 @@
 // 高度场是其中一种写法（H(x) − y），洞穴/拱门/悬挑同理可表达。
 // 本文件保持 SdfError 类与 compileSdf 签名不变；moonbit 错误消息带 SourceLoc 前缀
 // （…FAILED: 正文），抽取正文后包装为 SdfError 抛出
-import { compile as mbtCompile } from './sdfjs/sdf.js'
+import { bake as mbtBake, compile as mbtCompile } from './sdfjs/sdf.js'
 
 export class SdfError extends Error {}
 
@@ -32,4 +32,15 @@ export function compileSdf(src: string): (x: number, y: number) => number {
     }
     return r._0 as number
   }
+}
+
+// 整场烘焙：表达式在 nx×ny 格心一次求值（宿主单次跨界取代 nx×ny 次 compileSdf 调用），
+// 返回 f32 场；mask（边缘/实体）由 terrain.ts 在本地场计算
+
+export function bakeSdf(src: string, nx: number, ny: number, origin: number, cell: number): Float32Array {
+  const r = mbtBake(src, nx, ny, origin, cell) as MbResult
+  if (!r || r.$tag !== 1) {
+    throw new SdfError(extractMsg(r?._0))
+  }
+  return Float32Array.from(r._0 as number[])
 }

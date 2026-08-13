@@ -1,6 +1,7 @@
 import type { FluidConfig, FluidLike } from '../sim/fluid.ts'
 import { createFluid } from '../sim/fluid.ts'
-import { bakeTerrain, projectOut, surfaceY, type Terrain } from '../sim/terrain.ts'
+import { terrainDims, terrainFromField, projectOut, surfaceY, type Terrain } from '../sim/terrain.ts'
+import { bakeSdf } from './sdf.ts'
 import type { EngineHandle } from '../wasm/engine.ts'
 import { createBody, stepBody, type Body } from '../sim/bodies.ts'
 import { GOAL_LIFT, type SourceKind } from '../sim/types.ts'
@@ -64,9 +65,15 @@ export class LevelSimulation {
   constructor(level: LevelDef, engine?: EngineHandle, opts: { unlimited?: boolean } = {}) {
     this.level = level
     this.unlimited = opts.unlimited ?? false
-    const { w, h, cell } = level.world
-    // 地形场即流体网格（同公式同边距）：掩码直接交给内核，免二次建掩码
-    this.terrain = bakeTerrain(level.sdf, { w, h }, cell, FLUID_MARGIN)
+    const { h, cell } = level.world
+    // 地形场即流体网格（同公式同边距）：掩码直接交给内核，免二次建掩码。
+    // 表达式一次烘焙（mbt 单次跨界替代 nx×ny 次 compileSdf 调用，见 sdf.ts bakeSdf）
+    const dims = terrainDims(level.world, cell, FLUID_MARGIN)
+    this.terrain = terrainFromField(
+      bakeSdf(level.json.terrain.sdf, dims.nx, dims.ny, dims.origin, cell),
+      dims,
+      cell,
+    )
     this.fluid = createFluid(
       {
         nx: this.terrain.nx,

@@ -538,6 +538,21 @@ pub fn out_y() -> Double {
 
 // 感受到的总温度 = 场温 + 环境偏置（与浮力消费同一事实源）
 
+// 4 抽头双线性（gx/gy 已 clamp 的格坐标）：操作数顺序固定 = 逐位契约，fluid/tracers 共用
+
+///|
+fn bilinear4(f : FixedArray[Float], nx : Int, gx : Double, gy : Double) -> Double {
+  let i0 = gx.floor().to_int()
+  let j0 = gy.floor().to_int()
+  let fx = gx - i0.to_double()
+  let fy = gy - j0.to_double()
+  let a = i0 + j0 * nx
+  f[a].to_double() * (1.0 - fx) * (1.0 - fy) +
+  f[a + 1].to_double() * fx * (1.0 - fy) +
+  f[a + nx].to_double() * (1.0 - fx) * fy +
+  f[a + nx + 1].to_double() * fx * fy
+}
+
 ///|
 #export_name("sampleTemp")
 pub fn sample_temp(wx : Double, wy : Double) -> Double {
@@ -555,19 +570,7 @@ pub fn sample_temp(wx : Double, wy : Double) -> Double {
   } else if gy > ny.to_double() - 1.001 {
     gy = ny.to_double() - 1.001
   }
-  let i0 = gx.floor().to_int()
-  let j0 = gy.floor().to_int()
-  let fx = gx - i0.to_double()
-  let fy = gy - j0.to_double()
-  let a = i0 + j0 * nx
-  let b = a + 1
-  let c = a + nx
-  let d = c + 1
-  t[a].to_double() * (1.0 - fx) * (1.0 - fy) +
-  t[b].to_double() * fx * (1.0 - fy) +
-  t[c].to_double() * (1.0 - fx) * fy +
-  t[d].to_double() * fx * fy +
-  pm.ambient_t
+  bilinear4(t, nx, gx, gy) + pm.ambient_t
 }
 
 ///|

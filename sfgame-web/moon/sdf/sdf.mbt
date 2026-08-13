@@ -551,3 +551,29 @@ fn compile_node(n : Node) -> ((Double, Double) -> Double raise) raise {
 pub fn compile(src : String) -> ((Double, Double) -> Double raise) raise {
   compile_node(parse(Parser::{ src, i: 0 }))
 }
+
+// 整场烘焙：表达式在 nx×ny 格心一次求值，宿主一次跨界取代 nx×ny 次调用。
+// 坐标与 terrain.ts 的 bakeTerrain 同构：wy=(j−origin+0.5)·cell、wx=(i−origin+0.5)·cell
+
+///|
+#export_name("bake")
+pub fn bake(
+  src : String,
+  nx : Int,
+  ny : Int,
+  origin : Int,
+  cell : Double,
+) -> Array[Double] raise {
+  let f = compile_node(parse(Parser::{ src, i: 0 }))
+  let n = nx * ny
+  let out : Array[Double] = Array::make(n, 0.0)
+  let ox = origin.to_double()
+  for j in 0..<ny {
+    let wy = (j.to_double() - ox + 0.5) * cell
+    let row = j * nx
+    for i in 0..<nx {
+      out[i + row] = f((i.to_double() - ox + 0.5) * cell, wy)
+    }
+  }
+  out
+}

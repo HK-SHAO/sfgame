@@ -23,25 +23,32 @@ export interface Terrain extends TerrainLike {
 }
 
 // 域 = 地图外扩边距（左/右/上等宽，与流体域同公式——烘焙场即流体网格）
-export function bakeTerrain(
-  sdf: (x: number, y: number) => number,
+export interface TerrainDims {
+  nx: number
+  ny: number
+  origin: number
+}
+
+export function terrainDims(
   world: { w: number; h: number },
   cell: number,
   margin: number,
-): Terrain {
-  const nx = Math.round((world.w + 2 * margin) / cell)
-  const ny = Math.round((world.h + margin) / cell)
-  const origin = Math.round(margin / cell)
-  const field = new Float32Array(nx * ny)
+): TerrainDims {
+  return {
+    nx: Math.round((world.w + 2 * margin) / cell),
+    ny: Math.round((world.h + margin) / cell),
+    origin: Math.round(margin / cell),
+  }
+}
+
+// 场 → Terrain：mask（边缘恒固体 + d≤0）+ 双线性 sample/normal（clamp = 域外取边缘值，地形自然延展）
+export function terrainFromField(field: Float32Array, dims: TerrainDims, cell: number): Terrain {
+  const { nx, ny, origin } = dims
   const mask = new Uint8Array(nx * ny)
-  for (let j = 0; j < ny; j++) {
-    const wy = (j - origin + 0.5) * cell
-    for (let i = 0; i < nx; i++) {
-      const idx = i + j * nx
-      const d = sdf((i - origin + 0.5) * cell, wy)
-      field[idx] = d
-      mask[idx] = i === 0 || j === 0 || i === nx - 1 || j === ny - 1 || d <= 0 ? 1 : 0
-    }
+  for (let idx = 0; idx < nx * ny; idx++) {
+    const i = idx % nx
+    const j = (idx / nx) | 0
+    mask[idx] = i === 0 || j === 0 || i === nx - 1 || j === ny - 1 || field[idx] <= 0 ? 1 : 0
   }
   const terrain: Terrain = { nx, ny, cell, originX: origin, originY: origin, field, mask, sample, normal }
   return terrain
@@ -80,6 +87,24 @@ export function bakeTerrain(
       out.y = dy / len
     }
   }
+}
+
+// 逐格调用 sdf 烘焙（解析式测试场景用）；生产走 terrainFromField + bakeSdf（游戏层一次跨界）
+export function bakeTerrain(
+  sdf: (x: number, y: number) => number,
+  world: { w: number; h: number },
+  cell: number,
+  margin: number,
+): Terrain {
+  const dims = terrainDims(world, cell, margin)
+  const field = new Float32Array(dims.nx * dims.ny)
+  for (let j = 0; j < dims.ny; j++) {
+    const wy = (j - dims.origin + 0.5) * cell
+    for (let i = 0; i < dims.nx; i++) {
+      field[i + j * dims.nx] = sdf((i - dims.origin + 0.5) * cell, wy)
+    }
+  }
+  return terrainFromField(field, dims, cell)
 }
 
 // 自顶向下第一表面（旗杆/出生点贴地用）：列内找首个 sdf ≤ 0 的格心并在相邻格心间线性细化；

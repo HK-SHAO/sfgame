@@ -131,15 +131,7 @@ fn sdf_at(x : Double, y : Double) -> Double {
   } else if gy > ts.sny.to_double() - 1.001 {
     gy = ts.sny.to_double() - 1.001
   }
-  let i0 = gx.floor().to_int()
-  let j0 = gy.floor().to_int()
-  let fx = gx - i0.to_double()
-  let fy = gy - j0.to_double()
-  let a = i0 + j0 * ts.snx
-  t_sdf[a].to_double() * (1.0 - fx) * (1.0 - fy) +
-  t_sdf[a + 1].to_double() * fx * (1.0 - fy) +
-  t_sdf[a + ts.snx].to_double() * (1.0 - fx) * fy +
-  t_sdf[a + ts.snx + 1].to_double() * fx * fy
+  bilinear4(t_sdf, ts.snx, gx, gy)
 }
 
 ///|

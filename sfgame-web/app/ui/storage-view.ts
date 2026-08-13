@@ -49,7 +49,6 @@ export class SfStorage extends LitElement {
       } else {
         localStorage.removeItem(key)
       }
-      // 整页重载：模块单例在内存持有旧数据（URL 带 v=storage，重载仍回本页）
       location.reload()
       return
     }
@@ -146,7 +145,6 @@ export class SfStorage extends LitElement {
         border-top: 1px solid rgba(61, 52, 39, 0.06);
       }
 
-      /* 原生 details/summary：展开收起零 JS，open 状态由浏览器维护 */
       summary.entry-head {
         list-style: none;
         cursor: pointer;
@@ -210,7 +208,6 @@ export class SfStorage extends LitElement {
         border: 1px solid rgba(255, 90, 60, 0.28);
       }
 
-      /* 红系按钮 hover：加深同色 tint（保留身份，覆盖 buttonReset 白洗） */
       .del:hover,
       .clear:hover {
         background: rgba(255, 90, 60, 0.14);
@@ -271,7 +268,6 @@ export class SfStorage extends LitElement {
       flex-direction: column;
       align-items: center;
       gap: var(--sp-2-5);
-      /* 文字防撞背景图色：与条目卡同款雾面玻璃 */
       background: var(--card);
       backdrop-filter: var(--blur-glass);
       -webkit-backdrop-filter: var(--blur-glass);

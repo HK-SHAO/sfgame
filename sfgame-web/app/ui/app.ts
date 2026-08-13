@@ -24,7 +24,6 @@ import { boxReset } from './shared-styles.ts'
 
 const FIRST_LEVEL = LEVELS[0]
 
-// HUD 初始态（初始化与换关重置共用；容错：LEVELS 全挂时预算以 0 兜底，不得再抛）
 const defaultHud = (level: LevelDef | undefined): HudState => ({
   phase: 'playing',
   hotLeft: level?.budget.hot ?? 0,
@@ -37,10 +36,8 @@ const defaultHud = (level: LevelDef | undefined): HudState => ({
 
 @customElement('sf-app')
 export class SfApp extends LitElement {
-  // ===== 状态字段 =====
   @state() private screen: Screen = 'title'
   @state() private activeLevel: LevelDef = FIRST_LEVEL
-  // 主页选项卡：纯本地 UI 态，不进 URL
   @state() private activeGroup = LEVEL_GROUPS[0]?.name ?? ''
   @state() private initialSources: SourcePlacement[] = []
   @state() private hud: HudState = defaultHud(FIRST_LEVEL)
@@ -48,21 +45,15 @@ export class SfApp extends LitElement {
   @state() private rate = 1
   @state() private dev = urlState.get('dev')
   private winRank = -1
-  // 面板由 app 持有：sf-game 重建不销毁
   private devTools: DevTools | null = null
   private disposeKeys: (() => void) | null = null
-  // urlState 订阅退订函数（connectedCallback 注册、disconnectedCallback 对称退订）
   private urlSubs: (() => void)[] = []
-  // 关卡内容 hash 缓存：renderGame 每渲染调用 levelHash 会对全文重算 FNV，这里随关卡变化算一次
   private activeLevelHash = ''
-  // 关卡开始上报的去重指针：进关路径（按钮/直达/后退）都在 applyScreen 汇聚，见 applyScreen
   private lastStartLevel: LevelDef | null = null
 
   @query('sf-game') private gameEl!: SfGame
   @query('sf-hud') private hudEl!: SfHud
 
-  // ===== 统一语义动作 =====
-  // hud 模板与键盘装配共用（行为唯一来源）：hud 派发的事件只做转发，不重定义动作
   private actions = {
     pause: () => this.gameEl?.togglePause(),
     restart: () => {
@@ -82,17 +73,14 @@ export class SfApp extends LitElement {
     return this.dev ? [1, 2, 4, 8, 16, 0.5] : [1, 2, 4, 0.5]
   }
 
-  // ===== 生命周期 =====
   constructor() {
     super()
     fb.unlock()
-    // 初始加载与外部变化允许脏 lv 净化；本地写路径不净化（见 screen.ts cleanup 注释）
     this.applyScreen(screenFromUrl(true))
   }
 
   override connectedCallback() {
     super.connectedCallback()
-    // 挂载时注册（幂等：先退旧再注册，元素移动/重挂不累积）；constructor 注册在卸载重挂场景会永久丢失
     this.bindUrlState()
     this.bindKeys()
   }
@@ -108,18 +96,15 @@ export class SfApp extends LitElement {
 
   protected override willUpdate(changed: PropertyValues) {
     this.syncDevTools()
-    // 渲染前重置（willUpdate 不额外调度），避免上局结算覆盖层闪现
     if (this.screen === 'game' && (changed.has('screen') || changed.has('activeLevel'))) {
       this.resetHud(this.activeLevel)
     }
   }
 
-  // 渲染后挂载 dev 面板（hud 已就绪）：mount 内部守卫跳过重复挂载，hud 重建后自动重挂
   protected override updated() {
     this.devTools?.mount(this.hudEl)
   }
 
-  // ===== URL 导航 =====
   private bindUrlState() {
     this.disposeUrlState()
     this.urlSubs = [
@@ -140,28 +125,23 @@ export class SfApp extends LitElement {
     this.urlSubs = []
   }
 
-  // URL 派生单入口：本地写（写读分离不回调）与外部变化（onChange）都经此应用，派生逻辑唯一在 game/screen.ts
   private applyScreen(s: ScreenState) {
     this.screen = s.screen
-    // 非 game 屏保留旧关卡：渲染不依赖，且 keyed(activeLevel) 换关重建语义由引用变化驱动
     if (s.level) {
       this.activeLevel = s.level
       this.activeLevelHash = levelHash(urlState.get('lv')) ?? ''
     }
-    // 关卡开始的公共上报点：按钮进关/URL 直达/后退进关同一路径，GA 漏斗无孤儿完成
     if (s.screen === 'game' && s.level && s.level !== this.lastStartLevel) {
       this.lastStartLevel = s.level
       this.emitLevelStart(s.level)
     }
     this.initialSources = s.sources
-    // 退出关卡屏（主页/存储/dev）速率归 1：倍率只在关卡内有意义，BGM 播放速率同步恢复
     if (s.screen !== 'game' && this.rate !== 1) {
       this.rate = 1
       bgm.setRate(1)
     }
   }
 
-  // 进关共用：写 lv + 清旧摆法 + 应用 URL 派生（关卡开始上报由 applyScreen 统一触发）
   private enterLevel(id: string) {
     urlState.set('lv', { id })
     urlState.clear('s')
@@ -184,14 +164,12 @@ export class SfApp extends LitElement {
     this.enterLevel(next)
   }
 
-  // 应用内导航条目标记（C10）：goBack/undo/redo 共用同一判定——直达/外部进入无标记，回退即离开本站
   private hasSfHistory(): boolean {
     return !!window.history.state && !!(window.history.state as { sf?: boolean }).sf
   }
 
   private goBack() {
     fb.uiBack()
-    // 仅应用内导航（pushState 带 sf 标记）才回退上一页；直达链接/外部进入回首页
     if (this.hasSfHistory()) window.history.back()
     else this.backToTitle()
   }
@@ -222,7 +200,6 @@ export class SfApp extends LitElement {
     this.openView('about')
   }
 
-  // replace：切换不进历史（后退不会"撤销切换"）；关闭即清参——dev=0 不落 URL（参数存在即暴露开发者模式入口）
   private toggleDev(e: CustomEvent<boolean>) {
     this.dev = e.detail
     if (e.detail) urlState.set('dev', true, { replace: true })
@@ -230,7 +207,6 @@ export class SfApp extends LitElement {
     fb.uiClick()
   }
 
-  // dev 覆写生效：内联关卡文本压入 lv（编辑器已校验）；旧摆法不随关卡继承
   private onDevOverride = (text: string) => {
     urlState.set('lv', { json: text })
     urlState.clear('s')
@@ -242,7 +218,6 @@ export class SfApp extends LitElement {
     this.winRank = -1
   }
 
-  // ===== 会话动作 =====
   private cycleSpeed(dir: 1 | -1 = -1) {
     const steps = this.speedSteps
     this.rate = steps[(steps.indexOf(this.rate) + dir + steps.length) % steps.length]
@@ -250,9 +225,6 @@ export class SfApp extends LitElement {
     fb.uiClick()
   }
 
-  // 撤销/重做 = 浏览器历史导航（全局语义，如浏览器左右箭头）：每次应用内状态变更都是带 sf 标记的 pushState 条目，
-  // popstate 应用路径由 urlState 写读分离保证不回写；输入框内由原生文本撤销优先，keys 层已过滤。
-  // 与 goBack 同策略：当前条目无 sf 标记（直达链接会话）时后退会离开本站——视为无可撤销
   private undoMove() {
     if (this.hasSfHistory()) window.history.back()
   }
@@ -261,7 +233,6 @@ export class SfApp extends LitElement {
     if (this.hasSfHistory()) window.history.forward()
   }
 
-  // ===== hud 事件处理器 =====
   private onGroup(e: CustomEvent<string>) {
     this.activeGroup = e.detail
     fb.uiClick()
@@ -275,7 +246,6 @@ export class SfApp extends LitElement {
   }
 
   private onDeny(e: CustomEvent<DenyDetail>) {
-    // chip 抖动（哪个道具不足）由 hud 呈现，全屏波纹已在 sf-game 层播放
     this.hudEl?.deny(e.detail.kind)
   }
 
@@ -284,7 +254,6 @@ export class SfApp extends LitElement {
     else urlState.set('s', e.detail)
   }
 
-  // WebGL 不可用：与 wasm 失败同策略——替换为终端页，不盲玩（盲玩可写通关记录、无画面反馈）
   private onUnsupported() {
     const el = document.createElement('sf-unsupported') as HTMLElement & { reason: string }
     el.reason = 'webgl'
@@ -299,12 +268,9 @@ export class SfApp extends LitElement {
       time: this.hud.time,
       extra: this.hud.extra,
     })
-    // 正式数据排除内联关卡（dev 编辑器产物）：仅 id 形态（内置关卡）上报
     if (lv !== null && 'id' in lv) this.emitLevelComplete(this.winRank === 0)
   }
 
-  // ===== 上报（语义事件：业务侧只发事件，传输由 main.ts 装配的适配器接管） =====
-  // dev 会话（devTools 活跃）不上报：无限源/16× 速/编辑器覆写会污染正式漏斗与转化率
   private emitLevelStart(level: LevelDef) {
     if (this.devTools) return
     analytics.emit({
@@ -329,8 +295,6 @@ export class SfApp extends LitElement {
     })
   }
 
-  // ===== dev 工具 =====
-  // dev 覆写重建 sf-game 时面板不销毁：编辑器状态延续
   private syncDevTools() {
     if (this.screen === 'game' && this.dev) {
       if (!this.devTools) this.devTools = new DevTools({ onApply: this.onDevOverride })
@@ -340,7 +304,6 @@ export class SfApp extends LitElement {
     }
   }
 
-  // ===== 键盘装配 =====
   private bindKeys() {
     this.disposeKeys?.()
     this.disposeKeys = setupKeys(
@@ -353,7 +316,6 @@ export class SfApp extends LitElement {
     )
   }
 
-  // ===== 渲染 =====
   protected override render() {
     switch (this.screen) {
       case 'game':
@@ -381,7 +343,6 @@ export class SfApp extends LitElement {
   }
 
   private renderDev() {
-    // dev 页返回固定回主页并保留当前 dev：history.back 会穿越 replace 之前的旧条目（携带旧 dev 值，已关闭的开发者模式会"复活"）
     return html`<sf-dev-menu
       .dev=${this.dev}
       @back=${this.actions.back}
@@ -403,8 +364,6 @@ export class SfApp extends LitElement {
     const h = this.activeLevelHash
     const bestTotal = won && h ? progress.best(h)?.total : undefined
     const hasNext = nextLevel(this.activeLevel.id) !== undefined
-    // keyed 按对象身份重建：关卡内容变化时必须重建 sf-game
-    // 事件名用字面量：Lit 模板不支持动态事件名（@${expr} 静默失效）
     return html`
       <main class="game">
         ${keyed(

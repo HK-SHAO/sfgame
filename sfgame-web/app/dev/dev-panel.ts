@@ -2,13 +2,9 @@ import { LitElement, css, html } from 'lit'
 import { customElement, query } from 'lit/decorators.js'
 import { iconGear } from '../ui/icons.ts'
 
-// 松手惯性：指数阻尼总位移 = 速度/阻尼，一次 transition 缓动到预测终点（含撞边钳制）。
-// 不做逐帧模拟：无 rAF、无状态机，只剩一次样式过渡
 const INERTIA_DAMP = 6
 const INERTIA_ANIM = 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)'
 
-// 开发面板：:host 挂在 hud 的 shadow 内（top 锚 hud 底，天然不与 header 重合）；
-// 外边距让开三边间距/安全区；内层 .panel 坐标即容器内 0..clientWidth/Height 纯坐标
 @customElement('sf-dev-panel')
 export class SfDevPanel extends LitElement {
   private dragging = false
@@ -16,7 +12,6 @@ export class SfDevPanel extends LitElement {
   private y = 0
   private w = 0
   private h = 0
-  // 增量跟手（不依赖 movementX 兼容性）+ 末段速度供松手惯性
   private prevX = 0
   private prevY = 0
   private prevT = 0
@@ -36,11 +31,9 @@ export class SfDevPanel extends LitElement {
         calc(var(--dev-gap) + env(safe-area-inset-right, 0px))
         calc(var(--dev-gap) + env(safe-area-inset-bottom, 0px))
         calc(var(--dev-gap) + env(safe-area-inset-left, 0px));
-      /* iOS 26 home indicator 自动隐藏时 inset-bottom 突变：过渡平滑位移 */
       transition: margin 180ms ease-out;
       z-index: 9999;
       pointer-events: none;
-      /* --dev-* 穿透 shadow 边界，供装配组件复用 */
       --dev-gap: 0.5625rem;
       --dev-fg: #ffe9c9;
       --dev-hairline: rgba(255, 233, 201, 0.18);
@@ -83,7 +76,6 @@ export class SfDevPanel extends LitElement {
       font-size: 0.6875rem;
       line-height: 1.5;
       cursor: grab;
-      /* 拖拽句柄专属：touch-action 收敛到 .head，面板体保持可滚动（iOS） */
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
@@ -107,8 +99,6 @@ export class SfDevPanel extends LitElement {
       background: var(--dev-hairline);
     }
 
-    /* 插槽内容随 flex-shrink 被压扁（slot 默认 display:contents，内容直接成为 flex 项）：
-       定 flex:none 保住自然高度，超高时走 max-height 内部滚动 */
     ::slotted(*) {
       flex: none;
     }
@@ -125,7 +115,6 @@ export class SfDevPanel extends LitElement {
   }
 
   override disconnectedCallback() {
-    // 拖拽中卸载的兜底：清掉窗口级监听，防泄漏
     this.endDrag()
     this.resizeObs?.disconnect()
     this.resizeObs = null
@@ -134,9 +123,7 @@ export class SfDevPanel extends LitElement {
   }
 
   protected override firstUpdated() {
-    // 默认左上角：位置自此由 JS 持有（transform 表达容器内坐标），面板尺寸变化由 RO 兜底钳制
     void this.updateComplete.then(() => {
-      // 卸载竞态守卫：updateComplete 决议前被 disconnect 时不再观测已脱离文档的子树（RO 注册表会强引用它）
       if (!this.isConnected) return
       const r = this.panelEl.getBoundingClientRect()
       this.w = r.width
@@ -165,10 +152,8 @@ export class SfDevPanel extends LitElement {
 
   private onDown = (e: PointerEvent) => {
     if (e.button !== 0 || this.dragging) return
-    // e.target 在 shadow DOM 外被重定向成宿主，须用 composedPath()[0] 取真实目标
     const target = e.composedPath()[0] as Element | null
     if (!target || !target.closest('.head')) return
-    // 拖拽跟手前取消可能残留的惯性过渡
     this.panelEl.style.transition = 'none'
     const r = this.panelEl.getBoundingClientRect()
     this.dragging = true
@@ -181,9 +166,7 @@ export class SfDevPanel extends LitElement {
     try {
       this.panelEl.setPointerCapture(e.pointerId)
     } catch {
-      /* capture 失败时 window 级监听兜底，up 依旧必达 */
     }
-    // 手势收尾挂 window：指针在元素外/窗口内任何位置抬起都能拿到 up，绝不残留 dragging
     window.addEventListener('pointermove', this.onMove)
     window.addEventListener('pointerup', this.onUp)
     window.addEventListener('pointercancel', this.endDrag)
@@ -204,7 +187,6 @@ export class SfDevPanel extends LitElement {
     this.applyTransform()
   }
 
-  // 拖拽结束统一清理：无论正常抬起/cancel/卸载，都走这里收尾
   private endDrag = () => {
     if (!this.dragging) return
     this.dragging = false
@@ -214,8 +196,6 @@ export class SfDevPanel extends LitElement {
     window.removeEventListener('pointercancel', this.endDrag)
   }
 
-  // 松手惯性：按末段速度预测滑行终点（指数阻尼总位移 v/k，撞边即钳在边界），
-  // 一次 easeOut 过渡滑过去；过渡期间 transform 由浏览器插值，结束时即停
   private onUp = () => {
     this.endDrag()
     const rx = this.clientWidth - this.w
@@ -229,7 +209,6 @@ export class SfDevPanel extends LitElement {
     this.applyTransform()
   }
 
-  // 视口/自身尺寸变化后钳回容器内（无动画：transition 显式归零，不干扰拖拽/惯性）
   private onBoundsChange = () => {
     if (this.dragging || !this.ready) return
     const r = this.panelEl.getBoundingClientRect()

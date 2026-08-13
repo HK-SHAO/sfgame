@@ -2,7 +2,6 @@ import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { boxReset, warmBg } from './shared-styles.ts'
 
-// 终端页：WebAssembly/WebGL 不可用时由装配方挂载（无游戏可玩，不提供任何入口）
 @customElement('sf-unsupported')
 export class SfUnsupported extends LitElement {
   @property() reason: 'wasm' | 'webgl' = 'wasm'
@@ -48,7 +47,6 @@ export class SfUnsupported extends LitElement {
     }
 
     .card {
-      /* 居中 + 溢出兜底：margin auto 而非 place-items（溢出双向裁切） */
       margin: auto;
       padding: var(--card-pad);
       text-align: center;

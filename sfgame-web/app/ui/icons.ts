@@ -1,10 +1,6 @@
 import { html, nothing, svg } from 'lit'
 import type { TemplateResult } from 'lit'
 
-// 图标工厂：描边/填充两种骨架收敛公共属性样板。
-// ⚠ svg 子内容必须用 lit 的 `svg` tag 创建：普通嵌套 html 模板经 <template>（HTML 上下文）解析，
-//   子元素会落在 HTML 命名空间，SVG 渲染器拒绝绘制（曾致全端图标空白，见 CR-OPT-REPORT 执行记录）。
-//   `svg` tag 解析时用 <svg> 包装再解包，子元素落在 SVG 命名空间。
 function outlineIcon(sw: number, inner: TemplateResult, join = true): TemplateResult {
   return html`<svg
     viewBox="0 0 24 24"
@@ -29,7 +25,6 @@ function fillIcon(inner: TemplateResult): TemplateResult {
   </svg>`
 }
 
-// 火焰本体偏窄（x 6-18 vs 其余图标 4.5-19.5）：绕中心拉宽补齐视觉体量
 export const iconFlame = fillIcon(svg`
   <g transform="translate(12 12) scale(1.17 1.03) translate(-12 -12)">
     <path
@@ -38,7 +33,6 @@ export const iconFlame = fillIcon(svg`
   </g>
 `)
 
-// 雪花本体偏小（x 6.15-17.85）：等比放大对齐其余图标占位，等比保证描边不变形
 export const iconSnow = outlineIcon(2, svg`
   <g transform="translate(12 12) scale(1.15) translate(-12 -12)">
     <line x1="12" y1="5.25" x2="12" y2="18.75" />

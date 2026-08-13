@@ -4,7 +4,6 @@ import { author, description, version } from '../../package.json'
 import { boxReset, brandIn, card, pillLink } from './shared-styles.ts'
 import logoUrl from '../../src/assets/logo-title.webp?url'
 
-// 关于卡片：dev 页与独立关于页共用（信息单源，避免双处漂移）；品牌组合图小号展示
 @customElement('sf-about-card')
 export class SfAboutCard extends LitElement {
   protected override render() {
@@ -74,7 +73,6 @@ export class SfAboutCard extends LitElement {
         display: block;
         width: 12rem;
         height: auto;
-        /* 品牌插槽恒定方形：换图比例变化只 letterbox，不随文件抖动 */
         aspect-ratio: 1 / 1;
         object-fit: contain;
         margin: 0 auto 0;
@@ -107,7 +105,6 @@ export class SfAboutCard extends LitElement {
         color: var(--ink);
       }
 
-      /* 展开提示箭头：闭合指向右，展开旋转 90° */
       .intro summary .caret,
       .keys summary .caret {
         display: inline-block;
@@ -137,7 +134,6 @@ export class SfAboutCard extends LitElement {
         margin-bottom: 0;
       }
 
-      /* 键位表：两列 grid 整体居中，键位列右对齐、动作列左对齐，两条竖线全表对齐（列宽取本列最宽内容） */
       .keys-grid {
         display: grid;
         grid-template-columns: auto auto;
@@ -190,7 +186,6 @@ export class SfAboutCard extends LitElement {
         margin-top: var(--sp-3);
       }
 
-      /* .links a 配方来自 shared-styles.pillLink */
       .copyright {
         margin: var(--sp-3) 0 0;
         font-size: 0.75rem;

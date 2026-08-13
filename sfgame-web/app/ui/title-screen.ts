@@ -9,14 +9,12 @@ import { artBg, boxReset, brandIn, buttonReset, pillLink, reduceMotion } from '.
 import { iconChevron, iconGear, iconInfo, iconLock, iconPlay } from './icons.ts'
 import logoUrl from '../../src/assets/logo-title.webp?url'
 
-// 耗时评级阈值单源（≤30 绿 / ≤60 黄 / >60 红）：emoji 直观表意（🏆 纪录 / 🙂 尚可 / 🐌 缓慢）
 export function bestGrade(total: number): { cls: 'good' | 'fair' | 'poor'; emoji: string } {
   if (total > 60) return { cls: 'poor', emoji: '🐌' }
   if (total > 30) return { cls: 'fair', emoji: '🙂' }
   return { cls: 'good', emoji: '🏆' }
 }
 
-// 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
 @customElement('sf-title-screen')
 export class SfTitleScreen extends LitElement {
   @property({ type: Boolean }) dev = false
@@ -26,7 +24,6 @@ export class SfTitleScreen extends LitElement {
     this.dispatchEvent(new CustomEvent<string>('start', { detail: id }))
   }
 
-  // 关于按钮：短按开关于页，长按（500ms）进开发者页面（隐藏入口，不向玩家披露）
   private aboutTimer: number | null = null
 
   private onAboutDown = () => {
@@ -49,13 +46,11 @@ export class SfTitleScreen extends LitElement {
   }
 
   override disconnectedCallback() {
-    // 卸载时挂起的 500ms 定时器即刻清掉（多点触控：按住关于的同时切走）
     if (this.aboutTimer !== null) clearTimeout(this.aboutTimer)
     this.aboutTimer = null
     super.disconnectedCallback()
   }
 
-  // 键盘路径（Enter 的 click detail=0）；指针的 click 忽略（about 已由 pointerup 触发）
   private onAboutClick = (e: MouseEvent) => {
     if (e.detail === 0) this.dispatchEvent(new CustomEvent('about'))
   }
@@ -84,7 +79,6 @@ export class SfTitleScreen extends LitElement {
     `
   }
 
-  // 分组 tab：activeGroup 定位当前组（组内容/顺序单一事实在 LEVEL_GROUPS）
   private renderGroups() {
     return html`
       <nav class="groups" aria-label="关卡组">
@@ -103,7 +97,6 @@ export class SfTitleScreen extends LitElement {
     `
   }
 
-  // 关卡列表：dev 模式全关卡可玩（含未解锁）；解锁按关卡 hash 的通关记录判定
   private renderLevels() {
     const group = LEVEL_GROUPS.find((g) => g.name === this.activeGroup)
     const levels = (group?.ids ?? [])
@@ -113,11 +106,8 @@ export class SfTitleScreen extends LitElement {
       <nav class="levels" aria-label="关卡列表">
         ${levels.map((l, i) => {
           const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash({ id }) ?? ''))
-          // 最优成绩 = 通关记录合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
           const best = progress.best(levelHash({ id: l.id }) ?? '')
-          // 耗时评级阈值单源：bestGrade 纯函数（可无头测试）
           const grade = best ? bestGrade(best.total) : null
-          // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变；序数 = levelNo（标题屏与状态条同源）
           const no = String(levelNo(l.id)).padStart(2, '0')
           return keyed(l.id, html`
             <button
@@ -155,7 +145,6 @@ export class SfTitleScreen extends LitElement {
       : nothing
   }
 
-  // 底部链接：B站视频入口（恒显）+ 非 dev 模式关于钮（长按 500ms 进开发者页面，隐藏入口），dev 模式开发者页面钮
   private renderLinks() {
     return html`
       <div class="links">
@@ -211,7 +200,6 @@ export class SfTitleScreen extends LitElement {
         height: 100%;
         display: flex;
         flex-direction: column;
-        /* 横屏刘海/Dynamic Island 在侧边，须加左/右安全区 */
         padding: var(--page-pad-y) calc(var(--page-pad-x) + env(safe-area-inset-right, 0px))
           var(--page-pad-y) calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
         overflow: auto;
@@ -225,7 +213,6 @@ export class SfTitleScreen extends LitElement {
         margin: auto;
         padding: var(--card-pad);
         text-align: center;
-        /* 白雾玻璃：--card-glass + --blur-glass 统一配方（与页面壳卡片同源） */
         background: var(--card-glass);
         backdrop-filter: var(--blur-glass);
         -webkit-backdrop-filter: var(--blur-glass);
@@ -236,7 +223,6 @@ export class SfTitleScreen extends LitElement {
       }
 
       .brand {
-        /* h1 语义标题（SEO/无障碍读 img alt）；font-size/line-height 归零：h1 默认字号会撑高模板行内空白，img 是 block 不受影响 */
         display: block;
         width: 12rem;
         max-width: 100%;
@@ -249,7 +235,6 @@ export class SfTitleScreen extends LitElement {
         display: block;
         width: 100%;
         height: auto;
-        /* 品牌插槽恒定方形：换图比例变化只 letterbox，不随文件抖动 */
         aspect-ratio: 1 / 1;
         object-fit: contain;
       }
@@ -326,12 +311,10 @@ export class SfTitleScreen extends LitElement {
         gap: var(--sp-4);
         width: 100%;
         padding: var(--sp-2) var(--sp-4);
-        /* 覆盖卡片继承的 text-align:center */
         text-align: left;
         border-radius: var(--r-lg);
         corner-shape: squircle;
         transition: transform 120ms ease-out, box-shadow 120ms ease-out;
-        /* 逐个进场：--i 由模板注入索引，50ms 错峰（一组 5 项 ≈0.5s 收尾）；both 保持 delay 期隐藏，动画后 transform 归位不碍 hover 过渡 */
         animation: level-in 300ms ease-out both;
         animation-delay: calc(var(--i) * 50ms);
       }
@@ -357,7 +340,6 @@ export class SfTitleScreen extends LitElement {
         flex: none;
         font-size: 0.75rem;
         color: var(--ink-soft);
-        /* 双位补零后「第 01 关」仍不换行（0.75rem × 5 字符） */
         width: 3.25rem;
         white-space: nowrap;
       }
@@ -398,7 +380,6 @@ export class SfTitleScreen extends LitElement {
         color: var(--ink-soft);
       }
 
-      /* 动作组：成绩徽章与箭头同组贴近（组内 --sp-2），与信息组分隔（--sp-4） */
       .level .side {
         flex: none;
         display: flex;
@@ -412,7 +393,6 @@ export class SfTitleScreen extends LitElement {
         align-items: center;
       }
 
-      /* 最佳成绩徽章：仅有关卡记录时出现；耗时评级配色（优秀绿 = 纪录语义 / 一般琥珀 / 不优秀红） */
       .level .best {
         padding: var(--chip-pad);
         font-size: 0.75rem;
@@ -457,7 +437,6 @@ export class SfTitleScreen extends LitElement {
         margin-top: var(--sp-3);
       }
 
-      /* .link-btn 配方来自 shared-styles.pillLink */
       .link-btn svg {
         width: var(--icon-sm);
         height: var(--icon-sm);

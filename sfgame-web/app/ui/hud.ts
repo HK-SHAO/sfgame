@@ -5,7 +5,6 @@ import type { SourceKind } from '../sim/types.ts'
 import { boxReset, buttonReset, glassChip, reduceMotion } from './shared-styles.ts'
 import { iconFlame, iconHome, iconPause, iconPlay, iconReset, iconSnow, iconSoundOff, iconSoundOn } from './icons.ts'
 
-// 游戏 HUD 头：从 app.ts 拆出（热冷余量 + 主页/暂停/速率/重置/声音按钮 + deny 抖动）
 @customElement('sf-hud')
 export class SfHud extends LitElement {
   @property({ attribute: false }) hud: HudState = {
@@ -30,7 +29,6 @@ export class SfHud extends LitElement {
   private onRestart = () => this.dispatchEvent(new Event('restart'))
   private onSound = () => this.dispatchEvent(new Event('sound'))
 
-  // 放置被拒抖动：目标在 hud 内，动画就地执行
   deny(kind: SourceKind) {
     void this.updateComplete.then(() => {
       const el = this.renderRoot.querySelector<HTMLElement>(`.chip.${kind}`)
@@ -107,7 +105,6 @@ export class SfHud extends LitElement {
     css`
       :host {
         display: block;
-        /* --hud-pad/--hud-h 定义在 :root（尺寸 token 单源）；.hud 是 absolute 不撑高，显式 height 才与可视高度一致 */
         height: var(--hud-h);
       }
 
@@ -161,7 +158,6 @@ export class SfHud extends LitElement {
         white-space: nowrap;
       }
 
-      /* 42rem ≈ 带标签内容宽 */
       @container (min-width: 42rem) {
         .lbl {
           display: inline;
@@ -224,8 +220,6 @@ export class SfHud extends LitElement {
         opacity: 0.42;
       }
 
-      /* 26rem ≈ 无标签内容宽下限：再窄收紧控件，保证永不溢出（替代旧横向滚动）。
-         置于常规定义之后：同特异性容器查询必须后定义才覆盖 */
       @container (max-width: 26rem) {
         .hud,
         .hud-left,

@@ -6,6 +6,8 @@
 
 注释从简：代码永远看不出来的"为什么"——物理原理、不变量、协议细节、校准过的常数取舍。禁止写复述代码的文档块（函数签名、循环流程、"+1 计数"之类）。4 行以上文档注释块若只有一行有用信息，缩成一行。删除注释比添加注释更受欢迎。
 
+**打包面零注释**：HTML/CSS/Lit（`app/ui/`、`app/dev/`、`app/main.ts`、`index.html`、`app/styles.css`）一律不写注释——代码与 token 命名自明，"为什么"沉淀到本文件与 `skills/pitfalls/SKILL.md`（如 svg tag 见 A13、样式失效见 A12）。注释只允许出现在无头层（`app/core|game|sim|render|wasm/`、`moon/`、`scripts/`、`tests/`）。
+
 ## 仓库布局
 
 - `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡搭建指南）与仓库同仓

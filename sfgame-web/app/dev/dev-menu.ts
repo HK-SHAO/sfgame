@@ -66,7 +66,6 @@ export class SfDevMenu extends LitElement {
         gap: var(--sp-4);
         width: 100%;
         padding: var(--sp-4);
-        /* 行含原生 button（存储管理）：须清零 UA buttonface 底色与黑边框 */
         border: none;
         background: none;
         border-radius: var(--r-md);
@@ -124,7 +123,6 @@ export class SfDevMenu extends LitElement {
         color: var(--ink-soft);
       }
 
-      /* 原生 checkbox 承载开关状态：视觉由 :checked + 相邻兄弟选择器驱动，键盘可聚焦 */
       .switch-input {
         position: absolute;
         opacity: 0;

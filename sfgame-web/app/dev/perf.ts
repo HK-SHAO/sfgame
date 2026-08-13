@@ -13,7 +13,6 @@ export interface PerfSample {
 
 const WINDOW = 90
 const THROTTLE_MS = 1000 / 24
-// load% 的分母：60fps 单帧预算
 const FRAME_BUDGET_MS = 1000 / 60
 
 interface FrameSample {
@@ -45,13 +44,11 @@ export class SfPerf extends LitElement {
       color-scheme: light;
     }
 
-    /* 3 列隐形格子：每指标一格、等宽占满，数字 tabular 定宽不抖动 */
     .lines {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.0625rem var(--sp-3);
       padding: var(--sp-1) var(--sp-2);
-      /* 点击即全选整块文本，便于复制性能数据 */
       user-select: all;
     }
 

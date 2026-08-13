@@ -19,7 +19,6 @@ export class SfLevelEditor extends LitElement {
     css`
     :host {
       display: block;
-      /* dev 面板内的滚动条/控件按浅色渲染 */
       color-scheme: light;
     }
 
@@ -52,7 +51,6 @@ export class SfLevelEditor extends LitElement {
       background: var(--dev-hover);
     }
 
-    /* 折叠图标与面板头部图标同规格；展开旋转 90° */
     .toggle svg {
       flex: none;
       width: 0.75rem;
@@ -112,7 +110,6 @@ export class SfLevelEditor extends LitElement {
       background: var(--dev-hover);
     }
 
-    /* 校验失败容器：独立成块，下间距隔开按钮行 */
     .error {
       display: flex;
       align-items: flex-start;
@@ -174,7 +171,6 @@ export class SfLevelEditor extends LitElement {
     }
   }
 
-  // 当前关卡源文本：内联关卡为 URL 紧凑 JSON，这里重新美化；内置关卡取仓库 JSON 原文
   private currentText(): string | undefined {
     const lv = urlState.get('lv')
     if (lv !== null && 'json' in lv) {
@@ -198,7 +194,6 @@ export class SfLevelEditor extends LitElement {
 
   private confirm() {
     try {
-      // parseLevelText 已校验，直接序列化交 app 压 URL
       const json = JSON.stringify(parseLevelText(this.editorText))
       this.onApply?.(json)
       this.error = ''

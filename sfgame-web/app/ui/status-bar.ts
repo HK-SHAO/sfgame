@@ -3,7 +3,6 @@ import { customElement, property } from 'lit/decorators.js'
 import { formatPenalty, formatTime } from '../game/timer.ts'
 import { boxReset } from './shared-styles.ts'
 
-// 声明式状态条：属性每帧由 sf-game 驱动，shouldUpdate 内格式化比对短路，文本未变零渲染成本
 @customElement('sf-status')
 export class SfStatusBar extends LitElement {
   @property({ type: Number }) levelNo = 0
@@ -49,7 +48,6 @@ export class SfStatusBar extends LitElement {
       position: fixed;
       left: 50%;
       transform: translateX(-50%);
-      /* iOS 26 横屏 home indicator 自动隐藏时 inset-bottom 突变归零：过渡平滑位移 */
       bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
       transition: bottom 180ms ease-out;
       z-index: 3;
@@ -74,7 +72,6 @@ export class SfStatusBar extends LitElement {
       pointer-events: none;
     }
 
-    /* 显式声明：:host 的 display 会覆盖 UA 的 [hidden] 规则 */
     :host([hidden]) {
       display: none;
     }

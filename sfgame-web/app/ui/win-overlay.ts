@@ -20,7 +20,6 @@ export class SfWinOverlay extends LitElement {
   private onBack = () => this.dispatchEvent(new CustomEvent('back'))
 
   protected override render() {
-    // 罚时构成直观按秒显示（道具源罚 4s/源、贴地罚 1s/s），不再给"额外"总文案
     const groundPenalty = this.extra - this.sources * SOURCE_PENALTY
     const extraBreakdown =
       this.extra > 0
@@ -81,7 +80,6 @@ export class SfWinOverlay extends LitElement {
       margin: auto;
       padding: var(--card-pad);
       text-align: center;
-      /* 雾面玻璃（与全局卡片同质感）：结算卡下的游戏画面晕开 */
       background: var(--card);
       backdrop-filter: var(--blur-glass);
       -webkit-backdrop-filter: var(--blur-glass);
@@ -134,7 +132,6 @@ export class SfWinOverlay extends LitElement {
       white-space: nowrap;
     }
 
-    /* 罚时构成（道具/贴地）：独立小字行，主行保持简短 */
     .stats .note {
       font-size: 0.75rem;
       color: var(--ink-soft);
@@ -147,7 +144,6 @@ export class SfWinOverlay extends LitElement {
       font-weight: 600;
     }
 
-    /* 两行按钮整体等宽（主按钮与副按钮组同宽），按钮组内均分 */
     .actions {
       display: flex;
       flex-direction: column;
@@ -171,7 +167,6 @@ export class SfWinOverlay extends LitElement {
       flex: 1;
     }
 
-    /* button 复位来自 shared-styles.buttonReset，此处仅覆盖 padding 与排版 */
     button {
       padding: var(--ctl-pad);
       font-size: 0.875rem;

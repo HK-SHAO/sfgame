@@ -14,7 +14,6 @@ export interface GestureHandlers {
   tap(w: Vec2, clientX: number, clientY: number): void
   pressCancelled(): void
   secondaryTap(w: Vec2, clientX: number, clientY: number): void
-  // 点击落在世界盒外（letterbox 天空带等）无法映射坐标：仍按按钮意图给统一 deny 反馈
   denyAt(kind: SourceKind, clientX: number, clientY: number): void
 }
 
@@ -66,15 +65,12 @@ export class GestureInput {
   }
 
   private onDown = (e: PointerEvent) => {
-    // 右键走 contextmenu 放冷源；此处放行会先按 tap 放热源
     if (buttonKind(e.button) !== 'hot') return
     const w = this.handlers.toWorld(e.clientX, e.clientY)
     if (!w) {
-      // 世界盒外（letterbox 带）按左键意图给热源 deny
       this.handlers.denyAt('hot', e.clientX, e.clientY)
       return
     }
-    // 个别环境（自动化/合成事件等）pointer 未激活时 capture 会抛，退化为普通手势
     try {
       this.el.setPointerCapture(e.pointerId)
     } catch {

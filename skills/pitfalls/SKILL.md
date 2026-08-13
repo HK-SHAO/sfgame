@@ -55,6 +55,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - 布局测量与预期不符 → A1、H1
 - 挂进宿主元素的覆盖层元素"消失"（getBoundingClientRect 全 0/视口外）→ A9
 - CSS/样式改了却不生效（Lit 模板里写了 `//` 注释） → A12
+- 图标/SVG 空白不渲染、DevTools 编辑后恢复（嵌套 html 模板做 svg 子内容） → A13
 - 想用 wasm/代码生成/Worker 加速、移动端"应该更慢"的想当然 → I1、I5
 - run-level --verify/--solve 输出"通关 0.0s · 路程 NaN" → I8（bun 运行时 WASM·SIMD 误执行，先验过 vitest）
 - 只有 iOS Safari 卡、其他平台都好 → I6（Metal 后端渲染路径）
@@ -293,6 +294,12 @@ iOS Safari 的 Canvas 2D 是 CPU 栅格化（D1），逐帧上万段 Path2D 描�
 **根因**：`css` 标签模板把内容原样拼进 `<style>`，CSS 里 `//` 是非法词法（CSS 注释只有 `/* */`），解析器按错误恢复规则吞掉后续声明。
 **修法**：CSS 模板里注释一律 `/* */`；`//` 只允许写在模板外的 TS 代码处。
 **信号**：改动只加/改了注释、某样式却失效——先查注释写法；dev 面板宽度类规则尤其常见。
+
+### A13 嵌套 html 模板做 SVG 子内容：图标整片空白（2026-08 全端实踩）
+**症状**：图标/内联 SVG 尺寸位置全对、就是不绘制；同内容独立 svg 文件正常；DevTools 里编辑该元素 html 强制重解析后突然出现（所有浏览器一致）。
+**根因**：外层 lit `html` 模板内再嵌套 `html` 模板做 SVG 子内容时，内层经普通 `<template>` 在 **HTML 上下文**解析，子元素落 HTML 命名空间——SVG 渲染器拒绝绘制 HTML 命名空间的图形元素。
+**修法**：SVG 内层一律用 lit 的 **`svg` tag**（解析时以 `<svg>` 包装再解包，子元素落 SVG 命名空间），外层保留 `html` 全量 svg 字面量；或 `unsafeSVG`。
+**验证**：全树 namespaceURI 无 badNamespaces + 像素暗度与原版逐像素一致（CDP/MCP 数值化探测，见 H1）。
 
 ## E. 手势 / 移动端
 

@@ -10,7 +10,7 @@
     "dev": "bun run --cwd sfgame-web dev",
     "test": "bun run --cwd sfgame-web test",
     "check": "bun run --cwd sfgame-web check",
-    "deploy": "bun run build && bun run --cwd cloudflare deploy"
+    "deploy": "bun run check && bun run --cwd cloudflare deploy"
   },
   "devDependencies": {
      "@types/bun": "latest"

@@ -17,15 +17,15 @@
 
 - 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`。脚本/插件运行时入口一律 bun（`bun run scripts/…`）；vite 经 `scripts/vite.mjs` 门面以 bun 运行时执行（`bun vite` 会尊重 bin 的 node shebang 而落到 node，config 内 Bun 全局失效；门面直接 import 入口绕过 shebang——wasm-rebuild 插件依赖 Bun）
 - 依赖经根 `package.json` workspaces（sfgame-web + cloudflare）统一管理：根目录一次 `bun install` 装齐，单一根 `bun.lock`；新依赖加到对应子包 package.json 后根目录重装
-- `bun run check` = typecheck → test → build（fail-fast 一键验证，顺序与语义以 package.json 为准）；`bun run test` = build:wasm + test:moon + vitest；根目录亦有同名透传脚本（--cwd sfgame-web），可在仓库根直接跑
+- `bun run check` = typecheck → build → test（fail-fast 一键验证，顺序与语义以 package.json 为准；build 前置 build:wasm，故 test 恒有产物）；`bun run test` = test:moon + vitest；根目录亦有同名透传脚本（--cwd sfgame-web），可在仓库根直接跑
 - `bun run dev` = vite（`scripts/plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `moon/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
-- `bun run build:wasm` = Moonbit 数值内核编译（moon 工具链需先装），wasm 单目标出单产物（dev/test/build 均已内置，改 moon/ 后无需手动跑）：
+- `bun run build:wasm` = Moonbit 数值内核编译（moon 工具链需先装），wasm 单目标出单产物（dev/build/check 已内置，改 moon/ 后无需手动跑）：
   - wasm 目标 → `app/wasm/sfengine.wasm`（流体+顶点批+示踪三内核单模块单内存；SDF 表达式求值器为纯 TS `app/game/sdf.ts`，不经 moon）
 - `bun run test:moon` = moon 模块单元/白盒测试（wasm 引擎包，含 ffi 寻址约定与内核不变量）
 - `bun run bench:moon` = 内核性能基线（moon bench；满网格流体步 ≈4.6ms @ 256×160，GS f64x2 双格 SIMD + MacCormack 平流；SIMD 在 bun/JSC 的"无地形全 bulk"路径误编译——生产恒有地形不触发，无地形测试路径是 JSC 例外，见 pitfalls I8）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
 - 关卡工具：`bun run scripts/run-level.ts levels/level-N.json --verify … --solve … --sim N`（物理内核恒为 WASM·Moonbit 内核；详见 `skills/level-design/SKILL.md` §5-6）
-- `bun run test` 已内置 build:wasm（产物恒存在）；直跑 `vitest run`（不经脚本）才需先 `bun run build:wasm`（tests/setup.ts 预热 WASM 引擎，缺产物抛错）
+- `bun run test` 不编译 wasm：vitest 的 tests/setup.ts 预热 WASM 引擎，缺产物即抛错（产物 gitignore）——先 `bun run build:wasm`，或跑过一次 build/dev/check 产物即恒在；直跑 `vitest run`（不经脚本）同理
 
 ## 类型配置
 

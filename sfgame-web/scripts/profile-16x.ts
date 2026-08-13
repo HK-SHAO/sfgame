@@ -85,16 +85,18 @@ for (let k = 0; k < N; k++) {
   })
 }
 acc.total = performance.now() - t0
-const perFrame16 = (acc.simStep + acc.tracersStep + acc.cloudsStep + acc.trailPush + acc.wind) * 16 +
-  acc.terrainDraw + acc.tracerTess
+// 单 tick 成本 = 模拟 tick 各项之和（sources 含在 simStep 内的重复度量剔除，只作分解参考）
+const tickItems = ['simStep', 'tracersStep', 'cloudsStep', 'trailPush', 'wind'] as const
+const tickTotal = tickItems.reduce((s, k) => s + acc[k] / N, 0)
+const perFrame16 = tickTotal * 16 + acc.terrainDraw / N + acc.tracerTess / N
 console.log(`关卡 ${level.id} ${level.world.w}×${level.world.h} cell=${cell} 流体网格 ${nx}×${ny} = ${nx * ny} 格`)
-console.log(`--- ${N} 轮均摊（单 tick / ms）---`)
+console.log(`--- ${N} 轮均摊（单 tick / ms，合计 ${tickTotal.toFixed(4)}）---`)
 for (const k of Object.keys(acc) as (keyof typeof acc)[]) {
   if (k === 'total') continue
   const per = acc[k] / N
-  console.log(`${k.padEnd(12)} ${per.toFixed(4)} ms  ${(per / (acc.simStep + acc.tracersStep + acc.cloudsStep + acc.trailPush + acc.wind + acc.simStep) * 100).toFixed(1)}%`)
+  console.log(`${k.padEnd(12)} ${per.toFixed(4)} ms  ${(per / tickTotal * 100).toFixed(1)}%`)
 }
-console.log(`--- 16x 单帧估算 ---`)
-console.log(`sim(16 tick) ${((acc.simStep) * 16 / N).toFixed(2)} ms  tracers ${(acc.tracersStep * 16 / N).toFixed(2)}  clouds ${(acc.cloudsStep * 16 / N).toFixed(2)}`)
-console.log(`tick 总 ${(perFrame16).toFixed(2)} ms/帧 → 理论帧率 ${(1000 / perFrame16).toFixed(1)} fps`)
-console.log(`fluid 占 tick 成本 ${(acc.fluidStep / (acc.simStep || 1) * 100).toFixed(0)}%`)
+console.log(`--- 16x 单帧估算（16 tick + 1 帧渲染批，不含 GL/让出） ---`)
+console.log(`tick 合计 ${(tickTotal * 16).toFixed(2)} ms 渲染批 ${((acc.terrainDraw + acc.tracerTess) / N).toFixed(3)} ms`)
+console.log(`帧成本 ${(perFrame16).toFixed(2)} ms → 理论帧率 ${(1000 / perFrame16).toFixed(1)} fps`)
+console.log(`fluid 占 tick 成本 ${(acc.fluidStep / N / tickTotal * 100).toFixed(0)}%`)

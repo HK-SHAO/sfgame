@@ -34,3 +34,54 @@ extern "wasm" fn mem_copy(dst : Int, src : Int, n : Int) -> Unit =
   #|  local.get 1
   #|  local.get 2
   #|  memory.copy)
+
+// SIMD 位精确内存原语（GS 双格快路径）：v128.load 系指令全部支持非对齐访问。
+// 入参 off 为字节偏移（调用方按元素宽 ×4/×8 折算）；地址 = 数组数据区首 + off
+
+///|
+#borrow(a)
+extern "wasm" fn v128_load4_f32(a : FixedArray[Float], off : Int) -> V128 =
+  #|(func (param i32 i32) (result v128)
+  #|  local.get 0
+  #|  local.get 1
+  #|  i32.add
+  #|  v128.load)
+
+///|
+#borrow(a)
+extern "wasm" fn v128_load1_f64(a : FixedArray[Double], off : Int) -> V128 =
+  #|(func (param i32 i32) (result v128)
+  #|  local.get 0
+  #|  local.get 1
+  #|  i32.add
+  #|  v128.load64_zero)
+
+///|
+#borrow(a)
+extern "wasm" fn v128_load1_f64_lane1(a : FixedArray[Double], off : Int, v : V128) -> V128 =
+  #|(func (param i32 i32 v128) (result v128)
+  #|  local.get 0
+  #|  local.get 1
+  #|  i32.add
+  #|  local.get 2
+  #|  v128.load64_lane 1)
+
+///|
+#borrow(a)
+extern "wasm" fn v128_store1_f32_lane0(a : FixedArray[Float], off : Int, v : V128) -> Unit =
+  #|(func (param i32 i32 v128)
+  #|  local.get 0
+  #|  local.get 1
+  #|  i32.add
+  #|  local.get 2
+  #|  v128.store32_lane 0)
+
+///|
+#borrow(a)
+extern "wasm" fn v128_store1_f32_lane1(a : FixedArray[Float], off : Int, v : V128) -> Unit =
+  #|(func (param i32 i32 v128)
+  #|  local.get 0
+  #|  local.get 1
+  #|  i32.add
+  #|  local.get 2
+  #|  v128.store32_lane 1)

@@ -78,10 +78,21 @@ test "热源产生上升风（y 向下，上升 = v < 0）" {
   guard out_y() < 0.0 else { fail("热源上方应为上升风（v < 0）") }
 }
 
-// 白盒：GS 单格压强更新公式（纯标量，无 SIMD——bun/JSC 全 bulk 路径误编译已弃 SIMD，见 pitfalls I8）
+// 白盒：GS SIMD 双格快路径（gs_pair）与标量逐位一致——shuffle/车道打包任何漂移都响亮失败
+///|
+fn scalar_gs_one(idx : Int) -> Unit {
+  let nx = pm.nx
+  p[idx] = Float::from_double(
+    (p[idx - 1].to_double() +
+    p[idx + 1].to_double() +
+    p[idx - nx].to_double() +
+    p[idx + nx].to_double() - div_h2[idx]) *
+    0.25,
+  )
+}
 
 ///|
-test "gs_cell 压强更新 = 四邻和减散度乘 0.25" {
+test "gs_pair SIMD 与标量逐位一致" {
   let _ = fluid_init(20, 12, 1.5, 2.0, 9.0, 18.0, 3.4, 0.996, 0.99, 12, 0)
   for i in 0..<(20 * 12) {
     solid[i] = b'\x00'
@@ -94,12 +105,17 @@ test "gs_cell 压强更新 = 四邻和减散度乘 0.25" {
     div_h2[i] = ((seed % 997).to_double() / 3.0 - 100.0)
   }
   let a = air_even[0]
-  let nx = pm.nx
-  let expected = Float::from_double(
-    (p[a - 1].to_double() + p[a + 1].to_double() + p[a - nx].to_double() + p[a + nx].to_double() - div_h2[a]) * 0.25,
-  )
-  gs_cell(a)
-  if p[a] != expected {
-    fail("gs_cell=" + p[a].to_double().to_string() + " 期望=" + expected.to_double().to_string())
+  let s0 = p[a].to_double()
+  let s1 = p[a + 2].to_double()
+  scalar_gs_one(a)
+  scalar_gs_one(a + 2)
+  let r0 = p[a].to_double()
+  let r1 = p[a + 2].to_double()
+  p[a] = Float::from_double(s0)
+  p[a + 2] = Float::from_double(s1)
+  gs_pair(a)
+  if p[a].to_double() != r0 || p[a + 2].to_double() != r1 {
+    fail("SIMD lane0=" + p[a].to_double().to_string() + " 标量=" + r0.to_string() +
+      " lane1=" + p[a + 2].to_double().to_string() + " 标量=" + r1.to_string())
   }
 }

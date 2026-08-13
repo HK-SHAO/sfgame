@@ -180,7 +180,7 @@ export class SfWinOverlay extends LitElement {
       corner-shape: squircle;
       cursor: pointer;
       color: inherit;
-      transition: transform 100ms ease-out;
+      transition: transform 100ms ease-out, background 120ms ease-out;
     }
 
     button:active {
@@ -191,6 +191,10 @@ export class SfWinOverlay extends LitElement {
       background: linear-gradient(180deg, #ff7a52, #ff5a3c);
       color: #fff;
       box-shadow: 0 6px 16px rgba(255, 90, 60, 0.35);
+    }
+
+    .primary:hover {
+      background: linear-gradient(180deg, #ff8a64, #ff6a4e);
     }
 
     .ghost {

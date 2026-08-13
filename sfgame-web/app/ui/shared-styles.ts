@@ -145,8 +145,17 @@ export const pageShell = css`
     padding: 0;
   }
 
+  .icon-btn {
+    transition: transform 100ms ease-out, box-shadow 120ms ease-out;
+  }
+
   .icon-btn:active {
     transform: scale(0.97);
+  }
+
+  /* 卡片式图标钮：hover 阴影提亮（与 title .level.play 同语言） */
+  .icon-btn:hover {
+    box-shadow: var(--shadow-card);
   }
 
   .icon-btn > * {
@@ -209,6 +218,11 @@ export const buttonReset = css`
     color: inherit;
     -webkit-user-select: none;
     user-select: none;
+  }
+
+  /* 统一 hover 白洗：玻璃/中性按钮的通用提亮（彩色强身份按钮以更高特异度覆盖） */
+  button:hover {
+    background: rgba(255, 255, 255, 0.55);
   }
 
   button:active {

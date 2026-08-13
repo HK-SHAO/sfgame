@@ -4,7 +4,7 @@ import { parseLevelText } from '../game/level-format.ts'
 import { levelSource } from '../game/levels.ts'
 import { urlState } from '../game/state.ts'
 import { iconAlert, iconChevron } from '../ui/icons.ts'
-import { boxReset } from '../ui/shared-styles.ts'
+import { boxReset, buttonReset } from '../ui/shared-styles.ts'
 
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {
@@ -15,6 +15,7 @@ export class SfLevelEditor extends LitElement {
 
   static styles = [
     boxReset,
+    buttonReset,
     css`
     :host {
       display: block;

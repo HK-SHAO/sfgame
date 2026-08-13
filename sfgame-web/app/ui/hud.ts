@@ -179,7 +179,7 @@ export class SfHud extends LitElement {
         border-radius: var(--r-md);
         corner-shape: squircle;
         color: var(--ink);
-        transition: transform 100ms ease-out;
+        transition: transform 100ms ease-out, background 120ms ease-out;
       }
 
       .icon-btn svg {

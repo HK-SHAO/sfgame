@@ -96,7 +96,8 @@ export class SfDevMenu extends LitElement {
         place-items: center;
         border-radius: var(--r-md);
         corner-shape: squircle;
-        background: rgba(255, 237, 209, 0.85);
+        background: rgba(255, 255, 255, 0.55);
+        border: 1px solid var(--glass-line);
         color: var(--ink);
       }
 

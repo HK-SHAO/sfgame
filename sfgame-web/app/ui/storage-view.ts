@@ -2,7 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { name } from '../../package.json'
 import { iconBack, iconDatabase } from './icons.ts'
-import { artBg, boxReset, card, pageShell } from './shared-styles.ts'
+import { artBg, boxReset, buttonReset, card, pageShell } from './shared-styles.ts'
 
 const KEY_PREFIX = `${name}.`
 
@@ -125,6 +125,7 @@ export class SfStorage extends LitElement {
 
   static styles = [
     boxReset,
+    buttonReset,
     pageShell,
     artBg,
     card,
@@ -207,6 +208,12 @@ export class SfStorage extends LitElement {
         color: var(--hot);
         background: rgba(255, 90, 60, 0.08);
         border: 1px solid rgba(255, 90, 60, 0.28);
+      }
+
+      /* 红系按钮 hover：加深同色 tint（保留身份，覆盖 buttonReset 白洗） */
+      .del:hover,
+      .clear:hover {
+        background: rgba(255, 90, 60, 0.14);
       }
 
       .del {

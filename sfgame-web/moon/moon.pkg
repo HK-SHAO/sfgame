@@ -28,8 +28,8 @@ options(
   link: {
     "wasm": {
       "export-memory-name": "memory",
-      // 384 页 = 24MB：三内核静态缓冲约 8.5MB + 运行期 FixedArray 头/GC 堆余量，一次钉死
-      "memory-limits": { "min": 384, "max": 384 },
+      // 512 页 = 32MB：三内核静态缓冲约 17MB（256×160 满格）× GC 堆余量，一次钉死
+      "memory-limits": { "min": 512, "max": 512 },
     },
   },
 )

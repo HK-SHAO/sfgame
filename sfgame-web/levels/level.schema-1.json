@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://sf.game.shao.fun/level.schema-1.json",
   "title": "烧风关卡（协议 v1）",
-  "description": "烧风关卡协议 v1：放置热/冷源造风，送纸飞机抵达站点。坐标 y 向下；goals/fixed/fans 须落在世界内，spawn 可在画布外 ±20 单位；网格数 = round(w/cell) 须在 16..256。",
+  "description": "烧风关卡协议 v1：放置热/冷源造风，送纸飞机抵达站点。坐标 y 向下；goals/fixed/fans 须落在世界内，spawn 可在画布外 ±20 单位；流体网格（含外扩边距）宽×高须在 16..256 × 16..160 格，cell 须在 0.5..1.5。",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "name", "tagline", "win", "world", "terrain", "budget", "spawn", "goals"],
@@ -23,11 +23,11 @@
     "world": {
       "type": "object",
       "required": ["w", "h", "cell"],
-      "description": "画布与流体网格（网格数 = round(w/cell) 须在 16..256）",
+      "description": "画布与流体网格（含 10 单位外扩边距后，宽×高须在 16..256 × 16..160 格）",
       "properties": {
         "w": { "type": "number", "exclusiveMinimum": 0, "description": "画布宽（世界单位）" },
         "h": { "type": "number", "exclusiveMinimum": 0, "description": "画布高（世界单位）" },
-        "cell": { "type": "number", "exclusiveMinimum": 0, "description": "网格单元尺寸" }
+        "cell": { "type": "number", "minimum": 0.5, "maximum": 1.5, "description": "网格单元尺寸（物理粒度下限与网格容量上限双界，极端尺寸由关卡校验精确拦截）" }
       }
     },
     "terrain": {

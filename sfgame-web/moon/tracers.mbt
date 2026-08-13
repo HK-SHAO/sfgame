@@ -29,10 +29,10 @@ let t_plume_chance : Double = 0.7
 
 ///|
 let t_plume_tries : Int = 4
-// 地形场容量：流体网格最大规格上限，超限 init 拒绝
+// 地形场容量 = 流体网格上限（grid.mbt 单点），超限 init 拒绝
 
 ///|
-let sdf_capacity : Int = 19200
+let sdf_capacity : Int = grid_max_cells
 
 ///|
 let src_capacity : Int = 32

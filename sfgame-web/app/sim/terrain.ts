@@ -22,7 +22,10 @@ export interface Terrain extends TerrainLike {
   readonly mask: Uint8Array
 }
 
-// 域 = 地图外扩边距（左/右/上等宽，与流体域同公式——烘焙场即流体网格）
+// 域 = 地图外扩边距（左/右/上等宽，与流体域同公式——烘焙场即流体网格）；
+// 开放大气替身：风/热流出可见区后被边距吸收层清理，不撞墙反射回场内
+export const FLUID_MARGIN = 10
+
 export interface TerrainDims {
   nx: number
   ny: number
@@ -32,7 +35,7 @@ export interface TerrainDims {
 export function terrainDims(
   world: { w: number; h: number },
   cell: number,
-  margin: number,
+  margin: number = FLUID_MARGIN,
 ): TerrainDims {
   return {
     nx: Math.round((world.w + 2 * margin) / cell),

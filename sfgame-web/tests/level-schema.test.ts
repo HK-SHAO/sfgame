@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import schemaText from '../levels/level.schema-1.json?raw'
 import { GOAL_R_MAX, ID_PATTERN, LIST_MAX, SWING_MAX, TEMP_LIMIT } from '../app/game/level-validate.ts'
+import { CELL_MIN, CELL_MAX } from '../app/game/grid-limits.ts'
 import { LEVEL_ERRORS, LEVELS } from '../app/game/levels.ts'
 import { validateLevelJson } from '../app/game/level-validate.ts'
 
@@ -42,6 +43,8 @@ test('schema 静态边界与运行时校验常量镜像一致', () => {
   expect(prop('ambient').properties!.temp.minimum).toBe(-TEMP_LIMIT)
   expect(prop('ambient').properties!.temp.maximum).toBe(TEMP_LIMIT)
   expect(prop('budget').properties!.hot.type).toBe('integer')
+  expect(prop('world').properties!.cell.minimum).toBe(CELL_MIN)
+  expect(prop('world').properties!.cell.maximum).toBe(CELL_MAX)
 })
 
 test('仓库关卡：全部通过运行时校验', () => {

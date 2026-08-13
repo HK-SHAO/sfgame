@@ -32,6 +32,9 @@ export interface FluidExports {
   solidBuf(): number
   fieldFxU(): number
   fieldFxV(): number
+  // 网格容量（编译期钉死上限，grid-limits.ts 镜像）：schema/运行时校验与内核同源
+  fMaxNx(): number
+  fMaxNy(): number
 }
 
 export interface BatchExports {

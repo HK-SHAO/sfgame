@@ -55,5 +55,6 @@ test "容量常量对齐宿主契约" {
   @test.assert_eq(b_fade_cap(), 1024)
   @test.assert_eq(b_tracer_cap(), 400)
   @test.assert_eq(b_tracer_stride(), 80)
-  @test.assert_eq(b_terrain_field_cap(), 19200)
+  @test.assert_eq(b_terrain_field_cap(), grid_max_cells)
+  @test.assert_eq(b_terrain_cap(), grid_terrain_verts)
 }

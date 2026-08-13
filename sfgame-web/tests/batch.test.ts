@@ -55,7 +55,7 @@ test('terrainBake：marching squares 固体填充——等值线精确切割、�
   // 地表色红 → 深处色蓝，深度特征长度 2：d=−1 处 k = 1−exp(−1/2)
   expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(true)
   expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 0)).toBe(false) // 长度非法
-  expect(b.terrainSetup(200, 100, 0, 0, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(false) // 超容量
+  expect(b.terrainSetup(300, 200, 0, 0, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(false) // 超容量
   b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)
   // 行 0：上空气下实体 → 等值线 y=10.5 切出矩形 6 顶点；行 1 全固 6 顶点；两列共 24
   expect(b.terrainBake(0, 0, 2, 2)).toBe(24)

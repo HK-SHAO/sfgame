@@ -5,78 +5,70 @@
 // SIMD 在 bun/JSC 的"无地形全 bulk"路径误编译（速度场全零，Safari 同源风险）；
 // 生产恒有地形（solid 非空），bulk/边界标量混合，不触发——见 pitfalls I8
 
+///| 上限统一在 grid.mbt（流体/示踪/顶点批共用），改容量只动那一处
 ///|
-let max_nx : Int = 160
+let u : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let max_ny : Int = 120
+let v : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let max_cells : Int = max_nx * max_ny
+let t : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let u : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+let solid : FixedArray[Byte] = FixedArray::make(grid_max_cells, b'\x00')
 
 ///|
-let v : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+let u0 : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let t : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+let v0 : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let solid : FixedArray[Byte] = FixedArray::make(max_cells, b'\x00')
+let t0 : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let u0 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+let q1 : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let v0 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+let q2 : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let t0 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
-
-///|
-let q1 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
-
-///|
-let q2 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
-
-///|
-let p : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+let p : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 // 散度 × h²（f64）：project_div 直接产出，GS 消费（不存 f32 中间量，少一趟扫描）
 
 ///|
-let div_h2 : FixedArray[Double] = FixedArray::make(max_cells, 0.0)
+let div_h2 : FixedArray[Double] = FixedArray::make(grid_max_cells, 0.0)
 // 环境风位流基场：远场单位水平风的贴地绕流（烘焙一次，采样按强度线性叠加）
 
 ///|
-let fx_u : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+let fx_u : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
 ///|
-let fx_v : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+let fx_v : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 // 空气索引表（rebuild_solid 按行主序重建，地形静态跨步复用）：扫描只迭代空气格免固体分支；
 // bulk = 四邻全空气主体格走 GS 免检查快路径（红黑相位内遍历顺序无关，见文件头）
 
 ///|
-let air_list : FixedArray[Int] = FixedArray::make(max_cells, 0)
+let air_list : FixedArray[Int] = FixedArray::make(grid_max_cells, 0)
 
 ///|
-let air_i : FixedArray[Int] = FixedArray::make(max_cells, 0)
+let air_i : FixedArray[Int] = FixedArray::make(grid_max_cells, 0)
 
 ///|
-let air_j : FixedArray[Int] = FixedArray::make(max_cells, 0)
+let air_j : FixedArray[Int] = FixedArray::make(grid_max_cells, 0)
 
 ///|
-let air_even : FixedArray[Int] = FixedArray::make(max_cells, 0)
+let air_even : FixedArray[Int] = FixedArray::make(grid_max_cells, 0)
 
 ///|
-let air_odd : FixedArray[Int] = FixedArray::make(max_cells, 0)
+let air_odd : FixedArray[Int] = FixedArray::make(grid_max_cells, 0)
 
 ///|
-let bulk : FixedArray[Byte] = FixedArray::make(max_cells, b'\x00')
+let bulk : FixedArray[Byte] = FixedArray::make(grid_max_cells, b'\x00')
 
 ///|
-let solid_list : FixedArray[Int] = FixedArray::make(max_cells, 0)
+let solid_list : FixedArray[Int] = FixedArray::make(grid_max_cells, 0)
 
 ///|
 priv struct Params {
@@ -151,7 +143,7 @@ pub fn fluid_init(
   iterations_ : Int,
   margin_cells_ : Int,
 ) -> Int {
-  guard nx_ >= 3 && ny_ >= 3 && nx_ <= max_nx && ny_ <= max_ny else { 1 }
+  guard nx_ >= 3 && ny_ >= 3 && nx_ <= grid_max_nx && ny_ <= grid_max_ny else { 1 }
   pm.nx = nx_
   pm.ny = ny_
   pm.cell = cell_
@@ -1029,4 +1021,16 @@ pub fn field_fx_u() -> Int {
 #export_name("fieldFxV")
 pub fn field_fx_v() -> Int {
   addr_of_f32(fx_v)
+}
+
+///|
+#export_name("fMaxNx")
+pub fn f_max_nx() -> Int {
+  grid_max_nx
+}
+
+///|
+#export_name("fMaxNy")
+pub fn f_max_ny() -> Int {
+  grid_max_ny
 }

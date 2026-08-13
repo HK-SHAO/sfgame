@@ -1,6 +1,6 @@
 import type { FluidConfig, FluidLike } from '../sim/fluid.ts'
 import { createFluid } from '../sim/fluid.ts'
-import { terrainDims, terrainFromField, projectOut, surfaceY, type Terrain } from '../sim/terrain.ts'
+import { terrainDims, terrainFromField, projectOut, surfaceY, FLUID_MARGIN, type Terrain } from '../sim/terrain.ts'
 import { bakeSdf } from './sdf.ts'
 import type { EngineHandle } from '../wasm/engine.ts'
 import { createBody, stepBody, type Body } from '../sim/bodies.ts'
@@ -18,8 +18,7 @@ const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell' | 'margin'> = {
   iterations: 12,
 }
 
-// 流体域 = 地图外扩边距：开放大气替身——风/热流出可见区后被边距吸收层清理，不撞墙反射回场内
-export const FLUID_MARGIN = 10
+// FLUID_MARGIN 定义在 terrain.ts（与 terrainDims 同源）：流体域 = 地图外扩边距
 
 // 风扇注入半径（世界单位）：与源半径同量级，圆域内速度以 falloff 注入
 const FAN_RADIUS = 3.0
@@ -68,7 +67,7 @@ export class LevelSimulation {
     const { h, cell } = level.world
     // 地形场即流体网格（同公式同边距）：掩码直接交给内核，免二次建掩码。
     // 表达式一次烘焙（mbt 单次跨界替代 nx×ny 次 compileSdf 调用，见 sdf.ts bakeSdf）
-    const dims = terrainDims(level.world, cell, FLUID_MARGIN)
+    const dims = terrainDims(level.world, cell)
     this.terrain = terrainFromField(
       bakeSdf(level.json.terrain.sdf, dims.nx, dims.ny, dims.origin, cell),
       dims,

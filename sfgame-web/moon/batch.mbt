@@ -27,10 +27,10 @@ let tracer_max_pts : Int = 25
 
 ///|
 let tracer_stride : Int = 5 + tracer_max_pts * 3
-// 地形 SDF 场容量（格点数 nx×ny）：与流体最大网格同上限
+// 地形 SDF 场容量（格点数 nx×ny）：= 流体网格上限（grid.mbt 单点）
 
 ///|
-let tg_cap : Int = 19200
+let tg_cap : Int = grid_max_cells
 
 ///|
 let data : FixedArray[Float] = FixedArray::make(capacity * vertex_stride, 0.0)
@@ -51,10 +51,10 @@ let tracer_buf : FixedArray[Float] = FixedArray::make(
 ///|
 let tg_field : FixedArray[Float] = FixedArray::make(tg_cap, 0.0)
 // 地形烘焙输出缓冲（独立于主批）：静态几何一次烘焙，每帧免重切 + 免上传
-// 容量 = 最坏全实体 19200×6 顶点（与主批"地形 ~11 万"同级预算，超限逐格截断）
+// 容量 = 最坏全实体 grid_max_cells×6 顶点（超限逐格截断）
 
 ///|
-let tg_out_cap : Int = 115200
+let tg_out_cap : Int = grid_terrain_verts
 
 ///|
 let tg_data : FixedArray[Float] = FixedArray::make(

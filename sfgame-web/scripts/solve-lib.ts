@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { GROUND_PENALTY_RATE, SOURCE_PENALTY } from '../app/game/timer.ts'
 import { levelFromJson, parseLevelText } from '../app/game/level-format.ts'
-import { FLUID_MARGIN, LevelSimulation } from '../app/game/simulation.ts'
+import { LevelSimulation } from '../app/game/simulation.ts'
 import type { LevelDef } from '../app/game/types.ts'
-import { bakeTerrain, surfaceY, type Terrain } from '../app/sim/terrain.ts'
+import { bakeTerrain, surfaceY, FLUID_MARGIN, type Terrain } from '../app/sim/terrain.ts'
 import { bootEngine } from '../app/wasm/engine.ts'
 
 // FINE_DT 与浏览器固定步长 SIM_DT 一致（无头 ↔ 真机同语义）；粗筛是"另一套物理"，胜点必须 FINE_DT 精验

@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
+import { GRID_MAX_NX, GRID_MAX_NY } from '../app/game/grid-limits.ts'
 
 interface MbExports {
   memory: WebAssembly.Memory
@@ -11,6 +12,11 @@ interface MbExports {
   canary_len(): number
   canary_set(i: number, v: number): void
   canary_get(i: number): number
+  fMaxNx(): number
+  fMaxNy(): number
+  tSdfCap(): number
+  bTerrainFieldCap(): number
+  bTerrainCap(): number
 }
 
 function boot(): MbExports {
@@ -56,4 +62,17 @@ test('实例隔离：各实例独立内存', () => {
   const b = boot()
   a.canary_set(0, 1)
   expect(b.canary_get(0)).toBe(0)
+})
+
+// 网格容量三处同源：moon/grid.mbt（内核钉死）↔ app/game/grid-limits.ts（schema 镜像）
+// 改任何一侧漏另一侧，此处响亮失败——上次事故（关卡过 --verify 但运行时超容量）即两侧脱钩
+test('网格容量：内核导出与 grid-limits 镜像一致', () => {
+  const ex = boot()
+  expect(ex.fMaxNx()).toBe(GRID_MAX_NX)
+  expect(ex.fMaxNy()).toBe(GRID_MAX_NY)
+  const cells = GRID_MAX_NX * GRID_MAX_NY
+  expect(ex.tSdfCap()).toBe(cells)
+  expect(ex.bTerrainFieldCap()).toBe(cells)
+  // marching squares 最坏全实体每格 2 三角 = 6 顶点
+  expect(ex.bTerrainCap()).toBe(cells * 6)
 })

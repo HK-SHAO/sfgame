@@ -2,13 +2,13 @@
 // 由 tests/level-schema.test.ts 守护；world 依赖的动态边界（x≤w 等）与 SDF 语义仅此处可表达。
 // 错误逐字段 JSON 路径 + 实值；world 非法时动态边界自动失效（undefined），只查结构不级联误报
 import { compileSdf, SdfError } from './sdf.ts'
+import { terrainDims, FLUID_MARGIN } from '../sim/terrain.ts'
+import { GRID_MIN, GRID_MAX_NX, GRID_MAX_NY, CELL_MIN, CELL_MAX } from './grid-limits.ts'
 
 // 关卡 id = 小写 slug（URL 直传零转义、语义化命名）；URL 内联判别（state.ts）依赖此字符集
 export const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/
 export const GOAL_R_MAX = 15
 export const LIST_MAX = 8
-export const GRID_MIN = 16
-export const GRID_MAX = 256
 export const TEMP_LIMIT = 10
 export const SWING_MAX = Math.PI
 export const SPAWN_MARGIN = 20
@@ -113,12 +113,15 @@ function checkWorld(ctx: Ctx, j: Record<string, unknown>): { w: number; h: numbe
   const cv = w.cell
   num(ctx, 'world.w', wv, { minExcl: 0 })
   num(ctx, 'world.h', hv, { minExcl: 0 })
-  num(ctx, 'world.cell', cv, { minExcl: 0 })
+  num(ctx, 'world.cell', cv, { min: CELL_MIN, max: CELL_MAX })
   if (!isFin(wv) || wv <= 0 || !isFin(hv) || hv <= 0 || !isFin(cv) || cv <= 0) return null
-  const nx = Math.round(wv / cv)
-  const ny = Math.round(hv / cv)
-  if (nx < GRID_MIN || nx > GRID_MAX || ny < GRID_MIN || ny > GRID_MAX) {
-    ctx.errs.push(`${ctx.id} 网格 ${nx}×${ny} 超出 ${GRID_MIN}..${GRID_MAX} 范围`)
+  // 流体网格 = 地图外扩边距（与 terrainDims/内核同公式），上限 = 内核编译期钉死容量
+  const dims = terrainDims({ w: wv, h: hv }, cv)
+  if (dims.nx < GRID_MIN || dims.nx > GRID_MAX_NX || dims.ny < GRID_MIN || dims.ny > GRID_MAX_NY) {
+    ctx.errs.push(
+      `${ctx.id} 流体网格 ${dims.nx}×${dims.ny}（含边距 ${FLUID_MARGIN}）超出 ` +
+        `${GRID_MIN}..${GRID_MAX_NX} × ${GRID_MIN}..${GRID_MAX_NY} 范围`,
+    )
   }
   return { w: wv, h: hv }
 }

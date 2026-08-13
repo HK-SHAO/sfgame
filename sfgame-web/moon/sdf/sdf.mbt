@@ -2,11 +2,13 @@
 // sdf(x, y) = 到地表的有符号距离，>0 空气 / <0 实体（世界坐标 y 向下）。
 // 原语皆为精确 SDF（circle/box/capsule/flat），组合走 min/max/smin——
 // 高度场是其中一种写法（H(x) − y），洞穴/拱门/悬挑同理可表达。
-// 语义基线：tests/sdf-golden.json（TS 实现捕获，位级钉死）
+// f32 全链路：与流体 f32 存储/地形场 f32 输出一致；trig/exp 用 core 的 sinf/cosf/expf
+// （纯 Moonbit fdlibm 实现，js 目标也逐位一致，不用宿主 Math.sin/cos/exp）。
+// 语义基线：tests/sdf-golden.json（位级钉死）
 
 ///|
 priv enum Node {
-  Num(Double)
+  Num(Float)
   VarX
   VarY
   Neg(Node)
@@ -14,22 +16,22 @@ priv enum Node {
   Call(Fn, Array[Node])
 }
 
-// 直连 JS Math.*（模块导入式 FFI）：与 TS 实现逐位同源（含 NaN 传播等边角语义）
+// 直连 JS Math.min/max/abs（模块导入式 FFI）：与 TS 实现逐位同源（NaN 传播等边角语义，三者跨引擎一致）
 
 ///|
-fn js_min(a : Double, b : Double) -> Double = "Math" "min"
+fn js_min(a : Float, b : Float) -> Float = "Math" "min"
 
 ///|
-fn js_max(a : Double, b : Double) -> Double = "Math" "max"
+fn js_max(a : Float, b : Float) -> Float = "Math" "max"
 
 ///|
-fn js_abs(a : Double) -> Double = "Math" "abs"
+fn js_abs(a : Float) -> Float = "Math" "abs"
 
 // 不用 Math.hypot：V8/JSC 末位实现不一致（实测 1 ulp 分歧），改用 IEEE 精确运算
 // sqrt(a²+b²) 保证跨引擎逐位确定；游戏坐标量级（≤数百）无溢出/下溢顾虑
 
 ///|
-fn hypot2(a : Double, b : Double) -> Double {
+fn hypot2(a : Float, b : Float) -> Float {
   (a * a + b * b).sqrt()
 }
 
@@ -254,8 +256,8 @@ fn parse_primary(p : Parser) -> Node raise {
   match word {
     "x" => VarX
     "y" => VarY
-    "PI" => Num(@math.PI)
-    "E" => Num(2.718281828459045)
+    "PI" => Num(3.1415927)
+    "E" => Num(2.7182817)
     _ => {
       guard word.length() > 0 else {
         fail("无法解析 \"\{char_str(p, p.i)}\"（位置 \{p.i}）")
@@ -309,9 +311,9 @@ fn parse_number(p : Parser) -> Node raise {
   }
   guard p.i > start else { fail("无效数字（位置 \{p.i}）") }
   // 词法已保证 token 形态合法，解析失败视为数字无效
-  let v = @string.parse_double(p.src[start:p.i]) catch {
+  let v = Float::from_double(@string.parse_double(p.src[start:p.i]) catch {
     _ => fail("无效数字（位置 \{start}）")
-  }
+  })
   Num(v)
 }
 
@@ -359,7 +361,7 @@ fn parse_call(p : Parser, word : String, kind : Fn) -> Node raise {
 }
 
 ///|
-fn clamp01(v : Double) -> Double {
+fn clamp01(v : Float) -> Float {
   if v < 0.0 {
     0.0
   } else if v > 1.0 {
@@ -370,20 +372,20 @@ fn clamp01(v : Double) -> Double {
 }
 
 ///|
-fn smoothstep_curve(t : Double) -> Double {
+fn smoothstep_curve(t : Float) -> Float {
   let c = clamp01(t)
   c * c * (3.0 - 2.0 * c)
 }
 
 ///|
-fn expect_args(args : FixedArray[Double], n : Int, name : String) -> Unit raise {
+fn expect_args(args : FixedArray[Float], n : Int, name : String) -> Unit raise {
   guard args.length() == n else { fail("\{name} 需 \{n} 参") }
 }
 
 // 1 参 = smoothstep(t)；3 参 = GLSL smoothstep(e0,e1,x)（GLSL 规定 e0≥e1 未定义，这里拒绝）
 
 ///|
-fn smoothstep_fn(args : FixedArray[Double]) -> Double raise {
+fn smoothstep_fn(args : FixedArray[Float]) -> Float raise {
   match args.length() {
     1 => smoothstep_curve(args[0])
     3 => {
@@ -403,10 +405,10 @@ fn smoothstep_fn(args : FixedArray[Double]) -> Double raise {
 ///|
 fn eval_fn(
   kind : Fn,
-  args : FixedArray[Double],
-  x : Double,
-  y : Double,
-) -> Double raise {
+  args : FixedArray[Float],
+  x : Float,
+  y : Float,
+) -> Float raise {
   match kind {
     FAbs => js_abs(args[0])
     FMin => js_min(args[0], args[1])
@@ -432,10 +434,10 @@ fn eval_fn(
       let h = args[2]
       guard w > 0.0 else { fail("gauss 宽度 w 必须 > 0") }
       let t = (x - c) / w
-      h * @math.exp(-t * t)
+      h * @math.expf(-t * t)
     }
-    FSin => @math.sin(args[0])
-    FCos => @math.cos(args[0])
+    FSin => @math.sinf(args[0])
+    FCos => @math.cosf(args[0])
     FSqrt => args[0].sqrt()
     // 半空间：y0 以下（y 向下）为实体，平原/地基
     FFlat => {
@@ -456,7 +458,7 @@ fn eval_fn(
       let cy = args[1]
       let hw = args[2]
       let hh = args[3]
-      let r : Double = if args.length() == 5 { args[4] } else { 0.0 }
+      let r : Float = if args.length() == 5 { args[4] } else { 0.0 }
       guard hw > 0.0 && hh > 0.0 else { fail("box 半宽/半高必须 > 0") }
       let qx = js_abs(x - cx) - (hw - r)
       let qy = js_abs(y - cy) - (hh - r)
@@ -471,7 +473,7 @@ fn eval_fn(
       let bx = args[2] - args[0]
       let by = args[3] - args[1]
       let denom = bx * bx + by * by
-      let t : Double = if denom > 0.0 {
+      let t : Float = if denom > 0.0 {
         clamp01((px * bx + py * by) / denom)
       } else {
         0.0
@@ -504,7 +506,7 @@ fn eval_fn(
 // else 分支即除法，与 TS 版不可达的未知运算符分支同构；raise 仅因递归传播
 
 ///|
-fn compile_node(n : Node) -> ((Double, Double) -> Double raise) raise {
+fn compile_node(n : Node) -> ((Float, Float) -> Float raise) raise {
   match n {
     Num(v) => (_, _) => v
     VarX => (x, _) => x
@@ -529,7 +531,7 @@ fn compile_node(n : Node) -> ((Double, Double) -> Double raise) raise {
     Call(kind, args) => {
       let compiled = args.map(compile_node)
       // scratch 每 call 节点独享复用，嵌套调用各持各的，无冲突（热路径零分配）
-      let scratch : FixedArray[Double] = FixedArray::make(
+      let scratch : FixedArray[Float] = FixedArray::make(
         compiled.length(),
         0.0,
       )
@@ -548,7 +550,7 @@ fn compile_node(n : Node) -> ((Double, Double) -> Double raise) raise {
 
 ///|
 #export_name("compile")
-pub fn compile(src : String) -> ((Double, Double) -> Double raise) raise {
+pub fn compile(src : String) -> ((Float, Float) -> Float raise) raise {
   compile_node(parse(Parser::{ src, i: 0 }))
 }
 
@@ -562,17 +564,17 @@ pub fn bake(
   nx : Int,
   ny : Int,
   origin : Int,
-  cell : Double,
-) -> Array[Double] raise {
+  cell : Float,
+) -> Array[Float] raise {
   let f = compile_node(parse(Parser::{ src, i: 0 }))
   let n = nx * ny
-  let out : Array[Double] = Array::make(n, 0.0)
-  let ox = origin.to_double()
+  let out : Array[Float] = Array::make(n, 0.0)
+  let ox = Float::from_int(origin)
   for j in 0..<ny {
-    let wy = (j.to_double() - ox + 0.5) * cell
+    let wy = (Float::from_int(j) - ox + 0.5) * cell
     let row = j * nx
     for i in 0..<nx {
-      out[i + row] = f((i.to_double() - ox + 0.5) * cell, wy)
+      out[i + row] = f((Float::from_int(i) - ox + 0.5) * cell, wy)
     }
   }
   out

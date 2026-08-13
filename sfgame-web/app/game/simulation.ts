@@ -8,10 +8,12 @@ import { GOAL_LIFT, type SourceKind } from '../sim/types.ts'
 import { totalPenaltySeconds, GROUNDED_ALT } from './timer.ts'
 import type { FanDef, HudState, LevelDef, Source, SourcePlacement } from './types.ts'
 
+// 源加热速率（宿主按 dt 缩放后传入 addHeat）：内核不消费，留在 JS 步进流水线
+const HEAT_RATE = 10
+
 const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell' | 'margin'> = {
   buoyancy: 2.0,
   tMax: 9,
-  heatRate: 10,
   sourceRadius: 3.4,
   velDamping: 0.997,
   tDamping: 0.99,
@@ -228,7 +230,7 @@ export class LevelSimulation {
     // time 先于 checkGoals 递增：won 冻结时展示的即为通关时刻
     this.time += dt
     this.applyAmbient(this.time)
-    const rate = FLUID_TUNING.heatRate * dt
+    const rate = HEAT_RATE * dt
     for (const s of this.sources) {
       this.fluid.addHeat(s.x, s.y, s.kind === 'hot' ? rate : -rate)
     }

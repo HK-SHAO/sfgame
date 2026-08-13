@@ -3,10 +3,7 @@
 
 ///|
 fn reset(nx : Int, ny : Int) -> Unit raise {
-  @test.assert_eq(
-    fluid_init(nx, ny, 1.5, 2.0, 9.0, 18.0, 3.4, 0.996, 0.99, 12, 0),
-    0,
-  )
+  @test.assert_eq(fluid_init(nx, ny, 1.5, 2.0, 9.0, 3.4, 0.996, 0.99, 12, 0), 0)
   for i in 0..<(nx * ny) {
     solid[i] = b'\x00'
   }
@@ -15,16 +12,13 @@ fn reset(nx : Int, ny : Int) -> Unit raise {
 
 ///|
 test "init 拒绝超容量/非法网格" {
+  @test.assert_eq(fluid_init(2, 36, 1.5, 2.0, 9.0, 3.4, 0.996, 0.99, 12, 0), 1)
   @test.assert_eq(
-    fluid_init(2, 36, 1.5, 2.0, 9.0, 18.0, 3.4, 0.996, 0.99, 12, 0),
+    fluid_init(257, 36, 1.5, 2.0, 9.0, 3.4, 0.996, 0.99, 12, 0),
     1,
   )
   @test.assert_eq(
-    fluid_init(257, 36, 1.5, 2.0, 9.0, 18.0, 3.4, 0.996, 0.99, 12, 0),
-    1,
-  )
-  @test.assert_eq(
-    fluid_init(48, 161, 1.5, 2.0, 9.0, 18.0, 3.4, 0.996, 0.99, 12, 0),
+    fluid_init(48, 161, 1.5, 2.0, 9.0, 3.4, 0.996, 0.99, 12, 0),
     1,
   )
 }
@@ -97,7 +91,7 @@ fn scalar_gs_one(idx : Int) -> Unit {
 
 ///|
 test "gs_pair SIMD 与标量逐位一致" {
-  let _ = fluid_init(20, 12, 1.5, 2.0, 9.0, 18.0, 3.4, 0.996, 0.99, 12, 0)
+  let _ = fluid_init(20, 12, 1.5, 2.0, 9.0, 3.4, 0.996, 0.99, 12, 0)
   for i in 0..<(20 * 12) {
     solid[i] = b'\x00'
   }

@@ -166,12 +166,13 @@ margin→格数换算双实现（terrainDims.origin vs WasmFluid.marginCells）�
 
 **第三批（可无外部输入项）**：K2-01（sim/grid.ts 单源：terrain.sample/bilinearSample/surfaceY 三处收敛，位级等价）、K2-02（marginCells）、K2-03（cellAnchor 逆变换单源）、K2-05/K5-02（sampleWind out 参数化）、K2-06（Trail.forEachPoint 批量遍历）、K2-08（FIXED_ARITY 编译期校验，每格 expectArgs 移除）、K2-10（GROUNDED_ALT 具名）、K8-03（render 视口 worldToGrid）、K8-06（--paper/--bg-top token）、K8-07（buttonKind 迁 core/input-kind.ts）、K8-08（render 场景复用对象 + windSample 复用——每帧分配归零）、K4-05（bestGrade 纯函数）、K4-06（willUpdate 合并 + hasSfHistory 单点）、K4-10（--icon-sm/md/lg/xl）、K6-04（bakeSdf 预编译参数，编译 4→1）、K7-05（求解器引擎实例复用：worker 一个 + 主进程一个，确定性实测不变）、K7-07（watcher 补 add/unlink）、K7-08（known-urls 登记进 README）、K1-03（setAmbient 三元组缓存跳过）。
 
-### 未执行（4 项，按报告原判跳过）
+### 收尾批次（全部落地）
 
-- **K5-03**（风声频率平滑）：需真机试听确认音色，判 consider 且标注"试听后定"。
-- **K8-09**（wasm preload/SW）：SW 引入缓存失效面，属产品决策；preload 需新增 vite 插件。
-- **K6-06**（进度 hash 规范化）：挂协议升级窗口（存量记录作废一次），报告已明确。
-- **K7-06**（perf 记录块环形化）：生产路径 devTools 恒 null 零成本，纯 dev 卫生项，收益不抵改动面。
+- **K1-04**：init 死参数 heat_rate 全链移除（moon ABI + engine.ts + FluidConfig + 全部调用点/wbtest），js 步进改用 simulation 模块常量 HEAT_RATE。moon 15/15、vitest 121/121、golden 零漂移。
+- **K5-03**：WindVoice 带通频率与增益同 tau 平滑（消除 ≤60Hz 档 16ms 阶梯扫频），纯音频路径。
+- **K8-09**（preload 部分）：index.html 静态声明 `<link rel="preload" href="./app/wasm/sfengine.wasm" as="fetch" crossorigin>`，vite 构建自动重写为 hash 资产名（实测 `./assets/sfengine-DknpbZbj.wasm`，且与 `?url` 导入去重为单一资产）——零插件、零稳定文件名；Service Worker 仍待产品决策。
+- **K6-06**：关卡内容 hash 口径改 JSON 规范化文本（parse→stringify，空白/格式不敏感）；存量记录作废一次已按用户确认接受，口径注释明示"除非协议升级不得再改"。
+- **K7-06**：按二次评估永久搁置（生产路径 devTools 恒 null 零成本，收益≈0）。
 
 ### 关键验证事实
 

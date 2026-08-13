@@ -19,7 +19,6 @@ function makeCalmFluid() {
     cell: 10,
     buoyancy: 0,
     tMax: 9,
-    heatRate: 0,
     sourceRadius: 1,
     velDamping: 1,
     tDamping: 1,

@@ -10,7 +10,6 @@ export interface FluidConfig {
   cell: number
   buoyancy: number
   tMax: number
-  heatRate: number
   sourceRadius: number
   velDamping: number
   tDamping: number
@@ -110,7 +109,6 @@ export class WasmFluid implements FluidLike {
         cfg.cell,
         cfg.buoyancy,
         cfg.tMax,
-        cfg.heatRate,
         cfg.sourceRadius,
         cfg.velDamping,
         cfg.tDamping,

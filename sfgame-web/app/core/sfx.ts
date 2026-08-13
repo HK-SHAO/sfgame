@@ -45,6 +45,7 @@ class WindVoice {
   private filter: BiquadFilterNode
   private panner: StereoPannerNode | null = null
   private level = 0
+  private freq = 0
 
   constructor(
     ctx: AudioContext,
@@ -60,6 +61,7 @@ class WindVoice {
     this.filter = ctx.createBiquadFilter()
     this.filter.type = 'bandpass'
     this.filter.frequency.value = opts.baseFreq
+    this.freq = opts.baseFreq
     this.filter.Q.value = 0.85
     this.gainNode = ctx.createGain()
     this.gainNode.gain.value = 0
@@ -85,7 +87,9 @@ class WindVoice {
     const k = 1 - Math.exp(-dt / this.opts.tau)
     this.level += (target - this.level) * k
     this.gainNode.gain.value = this.level
-    this.filter.frequency.value = this.opts.baseFreq + this.opts.freqSpan * t
+    // 频率与增益同 tau 平滑：≤60Hz 更新档直写呈 16ms 阶梯扫频（zipper），音色与响度同路演化
+    this.freq += (this.opts.baseFreq + this.opts.freqSpan * t - this.freq) * k
+    this.filter.frequency.value = this.freq
   }
 
   silence() {

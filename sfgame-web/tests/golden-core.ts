@@ -106,7 +106,7 @@ export function runFluidGolden(name: string, sc: FluidScenario): { u: string; v:
   void name
   const h = createEngine()
   const cell = 1.5
-  if (h.ex.init(sc.nx, sc.ny, cell, 2.0, 9, 18, 3.4, 0.996, 0.99, 12, sc.margin) !== 0) {
+  if (h.ex.init(sc.nx, sc.ny, cell, 2.0, 9, 3.4, 0.996, 0.99, 12, sc.margin) !== 0) {
     throw new Error(`init 失败：${sc.nx}×${sc.ny}`)
   }
   const terrain = bakeTerrain(sc.sdf, { w: (sc.nx - 2 * sc.margin) * cell, h: (sc.ny - sc.margin) * cell }, cell, sc.margin * cell)
@@ -209,7 +209,7 @@ export function runTracerGolden(): {
 } {
   const h = createEngine()
   const ex = h.ex
-  if (ex.init(48, 36, 1.5, 2.0, 9, 18, 3.4, 0.996, 0.99, 12, 0) !== 0) throw new Error('init 失败')
+  if (ex.init(48, 36, 1.5, 2.0, 9, 3.4, 0.996, 0.99, 12, 0) !== 0) throw new Error('init 失败')
   const terrain = bakeTerrain((_x, y) => 45 - y, { w: 72, h: 54 }, 1.5, 0)
   new Uint8Array(h.memory.buffer, ex.solidBuf(), 48 * 36).set(terrain.mask)
   ex.rebuildSolid()

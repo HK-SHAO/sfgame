@@ -12,7 +12,6 @@ const CFG: FluidConfig = {
   cell: 1.5,
   buoyancy: 0,
   tMax: 9,
-  heatRate: 0,
   sourceRadius: 3.4,
   velDamping: 1,
   tDamping: 1,

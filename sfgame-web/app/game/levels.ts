@@ -114,11 +114,24 @@ function fnv1a(text: string): number {
   return h >>> 0
 }
 
+// 关卡内容 hash 的文本口径：JSON.parse → stringify 规范化——空白/缩进等纯格式改动不改变 hash，
+// 键序与数字往返（76 vs 76.0 同值）确定。口径曾为"文件原文"，本次变更使存量通关记录作废一次
+//（旧 hash 成孤儿）；此口径是进度身份，除非随协议升级窗口，不得再改
+function levelHashText(text: string): string {
+  let norm = text
+  try {
+    norm = JSON.stringify(JSON.parse(text))
+  } catch {
+    // 非法 JSON（内联关卡坏载荷）退化为原文口径，仅作条目身份
+  }
+  return fnv1a(norm).toString(36)
+}
+
 // 内置关卡内容 hash 预计算：标题页每渲染每关 2 次、导航/结算再各 1 次——原文不可变，模块加载算一次复用
 const BUILTIN_HASH_BY_ID = new Map<string, string>()
 for (const l of LEVELS) {
   const text = LEVEL_SOURCES.get(l.id)
-  if (text) BUILTIN_HASH_BY_ID.set(l.id, fnv1a(text).toString(36))
+  if (text) BUILTIN_HASH_BY_ID.set(l.id, levelHashText(text))
 }
 
 // 关卡内容 hash（base36）：内置 = 关卡文件原文（预计算）；内联 = URL 里的 JSON 文本本身。
@@ -126,7 +139,7 @@ for (const l of LEVELS) {
 export function levelHash(lv: LvValue): string | undefined {
   if (lv === null) return undefined
   if ('id' in lv) return BUILTIN_HASH_BY_ID.get(lv.id)
-  return lv.json ? fnv1a(lv.json).toString(36) : undefined
+  return lv.json ? levelHashText(lv.json) : undefined
 }
 
 // 内置关卡 hash 集（progress 据此区分内联 DIY 条目做上限修剪；内置进度永不动）

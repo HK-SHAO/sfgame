@@ -86,12 +86,12 @@ test('内核守卫：超容量/非法参数 init 被拒', async () => {
   const ex = boot() as unknown as MbExports & {
     init: (...a: unknown[]) => number
   }
-  const params = [0.75, 2.0, 9, 10, 3.4, 0.997, 0.99, 12, 0] as unknown[]
+  const params = [0.75, 2.0, 9, 3.4, 0.997, 0.99, 12, 0] as unknown[]
   expect(ex.init(GRID_MAX_NX + 1, 36, ...params)).not.toBe(0)
   expect(ex.init(48, GRID_MAX_NY + 1, ...params)).not.toBe(0)
   expect(ex.init(2, 2, ...params)).not.toBe(0)
   // margin 越界（> nx−2）与 cell 非正均被拒
-  expect(ex.init(48, 36, 0.75, 2.0, 9, 10, 3.4, 0.997, 0.99, 12, 47)).not.toBe(0)
-  expect(ex.init(48, 36, 0, 2.0, 9, 10, 3.4, 0.997, 0.99, 12, 0)).not.toBe(0)
-  expect(ex.init(48, 36, 0.75, 2.0, 9, 10, 3.4, 0.997, 0.99, 12, 0)).toBe(0)
+  expect(ex.init(48, 36, 0.75, 2.0, 9, 3.4, 0.997, 0.99, 12, 47)).not.toBe(0)
+  expect(ex.init(48, 36, 0, 2.0, 9, 3.4, 0.997, 0.99, 12, 0)).not.toBe(0)
+  expect(ex.init(48, 36, 0.75, 2.0, 9, 3.4, 0.997, 0.99, 12, 0)).toBe(0)
 })

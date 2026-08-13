@@ -1,6 +1,7 @@
 // 网格容量单点：流体/示踪/顶点批三内核共用同一上限——静态内存 min=max 钉死（moon.pkg memory-limits），
 // 上限即每局内存水位与满网格 step 预算。改容量只动这里；JS 侧镜像在 app/game/grid-limits.ts，
 // 两侧漂移由 tests/engine-wasm.test.ts canary 钉死
+
 ///|
 let grid_max_nx : Int = 256
 

@@ -9,7 +9,6 @@ export interface FluidExports {
     cell: number,
     buoyancy: number,
     tMax: number,
-    heatRate: number,
     sourceRadius: number,
     velDamping: number,
     tDamping: number,

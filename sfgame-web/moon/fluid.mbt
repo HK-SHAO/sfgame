@@ -137,7 +137,6 @@ pub fn fluid_init(
   cell_ : Double,
   buoyancy_ : Double,
   t_max_ : Double,
-  _heat_rate : Double,
   source_radius_ : Double,
   vel_damping_ : Double,
   t_damping_ : Double,
@@ -160,7 +159,6 @@ pub fn fluid_init(
   pm.cell = cell_
   pm.buoyancy = buoyancy_
   pm.t_max = t_max_
-  // _heat_rate 内核不消费（宿主按 dt 缩放后传入 addHeat），参数仅为对齐 assembly 接口
   pm.source_radius = source_radius_
   pm.vel_damping = vel_damping_
   pm.t_damping = t_damping_

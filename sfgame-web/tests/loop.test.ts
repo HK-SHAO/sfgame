@@ -86,3 +86,31 @@ test('追帧封顶：单帧最多 24 步；欠账封顶不超单帧量，切回 
   frame(50)
   expect(ticks - before).toBeLessThanOrEqual(4)
 })
+
+// K5-01 回归守护：让出批次（setTimeout 回调）在 frame 的 try/catch 栈外，
+// tick 在第 17 步（让出批次内）抛错也必须走同一停机路径——否则 uncaught + 静默冻结
+test('让出批次异常不逃逸：异步 tick 抛错同样记录并干净停机', () => {
+  const pending: Array<() => void> = []
+  vi.stubGlobal('setTimeout', (cb: () => void) => {
+    pending.push(cb)
+    return 0
+  })
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  let ticks = 0
+  const loop = new GameLoop({
+    tick: () => {
+      if (++ticks === 17) throw new Error('boom-17')
+    },
+    render: () => {},
+  })
+  loop.setRate(16)
+  loop.start()
+  frame(300) // 需 48 步：第一批 16 tick 同步，随后挂起让出回调
+  expect(ticks).toBe(16)
+  expect(pending).toHaveLength(1)
+  pending[0]() // 让出批次：第 17 个 tick 抛错 → fail（日志 + stop）
+  expect(err).toHaveBeenCalled()
+  expect(ticks).toBe(17)
+  expect(rafCb).toBeNull() // stop() 后不再续挂 RAF：循环已停
+  err.mockRestore()
+})

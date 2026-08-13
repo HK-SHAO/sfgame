@@ -1,14 +1,8 @@
 import { LONG_PRESS_MS, type SourceKind, type Vec2 } from '../sim/types.ts'
 import type { Source } from '../game/types.ts'
+import { buttonKind } from '../core/input-kind.ts'
 
 const MOVE_SLOP_PX = 14
-
-// 按键→源种类（玩法不变量：左键热、右键冷走 contextmenu）；纯函数供无头测试守护
-export function buttonKind(button: number): 'hot' | 'cold' | null {
-  if (button === 0) return 'hot'
-  if (button === 2) return 'cold'
-  return null
-}
 
 export interface GestureHandlers {
   toWorld(clientX: number, clientY: number): Vec2 | null

@@ -44,7 +44,10 @@ export function wasmRebuild(): Plugin {
       if (!(await compileWasm())) {
         throw new Error('[wasm] 初始编译失败，请先修复 moon/ 源码')
       }
-      server.watcher.on('change', (p) => {
+      server.watcher.on('all', (event, p) => {
+        // add/unlink 并入重编触发：新增/删除 moon 源文件不改既有文件时，watcher 只发 add/unlink——
+        // 只监听 change 会让 dev 长期跑陈旧 wasm 且无提示
+        if (event !== 'add' && event !== 'change' && event !== 'unlink') return
         const inMoon = p.startsWith(moonDir) && (p.endsWith('.mbt') || p.endsWith('moon.pkg') || p.endsWith('moon.mod'))
         if (inMoon || p === resolve(join('scripts', 'build-wasm.ts'))) {
           schedule()

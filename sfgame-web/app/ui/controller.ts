@@ -17,6 +17,7 @@ import { Renderer } from '../render/render.ts'
 import { createEngine, type EngineHandle } from '../wasm/engine.ts'
 import { totalPenaltySeconds } from '../game/timer.ts'
 import type { PerfRecorder } from '../dev/devtools.ts'
+import type { SceneState } from '../render/render.ts'
 
 // 拖尾按时间淡出（6s，见 trail.ts）：容量须容下淡出窗内最高可持续航速的采样点，
 // 否则满环覆写还在淡出期内的旧点，高速段拖尾尾端提前消失（偏离"随时间淡出"契约）
@@ -51,6 +52,8 @@ export class GameController {
   private lastPhase: 'playing' | 'won' = 'playing'
   private windProbes: { x: number; y: number }[]
   private tmpAir = { x: 0, y: 0 }
+  // sampleWind 结果复用（tick 每步调用，零分配）
+  private windSample = { field: 0, rel: 0 }
   private tickMs = 0
   private lastLand = -Infinity
   private rate = 1
@@ -58,6 +61,8 @@ export class GameController {
   private fitH = 0
   private world: { w: number; h: number }
   private devTools: PerfRecorder | null = null
+  // render 场景复用对象：rAF 每帧 draw 的字面量是热路径分配——只读引用构造期定，press/now 每帧覆写
+  private scene: SceneState
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -82,6 +87,7 @@ export class GameController {
     )
     this.clouds = new Clouds(levelSeed(level.id), this.world, this.sim.terrain)
     this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
+    this.scene = { sim: this.sim, tracers: this.tracers, clouds: this.clouds, planeTrail: this.planeTrail, press: null, now: 0 }
     const { w, h } = level.world
     this.windProbes = buildWindProbes(w, h)
     this.renderer = new Renderer(canvas, this.engine)
@@ -252,8 +258,8 @@ export class GameController {
       this.clouds.step(dt, this.sim.fluid)
       this.planeTrail.push(p.x, p.y, this.sim.time)
 
-      const wind = sampleWind(this.sim.fluid, this.windProbes, p, this.tmpAir)
-      sfx.updateWind(wind.field, wind.rel, dt)
+      sampleWind(this.sim.fluid, this.windProbes, p, this.tmpAir, this.windSample)
+      sfx.updateWind(this.windSample.field, this.windSample.rel, dt)
       sfx.setPlanePan(p.x, this.world.w)
       const altAfter = this.sim.terrain.sample(p.x, p.y)
       if (isLanding(altBefore, altAfter, vyBefore)) {
@@ -283,14 +289,10 @@ export class GameController {
 
   private render = () => {
     const t0 = performance.now()
-    this.renderer.draw({
-      sim: this.sim,
-      tracers: this.tracers,
-      clouds: this.clouds,
-      planeTrail: this.planeTrail,
-      press: this.press,
-      now: performance.now(),
-    })
+    const s = this.scene
+    s.press = this.press
+    s.now = performance.now()
+    this.renderer.draw(s)
     // 每帧直推：文本不变时组件内短路，零开销；罚时含贴地累计（贴地时 extra 随物理时间增长）
     this.events.onStatus(this.sim.time, totalPenaltySeconds(this.sim.sources.length, this.sim.groundedTime))
     this.devTools?.record({

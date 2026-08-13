@@ -6,6 +6,7 @@
 // 生产恒有地形（solid 非空），bulk/边界标量混合，不触发——见 pitfalls I8
 
 ///| 上限统一在 grid.mbt（流体/示踪/顶点批共用），改容量只动那一处
+
 ///|
 let u : FixedArray[Float] = FixedArray::make(grid_max_cells, 0.0)
 
@@ -145,15 +146,13 @@ pub fn fluid_init(
 ) -> Int {
   // 防御面：cell 非正/NaN（采样除零产 NaN 场）与 margin 超界（sponge 越界写）不可接受；
   // 侧带以 m≤nx−2 钉在场内；顶带 j≤m 依赖满容量静态缓冲（grid_max_cells）吸收 m=ny 的极端
-  guard
-    nx_ >= 3 &&
+  guard nx_ >= 3 &&
     ny_ >= 3 &&
     nx_ <= grid_max_nx &&
     ny_ <= grid_max_ny &&
     cell_ > 0.0 &&
     margin_cells_ >= 0 &&
-    margin_cells_ <= nx_ - 2
-  else {
+    margin_cells_ <= nx_ - 2 else {
     1
   }
   pm.nx = nx_

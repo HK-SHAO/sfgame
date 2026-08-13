@@ -4,6 +4,9 @@ export const SOURCE_PENALTY = 4
 // 贴地罚时：每秒贴地（离地 <1）追加 1s——爬行/贴地滑行是"慢的伪装"，物理时间照常走、罚时同步涨
 export const GROUND_PENALTY_RATE = 1
 
+// 贴地判定阈值（SDF 高度）：simulation.groundedTime 与求解器同源的口径单点
+export const GROUNDED_ALT = 1
+
 export function penaltySeconds(sources: number): number {
   return sources * SOURCE_PENALTY
 }

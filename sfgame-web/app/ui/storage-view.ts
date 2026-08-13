@@ -263,7 +263,7 @@ export class SfStorage extends LitElement {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.625rem;
+      gap: var(--sp-2-5);
       /* 文字防撞背景图色：与条目卡同款雾面玻璃 */
       background: var(--card);
       backdrop-filter: var(--blur-glass);

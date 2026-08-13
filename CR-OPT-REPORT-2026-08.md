@@ -151,3 +151,31 @@ margin→格数换算双实现（terrainDims.origin vs WasmFluid.marginCells）�
 - **第二批（视觉验收后）**：K3-05（光晕入背景）→ K4-01/03、K8-02/04（样式共享块）→ K8-01（玻璃档位）→ K7-04（GA 精英复用）。
 - **第三批（择机）**：K2-01、K8-03（公式单源）→ K2-05/K5-02/K8-08（每帧分配归零）→ K5-03（音色平滑，真机试听）→ K8-09（preload/SW）→ K6-06（协议升级窗口）。
 - **不执行**：avoid 清单 15 条——已在代码现状中论证为正确形态。
+
+---
+
+## 7. 执行记录（2026-08，已全部落地并验证）
+
+> 最终基线：`bun run check` 全链通过 · typecheck 零错误 · vitest **28 文件 121 用例**（+1 新增）· moon 测试 15/15 · **engine-golden/sdf-golden 哈希与基线一致（零数值漂移）** · bundle 186.15KB → 184.46KB。
+
+### 已执行（42 项）
+
+**第一批（立即）**：K5-01（loop 让出批次共用 fail 停机路径 + 异步桩回归测试）、K7-01（pathLen 死计算删除）、K7-02（--verify-known 补总耗时比对，实测 luo-yu 21.9s 与登记一致）、K7-03（refineBetter 删除改复用 better）、K4-04（levelNo/name 缓存至 willUpdate）、K4-08/K4-09/K8-05（散点 token 替换、--hud-h 移 :root）、K6-01（resolveLevel 单槽缓存）、K6-02（内置 hash 预计算 Map）、K6-03（LevelDef Omit 单源）、K3-02（draw 拆 drawBackground/drawTerrainPass）、K3-09（SUN_POS 元组）、K1-05（marginCells 单源）、K1-06（bVertexStride 内核导出 + canary）。
+
+**第二批**：K3-05（太阳光晕并入背景烘焙——同程序同混合等价，**需真机视觉验收**）、K4-01（glassChip 共享块）、~~K4-03（icons 工厂化 194→125 行）~~ **修复后重新落地**：初版工厂的嵌套 `html` 模板把 svg 子内容经普通 `<template>`（HTML 上下文）解析成 HTML 命名空间元素，SVG 渲染器拒绝绘制（全端图标空白；DevTools 编辑 html 强制重解析即恢复）。修复 = 内层改用 lit 的 **`svg` tag**（解析时以 `<svg>` 包装再解包，子元素落 SVG 命名空间），外层保留 `html` 全量 svg 字面量，`stroke-linejoin` 用标准条件绑定。CDP 双判据实证：badNamespaces=[]、像素 dark=65（与原始硬编码版逐像素一致）。K8-02（pillLink 共享块）、K8-04（buttonReset 共享块）、K8-01（--glass-line + 三档阴影 token）、K7-04（GA 精英 memo 跨代复用）。
+
+**第三批（可无外部输入项）**：K2-01（sim/grid.ts 单源：terrain.sample/bilinearSample/surfaceY 三处收敛，位级等价）、K2-02（marginCells）、K2-03（cellAnchor 逆变换单源）、K2-05/K5-02（sampleWind out 参数化）、K2-06（Trail.forEachPoint 批量遍历）、K2-08（FIXED_ARITY 编译期校验，每格 expectArgs 移除）、K2-10（GROUNDED_ALT 具名）、K8-03（render 视口 worldToGrid）、K8-06（--paper/--bg-top token）、K8-07（buttonKind 迁 core/input-kind.ts）、K8-08（render 场景复用对象 + windSample 复用——每帧分配归零）、K4-05（bestGrade 纯函数）、K4-06（willUpdate 合并 + hasSfHistory 单点）、K4-10（--icon-sm/md/lg/xl）、K6-04（bakeSdf 预编译参数，编译 4→1）、K7-05（求解器引擎实例复用：worker 一个 + 主进程一个，确定性实测不变）、K7-07（watcher 补 add/unlink）、K7-08（known-urls 登记进 README）、K1-03（setAmbient 三元组缓存跳过）。
+
+### 未执行（4 项，按报告原判跳过）
+
+- **K5-03**（风声频率平滑）：需真机试听确认音色，判 consider 且标注"试听后定"。
+- **K8-09**（wasm preload/SW）：SW 引入缓存失效面，属产品决策；preload 需新增 vite 插件。
+- **K6-06**（进度 hash 规范化）：挂协议升级窗口（存量记录作废一次），报告已明确。
+- **K7-06**（perf 记录块环形化）：生产路径 devTools 恒 null 零成本，纯 dev 卫生项，收益不抵改动面。
+
+### 关键验证事实
+
+- **位级等价证明**：grid.ts/cellAnchor/marginCells/bakeSdf 重构后，engine-golden 四场景哈希、sdf-golden 64+近场逐位断言、canary、margin>0 parity 全部原样通过。
+- **确定性证明**：求解器引擎复用后 `--verify-known` 实测 luo-yu 总耗时 21.9s 与登记基线逐位一致。
+- **K5-01 实测修复**：异步桩回归测试（第 17 个 tick 抛错 → fail 停机 + 日志 + RAF 链停），修复前该路径为 uncaught 静默冻结。
+- **新增文件**：app/sim/grid.ts、app/core/input-kind.ts；无删除。

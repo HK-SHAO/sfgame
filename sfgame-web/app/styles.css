@@ -43,6 +43,20 @@
   --sp-2-5: 0.625rem;
   --sp-5-25: 1.25rem;
   --sp-5-5: 1.375rem;
+  /* 玻璃面档位（收敛 12 处手写 alpha 漂移）：描边与阴影随档位，勿逐处散点 */
+  --glass-line: rgba(255, 255, 255, 0.6);
+  --shadow-ctl: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
+  --shadow-card: 0 0.5rem 1.375rem rgba(61, 52, 39, 0.07);
+  --shadow-overlay: 0 1.5rem 3.75rem rgba(61, 52, 39, 0.22);
+  /* 图标尺寸档：跨组件图标体量单源（0.94/1.06/1.19/1.5rem） */
+  --icon-sm: 0.94rem;
+  --icon-md: 1.06rem;
+  --icon-lg: 1.19rem;
+  --icon-xl: 1.5rem;
+  /* 渐变顶色单源：--bg-warm/--bg-warm-r 渐变与 canvas 兜底、theme-color（index.html/manifest 字面量）同源 */
+  --bg-top: #fff8ea;
+  /* --hud-h 在 :root 单源（AGENTS.md 尺寸 token 契约）：hud :host 与 dev-panel 子树经继承消费 */
+  --hud-h: calc(var(--hud-pad) * 2 + var(--ctl-h) + env(safe-area-inset-top, 0px));
   /* 暖色背景渐变单源：全局（html/body 兜底）与各屏组件（warmBg/pageShell）共用同一 token，杜绝双源漂移；
      html/body 携带渐变 → 浏览器工具栏/overscroll/滚动露白区域延续渐变而非纯色带（iOS Safari 全面屏无缝） */
   --bg-warm:

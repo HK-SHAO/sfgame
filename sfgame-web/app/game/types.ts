@@ -77,18 +77,10 @@ export interface Source {
   power?: number
 }
 
-export interface LevelDef {
-  id: string
-  name: string
-  tagline: string
-  win: { title: string; text: string }
-  world: { w: number; h: number; cell: number }
-  // 地形 SDF：到地表的有符号距离（>0 空气 / <0 实体），世界坐标 y 向下；由 terrain.sdf 编译而来
+// 运行期关卡：从 LevelJson 单源派生（fixed/fans 必选化，$schema 仅编辑器提示故去掉），
+// terrain.sdf 字符串已编译为求值函数，原 JSON 挂 json 供哈希/回显
+export type LevelDef = Omit<LevelJson, '$schema' | 'terrain' | 'fixed' | 'fans'> & {
   sdf: (x: number, y: number) => number
-  budget: { hot: number; cold: number }
-  spawn: { x: number; y?: number; vx?: number; vy?: number }
-  goals: GoalDef[]
-  ambient?: AmbientDef
   fixed: FixedSourceDef[]
   fans: FanDef[]
   json: LevelJson

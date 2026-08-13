@@ -2,6 +2,7 @@
 // 此后所有消费方——流体固体掩码（符号）、示踪粒子（2D 采样）、纸飞机（碰撞+法向）、
 // 渲染（逐顶点着色）——都采样同一份场，物理与画面逐位一致；SDF 全域有定义，天然延展到地图外
 import type { Vec2 } from './types.ts'
+import { clampGrid, worldToGrid } from './grid.ts'
 
 // 飞机物理只依赖这两个操作（测试可用解析式 stub 替代烘焙场）
 export interface TerrainLike {
@@ -40,14 +41,24 @@ export function terrainDims(
   return {
     nx: Math.round((world.w + 2 * margin) / cell),
     ny: Math.round((world.h + margin) / cell),
-    origin: Math.round(margin / cell),
+    origin: marginCells(margin, cell),
   }
+}
+
+// 边距世界单位→格数（与 WasmFluid.create 同源单点）：地形场 origin 与引擎采样 origin 必须一致
+export function marginCells(margin: number, cell: number): number {
+  return Math.round(margin / cell)
 }
 
 // 格点 (0,0) 的世界坐标：烘焙在格心 (i−origin+0.5)·cell 采样，内核把 field[i,j] 当格点值——
 // 锚点取格心使两者对齐，等值线与物理面逐位一致（渲染 setupTerrain 与测试共用此单源）
 export function gridAnchor(origin: number, cell: number): number {
   return (0.5 - origin) * cell
+}
+
+// 格 (i,j) 格心的世界坐标（gridAnchor 的逆）：bake 双循环与 surfaceY 共用的逆变换单源
+export function cellAnchor(i: number, origin: number, cell: number): number {
+  return (i - origin + 0.5) * cell
 }
 
 // 场 → Terrain：mask（边缘恒固体 + d≤0）+ 双线性 sample/normal（clamp = 域外取边缘值，地形自然延展）
@@ -64,12 +75,8 @@ export function terrainFromField(field: Float32Array, dims: TerrainDims, cell: n
 
   // 双线性采样：clamp 约定与流体 sampleVelocity 同构（域外取边缘值 = 地形自然延展）
   function sample(x: number, y: number): number {
-    let gx = x / cell - 0.5 + origin
-    let gy = y / cell - 0.5 + origin
-    if (gx < 0) gx = 0
-    else if (gx > nx - 1.001) gx = nx - 1.001
-    if (gy < 0) gy = 0
-    else if (gy > ny - 1.001) gy = ny - 1.001
+    const gx = clampGrid(worldToGrid(x, cell, origin), nx)
+    const gy = clampGrid(worldToGrid(y, cell, origin), ny)
     const i0 = Math.floor(gx)
     const j0 = Math.floor(gy)
     const fx = gx - i0
@@ -108,9 +115,9 @@ export function bakeTerrain(
   const dims = terrainDims(world, cell, margin)
   const field = new Float32Array(dims.nx * dims.ny)
   for (let j = 0; j < dims.ny; j++) {
-    const wy = (j - dims.origin + 0.5) * cell
+    const wy = cellAnchor(j, dims.origin, cell)
     for (let i = 0; i < dims.nx; i++) {
-      field[i + j * dims.nx] = sdf((i - dims.origin + 0.5) * cell, wy)
+      field[i + j * dims.nx] = sdf(cellAnchor(i, dims.origin, cell), wy)
     }
   }
   return terrainFromField(field, dims, cell)
@@ -119,10 +126,7 @@ export function bakeTerrain(
 // 自顶向下第一表面（旗杆/出生点贴地用）：列内找首个 sdf ≤ 0 的格心并在相邻格心间线性细化；
 // 无表面（整列空气）返回世界底部
 export function surfaceY(t: Terrain, x: number, worldH: number): number {
-  let gx = x / t.cell - 0.5 + t.originX
-  if (gx < 0) gx = 0
-  else if (gx > t.nx - 1.001) gx = t.nx - 1.001
-  const col = Math.round(gx)
+  const col = Math.round(clampGrid(worldToGrid(x, t.cell, t.originX), t.nx))
   for (let j = 1; j < t.ny; j++) {
     const idx = col + j * t.nx
     const v = t.field[idx]
@@ -130,7 +134,7 @@ export function surfaceY(t: Terrain, x: number, worldH: number): number {
     if (!Number.isFinite(v) || v > 0) continue
     const prev = t.field[idx - t.nx]
     const frac = prev > 0 ? prev / (prev - v) : 0
-    return (j - 1 + frac - t.originY + 0.5) * t.cell
+    return cellAnchor(j - 1 + frac, t.originY, t.cell)
   }
   return worldH
 }

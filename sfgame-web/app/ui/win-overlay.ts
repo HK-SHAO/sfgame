@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SOURCE_PENALTY, formatTime } from '../game/timer.ts'
-import { boxReset } from './shared-styles.ts'
+import { boxReset, buttonReset } from './shared-styles.ts'
 
 @customElement('sf-win-overlay')
 export class SfWinOverlay extends LitElement {
@@ -59,6 +59,7 @@ export class SfWinOverlay extends LitElement {
 
   static styles = [
     boxReset,
+    buttonReset,
     css`
       .overlay {
       position: absolute;
@@ -106,7 +107,7 @@ export class SfWinOverlay extends LitElement {
     }
 
     .stats {
-      margin: 0 0 1.375rem;
+      margin: 0 0 var(--sp-5-5);
       padding: var(--sp-4);
       display: flex;
       flex-direction: column;
@@ -170,9 +171,8 @@ export class SfWinOverlay extends LitElement {
       flex: 1;
     }
 
+    /* button 复位来自 shared-styles.buttonReset，此处仅覆盖 padding 与排版 */
     button {
-      border: none;
-      background: none;
       padding: var(--ctl-pad);
       font-size: 0.875rem;
       font-weight: 600;

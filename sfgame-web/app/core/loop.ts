@@ -56,9 +56,15 @@ export class GameLoop {
     try {
       this.frameInner(now)
     } catch (e) {
-      console.error('游戏循环异常：', e)
-      this.stop()
+      this.fail(e)
     }
+  }
+
+  // 异常单一出口：让出批次（setTimeout 回调）在 frame 的 try/catch 栈外，必须共用同一停机路径——
+  // 否则 tick 在让出批次抛错会成 uncaught：RAF 链不再续挂、running 恒 true、无日志，画面静默冻结
+  private fail(e: unknown) {
+    console.error('游戏循环异常：', e)
+    this.stop()
   }
 
   private frameInner(now: number) {
@@ -85,7 +91,13 @@ export class GameLoop {
     }
     const done = this.acc < SIM_DT || this.frameTicks >= MAX_TICKS_PER_FRAME
     if (!done) {
-      setTimeout(() => this.runTicks(now), 0)
+      setTimeout(() => {
+        try {
+          this.runTicks(now)
+        } catch (e) {
+          this.fail(e)
+        }
+      }, 0)
       return
     }
     if (stepped && now - this.lastRender >= GameLoop.RENDER_MIN_INTERVAL) {

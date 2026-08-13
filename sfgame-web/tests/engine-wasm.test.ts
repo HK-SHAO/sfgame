@@ -17,6 +17,7 @@ interface MbExports {
   tSdfCap(): number
   bTerrainFieldCap(): number
   bTerrainCap(): number
+  bVertexStride(): number
 }
 
 function boot(): MbExports {
@@ -75,6 +76,8 @@ test('网格容量：内核导出与 grid-limits 镜像一致', () => {
   expect(ex.bTerrainFieldCap()).toBe(cells)
   // marching squares 常规路径最坏 3 三角/格（三固角扇形化）= 9 顶点
   expect(ex.bTerrainCap()).toBe(cells * 9)
+  // 顶点 stride：TS 镜像 VERTEX_STRIDE（render/batch.ts）——内核侧改布局此处响亮失败
+  expect(ex.bVertexStride()).toBe(6)
 })
 
 // 内核执行侧守卫的负向 canary：容量常量镜像之外，超限/非法参数必须在 init 处被拒

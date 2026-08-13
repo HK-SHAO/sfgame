@@ -138,8 +138,8 @@ export const pageShell = css`
     background: var(--card-glass);
     backdrop-filter: var(--blur-glass);
     -webkit-backdrop-filter: var(--blur-glass);
-    border: 1px solid rgba(255, 255, 255, 0.55);
-    box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
+    border: 1px solid var(--glass-line);
+    box-shadow: var(--shadow-ctl);
     color: var(--ink);
     cursor: pointer;
     padding: 0;
@@ -154,8 +154,65 @@ export const pageShell = css`
   }
 
   .icon-btn svg {
-    width: 1.19rem;
-    height: 1.19rem;
+    width: var(--icon-lg);
+    height: var(--icon-lg);
+  }
+`
+
+// 玻璃胶囊配方（hud 图标钮/徽章与玻璃面同款）：4 组件 5 处手写合并于此，改质感只动这一处
+export const glassChip = css`
+  .icon-btn,
+  .chip,
+  .glass-chip {
+    background: rgba(255, 253, 248, 0.66);
+    backdrop-filter: var(--blur-glass);
+    -webkit-backdrop-filter: var(--blur-glass);
+    border: 1px solid var(--glass-line);
+    box-shadow: var(--shadow-ctl);
+  }
+`
+
+// 胶囊链接钮（标题屏 .link-btn 与关于页 .links a 同配方，K8-02 收敛）：消费方不再各自复制
+export const pillLink = css`
+  .link-btn,
+  .links a,
+  .pill-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1-5);
+    padding: var(--sp-2) var(--sp-4);
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    background: rgba(255, 253, 248, 0.6);
+    border: 1px solid var(--glass-line);
+    border-radius: var(--r-pill);
+    corner-shape: squircle;
+    transition: color 120ms ease-out, box-shadow 120ms ease-out;
+  }
+
+  .link-btn:hover,
+  .links a:hover,
+  .pill-link:hover {
+    color: var(--ink);
+    box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
+  }
+`
+
+// 按钮 UA 复位 + 按压缩放（hud/title/win-overlay 三处同款，K8-04 收敛）
+export const buttonReset = css`
+  button {
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  button:active {
+    transform: scale(0.97);
   }
 `
 

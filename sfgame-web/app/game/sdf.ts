@@ -6,6 +6,7 @@
 //  - 四则/min/max/abs/sqrt 均为 IEEE 规定位，全引擎一致
 //  - sin/cos/exp 走原生 Math（跨引擎 ≤1 ulp）：仅 trig 关卡用到（现无），且烘焙场存 f32，
 //    1 ulp f64 差被 f32 舍入抹平，不影响掩码/物理；语义漂移由 sdf-golden 近似容差守护
+import { cellAnchor } from '../sim/terrain.ts'
 
 type Node =
   | { k: 'num'; v: number }
@@ -23,10 +24,6 @@ const hypot2 = (a: number, b: number) => Math.sqrt(a * a + b * b)
 const smoothstepCurve = (t: number) => {
   const c = clamp01(t)
   return c * c * (3 - 2 * c)
-}
-
-const expectArgs = (args: unknown[], n: number, name: string) => {
-  if (args.length !== n) throw new SdfError(`${name} 需 ${n} 参`)
 }
 
 // 1 参 = smoothstep(t)；3 参 = GLSL smoothstep(e0,e1,x)（GLSL 规定 e0≥e1 未定义，这里拒绝）；ss 为常用别名
@@ -52,14 +49,12 @@ const FUNCS: Record<string, (args: number[], x: number, y: number) => number> = 
   // 单峰山丘：跨 [c-w, c+w] 峰高 h，两端斜率 0，与平原 C1 相接
   bump: (args, x) => {
     const [c, w, h] = args
-    expectArgs(args, 3, 'bump(c,w,h) 中心/半宽/峰高')
     if (w <= 0) throw new SdfError('bump 半宽 w 必须 > 0')
     return h * smoothstepCurve((x - (c - w)) / w) * smoothstepCurve((c + w - x) / w)
   },
   // 高斯圆丘：C∞ 圆顶，永不归零（3w 处残量 ~1e-4，视觉无感）
   gauss: (args, x) => {
     const [c, w, h] = args
-    expectArgs(args, 3, 'gauss(c,w,h) 中心/宽度/峰高')
     if (w <= 0) throw new SdfError('gauss 宽度 w 必须 > 0')
     const t = (x - c) / w
     return h * Math.exp(-t * t)
@@ -70,11 +65,9 @@ const FUNCS: Record<string, (args: number[], x: number, y: number) => number> = 
   // —— SDF 原语（精确距离）——
   // 半空间：y0 以下（y 向下）为实体，平原/地基
   flat: (args, _x, y) => {
-    expectArgs(args, 1, 'flat(y0) 地表高度')
     return args[0] - y
   },
   circle: (args, x, y) => {
-    expectArgs(args, 3, 'circle(cx,cy,r)')
     if (args[2] <= 0) throw new SdfError('circle 半径必须 > 0')
     return hypot2(x - args[0], y - args[1]) - args[2]
   },
@@ -90,7 +83,6 @@ const FUNCS: Record<string, (args: number[], x: number, y: number) => number> = 
   },
   // 胶囊（线段加半径）：山脊/斜坡的圆润替身
   capsule: (args, x, y) => {
-    expectArgs(args, 5, 'capsule(x0,y0,x1,y1,r)')
     if (args[4] <= 0) throw new SdfError('capsule 半径必须 > 0')
     const px = x - args[0]
     const py = y - args[1]
@@ -102,14 +94,12 @@ const FUNCS: Record<string, (args: number[], x: number, y: number) => number> = 
   },
   // 光滑并/交（多项式型，k = 过渡带宽）：min/max 是 k→0 的硬极限；挖洞 = smax(a, −b, k)
   smin: (args) => {
-    expectArgs(args, 3, 'smin(a,b,k)')
     if (args[2] <= 0) throw new SdfError('smin 带宽 k 必须 > 0')
     const [a, b, k] = args
     const h = clamp01(0.5 + (0.5 * (b - a)) / k)
     return b + (a - b) * h - k * h * (1 - h)
   },
   smax: (args) => {
-    expectArgs(args, 3, 'smax(a,b,k)')
     if (args[2] <= 0) throw new SdfError('smax 带宽 k 必须 > 0')
     const [a, b, k] = args
     const h = clamp01(0.5 - (0.5 * (b - a)) / k)
@@ -233,6 +223,25 @@ class Parser {
   }
 }
 
+// 定长参数函数：参数个数在编译期校验一次（错误时机从 bake 期提前到 compile 期，消息同源）；
+// 变参（box 4-5、smoothstep/ss 1|3）与值域校验保留在求值期（依赖实参值）
+const FIXED_ARITY: Record<string, number> = {
+  abs: 1,
+  min: 2,
+  max: 2,
+  clamp: 3,
+  bump: 3,
+  gauss: 3,
+  sin: 1,
+  cos: 1,
+  sqrt: 1,
+  flat: 1,
+  circle: 3,
+  capsule: 5,
+  smin: 3,
+  smax: 3,
+}
+
 type Compiled = (x: number, y: number) => number
 
 // scratch 每 call 节点独享复用，嵌套调用各持各的，无冲突
@@ -266,6 +275,8 @@ function compileNode(n: Node): Compiled {
     case 'call': {
       const f = FUNCS[n.fn]
       if (!f) throw new SdfError(`未知函数 ${n.fn}`)
+      const arity = FIXED_ARITY[n.fn]
+      if (arity !== undefined && n.args.length !== arity) throw new SdfError(`${n.fn} 需 ${arity} 参`)
       const args = n.args.map(compileNode)
       const scratch = new Array<number>(args.length)
       return (x, y) => {
@@ -282,18 +293,25 @@ export function compileSdf(src: string): (x: number, y: number) => number {
 }
 
 // 整场烘焙：表达式在 nx×ny 格心一次求值返回 f32 场（Float32Array 存储即舍入）。
-// 坐标与 terrain.ts 的 bakeTerrain 同构：wy=(j−origin+0.5)·cell、wx=(i−origin+0.5)·cell；
+// 坐标与 terrain.ts 的 bakeTerrain 同构（cellAnchor 单源）；compiled 可选 = 预编译函数（校验/进关复用，免重复编译）；
 // mask（d≤0）由 terrain.ts 在存储后的场本地计算，场/掩码同源一致
-export function bakeSdf(src: string, nx: number, ny: number, origin: number, cell: number): Float32Array {
-  const f = compileSdf(src)
+export function bakeSdf(
+  src: string,
+  nx: number,
+  ny: number,
+  origin: number,
+  cell: number,
+  compiled?: (x: number, y: number) => number,
+): Float32Array {
+  const f = compiled ?? compileSdf(src)
   const out = new Float32Array(nx * ny)
   for (let j = 0; j < ny; j++) {
-    const wy = (j - origin + 0.5) * cell
+    const wy = cellAnchor(j, origin, cell)
     const row = j * nx
     for (let i = 0; i < nx; i++) {
-      const v = f((i - origin + 0.5) * cell, wy)
+      const v = f(cellAnchor(i, origin, cell), wy)
       // 发散单点即拒绝（sqrt 负域/除零/∞−∞）：NaN 会被掩码判空气、被距离比较判"抵达"，静默坏局
-      if (!Number.isFinite(v)) throw new SdfError(`SDF 在 (${(i - origin + 0.5) * cell}, ${wy}) 处发散`)
+      if (!Number.isFinite(v)) throw new SdfError(`SDF 在 (${cellAnchor(i, origin, cell)}, ${wy}) 处发散`)
       out[i + row] = v
     }
   }

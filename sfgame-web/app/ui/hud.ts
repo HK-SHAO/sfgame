@@ -2,7 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { HudState } from '../game/types.ts'
 import type { SourceKind } from '../sim/types.ts'
-import { boxReset, reduceMotion } from './shared-styles.ts'
+import { boxReset, buttonReset, glassChip, reduceMotion } from './shared-styles.ts'
 import { iconFlame, iconHome, iconPause, iconPlay, iconReset, iconSnow, iconSoundOff, iconSoundOn } from './icons.ts'
 
 // 游戏 HUD 头：从 app.ts 拆出（热冷余量 + 主页/暂停/速率/重置/声音按钮 + deny 抖动）
@@ -101,13 +101,14 @@ export class SfHud extends LitElement {
 
   static styles = [
     boxReset,
+    buttonReset,
+    glassChip,
     reduceMotion,
     css`
       :host {
         display: block;
-        /* --hud-h 内聚于此（供 dev-panel 子树继承）；.hud 是 absolute 不撑高，显式 height 才与可视高度一致 */
+        /* --hud-pad/--hud-h 定义在 :root（尺寸 token 单源）；.hud 是 absolute 不撑高，显式 height 才与可视高度一致 */
         height: var(--hud-h);
-        --hud-h: calc(var(--hud-pad) * 2 + var(--ctl-h) + env(safe-area-inset-top, 0px));
       }
 
       svg {
@@ -177,18 +178,13 @@ export class SfHud extends LitElement {
         padding: 0 var(--sp-3);
         border-radius: var(--r-md);
         corner-shape: squircle;
-        background: rgba(255, 253, 248, 0.66);
-        backdrop-filter: var(--blur-glass);
-        -webkit-backdrop-filter: var(--blur-glass);
-        border: 1px solid rgba(255, 255, 255, 0.55);
-        box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
         color: var(--ink);
         transition: transform 100ms ease-out;
       }
 
       .icon-btn svg {
-        width: 1.19rem;
-        height: 1.19rem;
+        width: var(--icon-lg);
+        height: var(--icon-lg);
       }
 
       .icon-btn.speed b {
@@ -203,17 +199,12 @@ export class SfHud extends LitElement {
         padding: 0 var(--sp-3);
         border-radius: var(--r-md);
         corner-shape: squircle;
-        background: rgba(255, 253, 248, 0.66);
-        backdrop-filter: var(--blur-glass);
-        -webkit-backdrop-filter: var(--blur-glass);
-        border: 1px solid rgba(255, 255, 255, 0.55);
-        box-shadow: 0 0.125rem 0.625rem rgba(61, 52, 39, 0.06);
         font-size: 0.875rem;
       }
 
       .chip svg {
-        width: 0.94rem;
-        height: 0.94rem;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
 
       .chip.hot svg {
@@ -248,8 +239,8 @@ export class SfHud extends LitElement {
         }
 
         .icon-btn svg {
-          width: 1.06rem;
-          height: 1.06rem;
+          width: var(--icon-md);
+          height: var(--icon-md);
         }
 
         .chip {

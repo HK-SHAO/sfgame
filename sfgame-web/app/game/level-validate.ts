@@ -139,19 +139,20 @@ function checkTerrain(ctx: Ctx, j: Record<string, unknown>, world: { w: number; 
     ctx.errs.push(`${ctx.id} terrain.sdf 必须为非空表达式字符串`)
     return
   }
+  let f: ((x: number, y: number) => number) | null = null
   try {
-    compileSdf(sdf)
+    f = compileSdf(sdf)
   } catch (e) {
     ctx.errs.push(`${ctx.id} terrain.sdf 语法错误：${e instanceof SdfError ? e.message : String(e)}`)
     return
   }
   if (!world) return
   // 与游戏同路径全域烘焙（含边距带）：发散（NaN/∞）在此拦截，1.0 步长抽查漏掉的窄发散带也被覆盖；
-  // 网格越界已由 checkWorld 短路，此处烘焙规模有内核容量上限
+  // 网格越界已由 checkWorld 短路，此处烘焙规模有内核容量上限；编译一次传入（免重复编译）
   const dims = terrainDims(world, world.cell)
   let field: Float32Array
   try {
-    field = bakeSdf(sdf, dims.nx, dims.ny, dims.origin, world.cell)
+    field = bakeSdf(sdf, dims.nx, dims.ny, dims.origin, world.cell, f)
   } catch (e) {
     ctx.errs.push(`${ctx.id} terrain.sdf 求值错误：${e instanceof Error ? e.message : String(e)}`)
     return

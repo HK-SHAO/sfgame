@@ -40,19 +40,20 @@ test('buildWindProbes：3×2 探针按世界比例分布', () => {
 
 test('sampleWind：零场场强为 0、相对风 = 飞机速度；常风叠加', () => {
   const out = { x: 0, y: 0 }
+  const result = { field: 0, rel: 0 }
   const probes = buildWindProbes(76, 56)
   const calm = stubFluid(0, 0)
   const plane = createBody(30, 20)
   plane.vx = 8
   plane.vy = -2
-  let wind = sampleWind(calm, probes, plane, out)
-  expect(wind.field).toBe(0)
-  expect(wind.rel).toBeCloseTo(Math.hypot(8, 2), 10)
+  sampleWind(calm, probes, plane, out, result)
+  expect(result.field).toBe(0)
+  expect(result.rel).toBeCloseTo(Math.hypot(8, 2), 10)
 
   const breeze = stubFluid(2.6, 0)
-  wind = sampleWind(breeze, probes, plane, out)
-  expect(wind.field).toBeCloseTo(2.6, 10)
-  expect(wind.rel).toBeCloseTo(Math.hypot(8 - 2.6, 2), 10)
+  sampleWind(breeze, probes, plane, out, result)
+  expect(result.field).toBeCloseTo(2.6, 10)
+  expect(result.rel).toBeCloseTo(Math.hypot(8 - 2.6, 2), 10)
 })
 
 test('isLanding：空中→触地的下降边沿才算落地，无速度门槛（响度按 vy 调）', () => {

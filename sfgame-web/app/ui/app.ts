@@ -109,10 +109,7 @@ export class SfApp extends LitElement {
   protected override willUpdate(changed: PropertyValues) {
     this.syncDevTools()
     // 渲染前重置（willUpdate 不额外调度），避免上局结算覆盖层闪现
-    if (changed.has('screen') && this.screen === 'game') {
-      this.resetHud(this.activeLevel)
-    }
-    if (changed.has('activeLevel') && this.screen === 'game') {
+    if (this.screen === 'game' && (changed.has('screen') || changed.has('activeLevel'))) {
       this.resetHud(this.activeLevel)
     }
   }
@@ -187,10 +184,15 @@ export class SfApp extends LitElement {
     this.enterLevel(next)
   }
 
+  // 应用内导航条目标记（C10）：goBack/undo/redo 共用同一判定——直达/外部进入无标记，回退即离开本站
+  private hasSfHistory(): boolean {
+    return !!window.history.state && !!(window.history.state as { sf?: boolean }).sf
+  }
+
   private goBack() {
     fb.uiBack()
     // 仅应用内导航（pushState 带 sf 标记）才回退上一页；直达链接/外部进入回首页
-    if (window.history.state && window.history.state.sf) window.history.back()
+    if (this.hasSfHistory()) window.history.back()
     else this.backToTitle()
   }
 
@@ -252,11 +254,11 @@ export class SfApp extends LitElement {
   // popstate 应用路径由 urlState 写读分离保证不回写；输入框内由原生文本撤销优先，keys 层已过滤。
   // 与 goBack 同策略：当前条目无 sf 标记（直达链接会话）时后退会离开本站——视为无可撤销
   private undoMove() {
-    if (window.history.state && window.history.state.sf) window.history.back()
+    if (this.hasSfHistory()) window.history.back()
   }
 
   private redoMove() {
-    if (window.history.state && window.history.state.sf) window.history.forward()
+    if (this.hasSfHistory()) window.history.forward()
   }
 
   // ===== hud 事件处理器 =====
@@ -464,7 +466,7 @@ export class SfApp extends LitElement {
       .game {
         position: relative;
         height: 100%;
-        background: #fdf7ec;
+        background: var(--paper);
       }
 
       sf-game {

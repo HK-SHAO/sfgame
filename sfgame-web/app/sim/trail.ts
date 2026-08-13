@@ -74,6 +74,17 @@ export class Trail {
     return this.count < this.maxPoints ? k : (this.head + k) % this.maxPoints
   }
 
+  // 顺序批量遍历（渲染每帧满环 600 点）：单次回绕换算，免每点 3 次取模（xAt/yAt/tAt 各重算 indexOf）
+  forEachPoint(cb: (x: number, y: number, t: number, k: number) => void): void {
+    const n = this.count
+    const base = n < this.maxPoints ? 0 : this.head
+    for (let k = 0; k < n; k++) {
+      const i = base + k
+      const idx = i < this.maxPoints ? i : i - this.maxPoints
+      cb(this.xs[idx], this.ys[idx], this.ts[idx], k)
+    }
+  }
+
   xAt(k: number): number {
     return this.xs[this.indexOf(k)]
   }

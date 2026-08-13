@@ -31,6 +31,9 @@ export class SfGame extends LitElement {
   // 状态条数据：onStatus 每帧直推（rAF 内、更新周期外）
   @state() private statusTime = 0
   @state() private statusPenalty = 0
+  // 关卡标题缓存：level 只在 keyed(activeLevel) 重建间变化，每帧模板重算 levelNo（O(LEVELS) findIndex）是纯冗余
+  private cachedNo = 0
+  private cachedName = ''
 
   @query('canvas') private canvas!: HTMLCanvasElement
 
@@ -85,6 +88,14 @@ export class SfGame extends LitElement {
     })
   }
 
+  // 首帧渲染前与 level 变化时重算：level 只在 keyed(activeLevel) 重建间变化，缓存后每帧模板零重算
+  protected override willUpdate(changed: PropertyValues) {
+    if (changed.has('level')) {
+      this.cachedNo = levelNo(this.level?.id ?? '')
+      this.cachedName = this.level?.name ?? ''
+    }
+  }
+
   protected override updated(changed: PropertyValues) {
     if (changed.has('rate')) this.controller?.setRate(this.rate)
   }
@@ -112,8 +123,8 @@ export class SfGame extends LitElement {
       <canvas role="img" aria-label="烧风：放置热源与冷源，用风把纸飞机送达目标"></canvas>
       <div class="deny-ring" aria-hidden="true"></div>
       <sf-status
-        .levelNo=${levelNo(this.level?.id ?? '')}
-        .levelName=${this.level?.name ?? ''}
+        .levelNo=${this.cachedNo}
+        .levelName=${this.cachedName}
         .time=${this.statusTime}
         .penalty=${this.statusPenalty}
       ></sf-status>
@@ -141,7 +152,7 @@ export class SfGame extends LitElement {
         -webkit-user-select: none;
         -webkit-touch-callout: none;
         /* WebGL 兜底底色：缓冲未初始化时不黑屏 */
-        background: #fff8ea;
+        background: var(--bg-top);
       }
 
       /* 放置被拒波纹：单节点，不拦截指针 */

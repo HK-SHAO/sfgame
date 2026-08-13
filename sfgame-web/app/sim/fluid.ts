@@ -1,6 +1,8 @@
 // 欧拉稳定流体（Jos Stam）：浮力 → MacCormack 二阶平流（半拉格朗日误差补偿，降耗散）→ 压强投影保持无散度；热源加热上升、投影抽走体积 → 周围补充流入涌现水平风。环境风不进步流水线：预烘焙位流基场（贴地绕流，顺坡爬升），采样时按强度线性叠加；数值内核在 moon/fluid.mbt（WASM 标量，f32 存储/f64 中间量），本模块只是门面与纯计算辅助
 import type { Vec2 } from './types.ts'
 import { createEngine, type EngineHandle } from '../wasm/engine.ts'
+import { clampGrid, worldToGrid } from './grid.ts'
+import { marginCells } from './terrain.ts'
 
 export interface FluidConfig {
   nx: number
@@ -54,12 +56,8 @@ export function bilinearSample(
   wy: number,
   out: Vec2,
 ): number {
-  let gx = wx / cell - 0.5 + originX
-  let gy = wy / cell - 0.5 + originY
-  if (gx < 0) gx = 0
-  else if (gx > nx - 1.001) gx = nx - 1.001
-  if (gy < 0) gy = 0
-  else if (gy > ny - 1.001) gy = ny - 1.001
+  let gx = clampGrid(worldToGrid(wx, cell, originX), nx)
+  let gy = clampGrid(worldToGrid(wy, cell, originY), ny)
   const i0 = Math.floor(gx)
   const j0 = Math.floor(gy)
   const fx = gx - i0
@@ -104,8 +102,8 @@ export class WasmFluid implements FluidLike {
 
   static create(cfg: FluidConfig, engine = createEngine()): WasmFluid | null {
     try {
-      // 边距取整格：JS 采样用同一整数偏移，保证与内核逐位同构
-      const marginCells = Math.round(cfg.margin / cfg.cell)
+      // 边距取整格：JS 采样用同一整数偏移（marginCells 单源，与地形场 origin 一致），保证与内核逐位同构
+      const mc = marginCells(cfg.margin, cfg.cell)
       const st = engine.ex.init(
         cfg.nx,
         cfg.ny,
@@ -117,11 +115,11 @@ export class WasmFluid implements FluidLike {
         cfg.velDamping,
         cfg.tDamping,
         cfg.iterations,
-        marginCells,
+        mc,
       )
       if (st !== 0) return null
-      engine.origin.x = marginCells
-      engine.origin.y = marginCells
+      engine.origin.x = mc
+      engine.origin.y = mc
       return new WasmFluid(cfg, engine)
     } catch {
       return null

@@ -7,6 +7,12 @@ let vertex_stride : Int = 6
 // 最坏帧 ≈ 示踪 ~7 万 + 其余 ~1 万：留足余量，取 12 整倍便于恰好写满（地形已迁出主批至独立 tg_data）
 
 ///|
+#export_name("bVertexStride")
+pub fn b_vertex_stride() -> Int {
+  vertex_stride
+}
+
+///|
 let capacity : Int = 262152
 
 ///|

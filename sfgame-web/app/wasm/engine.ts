@@ -43,6 +43,7 @@ export interface BatchExports {
   bFadeCap(): number
   bTracerCap(): number
   bTracerStride(): number
+  bVertexStride(): number
   bData(): number
   bPtsBuf(): number
   bFadeBuf(): number

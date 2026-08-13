@@ -12,23 +12,23 @@ export function buildWindProbes(w: number, h: number): Vec2[] {
   return WIND_PROBE_FX.flatMap((fx) => WIND_PROBE_FY.map((fy) => ({ x: fx * w, y: fy * h })))
 }
 
-// 场强度 = 探针均值（含飞机位）；相对风 = 飞机与当地风速差。out 为共享临时量（D4 热路径零分配）
+// 场强度 = 探针均值（含飞机位）；相对风 = 飞机与当地风速差。out 与 result 均为共享临时量
+//（D4 热路径零分配：tick 每步调用，禁止新建对象）
 export function sampleWind(
   fluid: FluidLike,
   probes: Vec2[],
   plane: Body,
   out: Vec2,
-): { field: number; rel: number } {
+  result: { field: number; rel: number },
+): void {
   let sum = 0
   for (const pr of probes) {
     fluid.sampleVelocity(pr.x, pr.y, out)
     sum += Math.sqrt(out.x * out.x + out.y * out.y)
   }
   fluid.sampleVelocity(plane.x, plane.y, out)
-  return {
-    field: (sum + Math.sqrt(out.x * out.x + out.y * out.y)) / (probes.length + 1),
-    rel: Math.sqrt((plane.vx - out.x) * (plane.vx - out.x) + (plane.vy - out.y) * (plane.vy - out.y)),
-  }
+  result.field = (sum + Math.sqrt(out.x * out.x + out.y * out.y)) / (probes.length + 1)
+  result.rel = Math.sqrt((plane.vx - out.x) * (plane.vx - out.x) + (plane.vy - out.y) * (plane.vy - out.y))
 }
 
 // 落地 = 空中→触地的下降边沿。响度由撞击前 vy 调（fb.land），不做速度门槛：

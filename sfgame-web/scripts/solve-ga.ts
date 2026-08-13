@@ -43,8 +43,20 @@ export async function geneticSolve(opts: GaOptions): Promise<{ best: GaEntry | n
   let gen = 0
   let stale = 0
 
+  // 指标 memo（srcKey → 指标）：精英与重启保留者跨代不重评——确定性（同 engine/关卡/cap → 同指标，
+  // golden 钉死的性质）使复用安全，省每代 ELITE/POP ≈ 12.5% 评估量
+  const memo = new Map<string, CandidateMetric>()
+
   while (performance.now() < deadline) {
-    const metrics = await pool.evaluate(pop, solveCap)
+    const freshIdx: number[] = []
+    for (let i = 0; i < POP; i++) {
+      if (!memo.has(srcKey(pop[i]))) freshIdx.push(i)
+    }
+    if (freshIdx.length > 0) {
+      const ms = await pool.evaluate(freshIdx.map((i) => pop[i]), solveCap)
+      freshIdx.forEach((i, k) => memo.set(srcKey(pop[i]), ms[k]))
+    }
+    const metrics = pop.map((s) => memo.get(srcKey(s))!)
     for (let i = 0; i < POP; i++) {
       const entry = { src: pop[i], m: metrics[i] }
       if (!best || better(metrics[i], best.m)) {

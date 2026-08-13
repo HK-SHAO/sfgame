@@ -2,7 +2,7 @@
 // 目标字典序：通关 → 总耗时（通关时间 + 源罚 4s/个 + 贴地罚 1s/s）最短 → 耗时；路程不参与排序。
 // 邻域 = 单源单轴 ±step（粗到细）+ 删一源；memo 缓存去重评（排序规范化键 = 同一多重集同键）、worker 并行。
 // 纯搜索无 I/O：基线/改进经回调上报，打印归 CLI
-import { totalTime, WorkerPool, type CandidateMetric, type SourceTuple } from './solve-lib.ts'
+import { better, WorkerPool, type CandidateMetric, type SourceTuple } from './solve-lib.ts'
 import type { LevelDef } from '../app/game/types.ts'
 
 export const REFINE_STEPS = [2, 1, 0.5, 0.2, 0.1]
@@ -28,15 +28,6 @@ export interface RefineOptions {
   workerCount: number
   onBaseline?: (m: CandidateMetric) => void
   onImprove?: (step: number, cur: Refined) => void
-}
-
-function refineBetter(a: Refined, b: Refined): boolean {
-  if (a.m.won !== b.m.won) return a.m.won
-  if (!a.m.won) return a.m.progress > b.m.progress
-  const ta = totalTime(a.m)
-  const tb = totalTime(b.m)
-  if (ta !== tb) return ta < tb
-  return a.m.time < b.m.time
 }
 
 // 缓存键：排序规范化（同一多重集同键）+ 1 位小数（URL 可放置形态）
@@ -100,7 +91,8 @@ export async function refineSolution(opts: RefineOptions): Promise<RefineResult>
       let best = cur
       for (let i = 0; i < cands.length; i++) {
         const e: Refined = { src: cands[i], m: ms[i] }
-        if (refineBetter(e, best)) best = e
+        // 排序策略单源：直接复用 solve-lib.better（同字典序：通关 → 总耗时 → 耗时 → 进展）
+        if (better(e.m, best.m)) best = e
       }
       if (best !== cur) {
         cur = best

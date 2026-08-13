@@ -4,7 +4,7 @@ import { levelFromJson, parseLevelText } from '../app/game/level-format.ts'
 import { LevelSimulation } from '../app/game/simulation.ts'
 import type { LevelDef } from '../app/game/types.ts'
 import { bakeTerrain, surfaceY, FLUID_MARGIN, type Terrain } from '../app/sim/terrain.ts'
-import { bootEngine } from '../app/wasm/engine.ts'
+import { bootEngine, type EngineHandle } from '../app/wasm/engine.ts'
 
 // FINE_DT 与浏览器固定步长 SIM_DT 一致（无头 ↔ 真机同语义）；粗筛是"另一套物理"，胜点必须 FINE_DT 精验
 export const FINE_DT = 1 / 60
@@ -22,7 +22,6 @@ export type SourceTuple = [number, number, 'hot' | 'cold']
 export interface CandidateMetric {
   won: boolean
   time: number
-  pathLen: number
   groundTime: number
   progress: number
   // 源个数：耗时优先级按"总耗时 = time + 罚时×源数"排序，评估时带上以便跨源数比较
@@ -45,21 +44,20 @@ export function evalCandidate(
   level: LevelDef,
   src: SourceTuple[],
   opts: EvalOptions = {},
+  // 复用引擎实例（顺序评估场景：worker 全程一个、主进程 verify 循环一个）——免每次重建 wasm 实例与钉死内存
+  engine?: EngineHandle,
 ): CandidateMetric {
   const dt = opts.dt ?? FINE_DT
   const cap = opts.cap ?? 120
   const earlyExit = opts.earlyExit ?? false
-  const sim = new LevelSimulation(level)
+  const sim = new LevelSimulation(level, engine)
   // 坐标统一舍入到 1 位小数：URL 只保留 1 位小数，候选解必须"URL 可放置"才有效（刀刃解玩家无法复现）
   for (const [x, y, k] of src) {
     const placed = sim.placeSource(Math.round(x * 10) / 10, Math.round(y * 10) / 10, k)
     if (!placed) {
-      return { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0, sources: src.length }
+      return { won: false, time: -1, groundTime: 0, progress: 0, sources: src.length }
     }
   }
-  let pathLen = 0
-  let px = sim.plane.x
-  let py = sim.plane.y
   let stall = 0
   let refX = sim.plane.x
   let refY = sim.plane.y
@@ -70,13 +68,10 @@ export function evalCandidate(
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
       throw new Error('流场发散（NaN）：当前运行时无法正确执行 WASM 流体内核')
     }
-    pathLen += Math.sqrt((p.x - px) * (p.x - px) + (p.y - py) * (p.y - py))
-    px = p.x
-    py = p.y
     if (sim.phase === 'won') {
       // 贴地秒数直取 sim.groundedTime：与游戏罚时同口径，免手工重复累计
       // 通关时刻取 step 后的 sim.time（游戏端先 time+=dt 再判胜，展示口径同源）
-      return { won: true, time: sim.time, pathLen, groundTime: sim.groundedTime, progress: level.goals.length, sources: src.length }
+      return { won: true, time: sim.time, groundTime: sim.groundedTime, progress: level.goals.length, sources: src.length }
     }
     if (earlyExit) {
       const dx = p.x - refX
@@ -89,14 +84,13 @@ export function evalCandidate(
         refY = p.y
       }
       if (stall > 600) {
-        return { won: false, time: -1, pathLen, groundTime: sim.groundedTime, progress: sim.visitedCount * 1000 + Math.min(sim.plane.x, level.world.w), sources: src.length }
+        return { won: false, time: -1, groundTime: sim.groundedTime, progress: sim.visitedCount * 1000 + Math.min(sim.plane.x, level.world.w), sources: src.length }
       }
     }
   }
   return {
     won: false,
     time: -1,
-    pathLen,
     groundTime: sim.groundedTime,
     progress: sim.visitedCount * 1000 + Math.min(sim.plane.x, level.world.w),
     sources: src.length,
@@ -127,7 +121,7 @@ export interface RobustnessResult {
 }
 
 // 扰动鲁棒性：每个源 8 邻域 ±1 位移后重跑，通关占比 ≥75%（6/8）才算宽容好上手（G7）；失败按 x-y-k 罗列
-export function verifyRobustness(level: LevelDef, sources: SourceTuple[], cap = 120): RobustnessResult {
+export function verifyRobustness(level: LevelDef, sources: SourceTuple[], cap = 120, engine?: EngineHandle): RobustnessResult {
   const moves = [
     [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1],
   ]
@@ -137,7 +131,7 @@ export function verifyRobustness(level: LevelDef, sources: SourceTuple[], cap = 
     const [x, y, k] = sources[i]
     for (const [dx, dy] of moves) {
       const perturbed = sources.map((s, j) => (j === i ? [x + dx, y + dy, k] as SourceTuple : s))
-      const r = evalCandidate(level, perturbed, { dt: FINE_DT, cap })
+      const r = evalCandidate(level, perturbed, { dt: FINE_DT, cap }, engine)
       if (r.won) ok++
       else failed.push(`${x + dx}-${y + dy}-${k === 'hot' ? 'h' : 'c'}`)
     }
@@ -184,7 +178,7 @@ export function mulberry32(seed: number) {
   }
 }
 
-export const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, pathLen: 0, groundTime: 0, progress: 0, sources: 0 }
+export const FALLBACK_METRIC: CandidateMetric = { won: false, time: -1, groundTime: 0, progress: 0, sources: 0 }
 
 // 并行评估子进程池：stdin/stdout 逐行 JSON；worker 意外退出时在途任务按失败计并补起替身（否则 Promise 永不 resolve 无声挂死）。
 // cap 随任务下发：--solve 用 35s 快筛，--refine 用长 cap（既有解耗时可能超 35s）。

@@ -2,6 +2,7 @@
 // 顶点格式 x,y,r,g,b,a（0..1 非预乘）平铺；逐顶点颜色 → 整帧一次 draw call、精确逐图元透明度
 import { createEngine, type EngineHandle } from '../wasm/engine.ts'
 
+// 顶点 stride 单源 = 内核导出（TS/moon 双份常量已收敛，canary 钉死）
 export const VERTEX_STRIDE = 6
 
 // 内存静态定型（零运行期分配），视图生命周期内恒定，可安全缓存
@@ -13,15 +14,20 @@ export class MeshBatch {
   private tracerView: Float32Array
   private terrainFieldView: Float32Array
   private terrainDataView: Float32Array
+  // stride/cap 为编译期静态定值：构造期读一次存字段，免每帧 2 次 wasm 跨界（元数据调用与数据调用分离）
+  private stride: number
+  private cap: number
 
   constructor(engine = createEngine()) {
     const ex = engine.ex
     this.ex = ex
+    this.stride = ex.bTracerStride()
+    this.cap = ex.bTracerCap()
     const buf = engine.memory.buffer
     this.view = new Float32Array(buf, ex.bData(), ex.bCapacity() * VERTEX_STRIDE)
     this.ptsView = new Float32Array(buf, ex.bPtsBuf(), ex.bPtsCap())
     this.fadeView = new Float32Array(buf, ex.bFadeBuf(), ex.bFadeCap())
-    this.tracerView = new Float32Array(buf, ex.bTracerBuf(), ex.bTracerCap() * ex.bTracerStride())
+    this.tracerView = new Float32Array(buf, ex.bTracerBuf(), this.cap * this.stride)
     this.terrainFieldView = new Float32Array(buf, ex.bTerrainFieldBuf(), ex.bTerrainFieldCap())
     this.terrainDataView = new Float32Array(buf, ex.bTerrainData(), ex.bTerrainCap() * VERTEX_STRIDE)
   }
@@ -105,11 +111,11 @@ export class MeshBatch {
   }
 
   get tracerStride(): number {
-    return this.ex.bTracerStride()
+    return this.stride
   }
 
   get tracerCap(): number {
-    return this.ex.bTracerCap()
+    return this.cap
   }
 
   tracers(count: number, w: number, headR: number) {

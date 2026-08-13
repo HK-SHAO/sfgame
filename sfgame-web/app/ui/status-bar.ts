@@ -67,10 +67,10 @@ export class SfStatusBar extends LitElement {
       background: rgba(255, 253, 248, 0.78);
       backdrop-filter: var(--blur-glass);
       -webkit-backdrop-filter: var(--blur-glass);
-      border: 1px solid rgba(255, 255, 255, 0.6);
+      border: 1px solid var(--glass-line);
       border-radius: var(--r-lg);
       corner-shape: squircle;
-      box-shadow: 0 0.25rem 1.125rem rgba(61, 52, 39, 0.1);
+      box-shadow: var(--shadow-card);
       pointer-events: none;
     }
 

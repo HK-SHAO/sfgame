@@ -24,6 +24,7 @@ const clouds = new Clouds(levelSeed(level.id), level.world, sim.terrain)
 const trail = new Trail(150, 0.3, 6)
 const probes = buildWindProbes(level.world.w, level.world.h)
 const tmpAir = { x: 0, y: 0 }
+const tmpWind = { field: 0, rel: 0 }
 const batch = new MeshBatch(engine)
 
 sim.placeSource(20, 20, 'hot')
@@ -61,7 +62,7 @@ for (let k = 0; k < N; k++) {
   bench('tracersStep', () => tracers.step(1 / 60, sim.sources))
   bench('cloudsStep', () => clouds.step(1 / 60, sim.fluid))
   bench('trailPush', () => trail.push(sim.plane.x, sim.plane.y, sim.time))
-  bench('wind', () => sampleWind(sim.fluid, probes, sim.plane, tmpAir))
+  bench('wind', () => sampleWind(sim.fluid, probes, sim.plane, tmpAir, tmpWind))
   // —— 每帧一次渲染批（无 GL）——
   bench('tracerTess', () => {
     batch.reset()

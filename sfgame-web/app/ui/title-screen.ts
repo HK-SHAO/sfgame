@@ -5,8 +5,15 @@ import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash
 import { progress } from '../game/progress.ts'
 import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
-import { artBg, boxReset, brandIn, reduceMotion } from './shared-styles.ts'
+import { artBg, boxReset, brandIn, buttonReset, pillLink, reduceMotion } from './shared-styles.ts'
 import { iconChevron, iconGear, iconInfo, iconLock, iconPlay } from './icons.ts'
+
+// 耗时评级阈值单源（≤30 绿 / ≤60 黄 / >60 红）：emoji 直观表意（🏆 纪录 / 🙂 尚可 / 🐌 缓慢）
+export function bestGrade(total: number): { cls: 'good' | 'fair' | 'poor'; emoji: string } {
+  if (total > 60) return { cls: 'poor', emoji: '🐌' }
+  if (total > 30) return { cls: 'fair', emoji: '🙂' }
+  return { cls: 'good', emoji: '🏆' }
+}
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
 @customElement('sf-title-screen')
@@ -107,14 +114,8 @@ export class SfTitleScreen extends LitElement {
           const locked = !this.dev && !isUnlocked(l.id, (id) => progress.completed(levelHash({ id }) ?? ''))
           // 最优成绩 = 通关记录合计最少的条目（与结算面板 bestTotal 同口径）；无记录不显示
           const best = progress.best(levelHash({ id: l.id }) ?? '')
-          // 耗时评级（≤30 绿 / ≤60 黄 / >60 红）：emoji 直观表意（🏆 纪录 / 🙂 尚可 / 🐌 缓慢）
-          const grade = best
-            ? best.total > 60
-              ? { cls: 'poor', emoji: '🐌' }
-              : best.total > 30
-                ? { cls: 'fair', emoji: '🙂' }
-                : { cls: 'good', emoji: '🏆' }
-            : null
+          // 耗时评级阈值单源：bestGrade 纯函数（可无头测试）
+          const grade = best ? bestGrade(best.total) : null
           // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变；序数 = levelNo（标题屏与状态条同源）
           const no = String(levelNo(l.id)).padStart(2, '0')
           return keyed(l.id, html`
@@ -190,6 +191,8 @@ export class SfTitleScreen extends LitElement {
 
   static styles = [
     boxReset,
+    buttonReset,
+    pillLink,
     reduceMotion,
     artBg,
     brandIn,
@@ -201,20 +204,6 @@ export class SfTitleScreen extends LitElement {
 
       svg {
         display: block;
-      }
-
-      button {
-        border: none;
-        background: none;
-        padding: 0;
-        cursor: pointer;
-        color: inherit;
-        -webkit-user-select: none;
-        user-select: none;
-      }
-
-      button:active {
-        transform: scale(0.97);
       }
 
       .title {
@@ -284,7 +273,7 @@ export class SfTitleScreen extends LitElement {
         flex-direction: column;
         align-items: center;
         gap: 1px;
-        padding: 0.375rem var(--sp-5);
+        padding: var(--sp-1-5) var(--sp-5);
         border-radius: var(--r-lg);
         corner-shape: squircle;
         background: rgba(255, 255, 255, 0.4);
@@ -313,7 +302,7 @@ export class SfTitleScreen extends LitElement {
 
       .level-errors {
         margin-top: var(--sp-4);
-        padding: 0.625rem var(--sp-3);
+        padding: var(--sp-2-5) var(--sp-3);
         text-align: left;
         font-size: 0.75rem;
         line-height: 1.45;
@@ -326,7 +315,7 @@ export class SfTitleScreen extends LitElement {
       }
 
       .level-errors p {
-        margin: 0.25rem 0 0;
+        margin: var(--sp-1) 0 0;
         word-break: break-all;
       }
 
@@ -448,8 +437,8 @@ export class SfTitleScreen extends LitElement {
 
       .level .go svg {
         display: block;
-        width: 1.06rem;
-        height: 1.06rem;
+        width: var(--icon-md);
+        height: var(--icon-md);
       }
 
       .footnote {
@@ -467,29 +456,10 @@ export class SfTitleScreen extends LitElement {
         margin-top: var(--sp-3);
       }
 
-      .link-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--sp-1-5);
-        padding: var(--sp-2) var(--sp-4);
-        font-size: 0.75rem;
-        color: var(--ink-soft);
-        text-decoration: none;
-        background: rgba(255, 253, 248, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.6);
-        border-radius: var(--r-pill);
-        corner-shape: squircle;
-        transition: color 120ms ease-out, box-shadow 120ms ease-out;
-      }
-
-      .link-btn:hover {
-        color: var(--ink);
-        box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
-      }
-
+      /* .link-btn 配方来自 shared-styles.pillLink */
       .link-btn svg {
-        width: 0.94rem;
-        height: 0.94rem;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
     `,
   ]

@@ -5,7 +5,7 @@ import { bakeSdf } from './sdf.ts'
 import type { EngineHandle } from '../wasm/engine.ts'
 import { createBody, stepBody, type Body } from '../sim/bodies.ts'
 import { GOAL_LIFT, type SourceKind } from '../sim/types.ts'
-import { totalPenaltySeconds } from './timer.ts'
+import { totalPenaltySeconds, GROUNDED_ALT } from './timer.ts'
 import type { FanDef, HudState, LevelDef, Source, SourcePlacement } from './types.ts'
 
 const FLUID_TUNING: Omit<FluidConfig, 'nx' | 'ny' | 'cell' | 'margin'> = {
@@ -71,7 +71,7 @@ export class LevelSimulation {
     // 表达式一次烘焙（mbt 单次跨界替代 nx×ny 次 compileSdf 调用，见 sdf.ts bakeSdf）
     const dims = terrainDims(level.world, cell)
     this.terrain = terrainFromField(
-      bakeSdf(level.json.terrain.sdf, dims.nx, dims.ny, dims.origin, cell),
+      bakeSdf(level.json.terrain.sdf, dims.nx, dims.ny, dims.origin, cell, level.sdf),
       dims,
       cell,
     )
@@ -242,10 +242,14 @@ export class LevelSimulation {
     this.fluid.step(dt)
     // SDF 全域有定义，地图外同样不入地（采样 clamp = 边缘延展）
     stepBody(this.plane, this.fluid, dt, this.terrain)
-    if (this.terrain.sample(this.plane.x, this.plane.y) < 1) this.groundedTime += dt
+    if (this.terrain.sample(this.plane.x, this.plane.y) < GROUNDED_ALT) this.groundedTime += dt
     this.checkGoals()
   }
 
+  // 环境风强度/温度偏置：无潮汐关卡值与上 tick 恒定——跳过 setAmbient 的 2 次跨界与镜像写（幂等零数值影响）
+  private lastAmbX = NaN
+  private lastAmbY = NaN
+  private lastAmbT = NaN
   private applyAmbient(t: number) {
     const a = this.level.ambient
     let ax = a?.x ?? 0
@@ -256,7 +260,12 @@ export class LevelSimulation {
       ax += (tide.ampX ?? 0) * Math.sin(ph)
       ay += (tide.ampY ?? 0) * Math.sin(ph)
     }
-    this.fluid.setAmbient(ax, ay, a?.temp ?? 0)
+    const temp = a?.temp ?? 0
+    if (ax === this.lastAmbX && ay === this.lastAmbY && temp === this.lastAmbT) return
+    this.lastAmbX = ax
+    this.lastAmbY = ay
+    this.lastAmbT = temp
+    this.fluid.setAmbient(ax, ay, temp)
   }
 
   private checkGoals() {

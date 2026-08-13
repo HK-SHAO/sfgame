@@ -10,6 +10,7 @@ import type { Vec2 } from '../sim/types.ts'
 import type { LevelSimulation } from '../game/simulation.ts'
 import { fanDirection } from '../game/simulation.ts'
 import { gridAnchor, type Terrain } from '../sim/terrain.ts'
+import { worldToGrid } from '../sim/grid.ts'
 import { GOAL_LIFT, LONG_PRESS_MS, type PressVisual } from '../sim/types.ts'
 
 export interface SceneState {
@@ -52,7 +53,7 @@ const SUN = rgb(255, 196, 83)
 const PAPER = rgb(255, 253, 248)
 const FLAG_POLE = rgb(107, 91, 69)
 
-const SUN_POS = { x: 12, y: 9.5 }
+const SUN_POS = [12, 9.5] as const
 const SUN_RADIUS = 4
 const SUN_BREATH_AMP = 0.12
 const SUN_BREATH_PERIOD = 700
@@ -182,39 +183,17 @@ export class Renderer {
     const viewB = viewT + this.cssH / this.scale
 
     // resize/上下文重置会清空背景纹理：纹理缺失也强制重烘焙补帧（自愈）
-    if (this.bgDirty || gl.bgStale || !gl.bgReady) {
-      const bg = this.batch
-      bg.reset()
-      this.drawSky(bg, viewL, viewT, viewR, viewB, h)
-      if (gl.bakeBg(bg, viewL, viewT, viewR, viewB)) {
-        this.bgDirty = false
-        gl.bgStale = false
-      }
-    }
+    this.drawBackground(gl, viewL, viewT, viewR, viewB, h)
 
     const b = this.batch
-    // 地形静态几何：setup（每关）+ bake（场/视域变化才重烘）+ 上传（每次 bake 后）——每帧仅 drawArrays
-    const t = sim.terrain
-    if (t !== this.terrainKey) this.setupTerrain(b, t)
-    const tc = t.cell
-    // 格索引映射与 terrain.sample 同式（x/cell − 0.5 + origin）：烘焙锚点在格心，格 (i,j) 即场采样点
-    const ti0 = Math.floor(viewL / tc - 0.5 + t.originX) - 1
-    const tj0 = Math.floor(viewT / tc - 0.5 + t.originY) - 1
-    const ti1 = Math.ceil(viewR / tc - 0.5 + t.originX) + 1
-    const tj1 = Math.ceil(viewB / tc - 0.5 + t.originY) + 1
-    if (ti0 !== this.ti0 || tj0 !== this.tj0 || ti1 !== this.ti1 || tj1 !== this.tj1) {
-      this.terrainCount = b.terrainBake(ti0, tj0, ti1, tj1)
-      gl.uploadTerrain(b.terrainData, this.terrainCount)
-      this.ti0 = ti0
-      this.tj0 = tj0
-      this.ti1 = ti1
-      this.tj1 = tj1
-    }
+    // 当前无相机（恒全图适配）：烘焙窗口恒等于整图，ti0..tj1 比较只在换关/resize 后成立一次——
+    // 四分量比较是"未来加相机"的挂点，非每帧视域剔除
+    this.drawTerrainPass(gl, b, sim.terrain, viewL, viewT, viewR, viewB)
+
     b.reset()
-    // 遮挡契约（远→近）：天空烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
+    // 遮挡契约（远→近）：天空+太阳光晕烘焙进背景纹理（一次不透明 blit 最底）→ 气流粒子与轨迹 →
     // 太阳盘面 → 云（独立 GLSL 趟：遮粒子与日芒）→ 地形固体填充（云被山体精确遮挡）→ 旗杆 →
     // 旗面/套筒/抵达圆 → 固定源/源/风扇 → 飞机拖尾与飞机（画面顶层，不被地形遮挡）→ 按压指示
-    this.drawSunHalo(b)
     this.drawTracers(b, tracers)
     this.drawSun(b, now)
     const pass1 = b.count
@@ -233,6 +212,40 @@ export class Renderer {
     this.lastVertexCount = pass1 + b.count + this.terrainCount
     this.lastUploadBytes = (pass1 + b.count) * VERTEX_STRIDE * 4
     gl.drawBatch(b, viewL, viewT, viewR, viewB)
+  }
+
+  // 背景（天空+太阳光晕）烘焙：光晕完全静态（无 sim.time 依赖）却是动态趟屏占比最大的单项，
+  // 并入 FBO 后与逐帧绘制逐像素等价（bakeBg 已开同程序同混合），每帧省 120 顶点上传 + 大屏混合填充
+  private drawBackground(gl: GlRenderer, viewL: number, viewT: number, viewR: number, viewB: number, h: number) {
+    if (this.bgDirty || gl.bgStale || !gl.bgReady) {
+      const bg = this.batch
+      bg.reset()
+      this.drawSky(bg, viewL, viewT, viewR, viewB, h)
+      this.drawSunHalo(bg)
+      if (gl.bakeBg(bg, viewL, viewT, viewR, viewB)) {
+        this.bgDirty = false
+        gl.bgStale = false
+      }
+    }
+  }
+
+  // 地形静态几何：setup（每关）+ bake（场/视域变化才重烘）+ 上传（每次 bake 后）——每帧仅 drawArrays
+  private drawTerrainPass(gl: GlRenderer, b: MeshBatch, t: Terrain, viewL: number, viewT: number, viewR: number, viewB: number) {
+    if (t !== this.terrainKey) this.setupTerrain(b, t)
+    const tc = t.cell
+    // 格索引映射 = worldToGrid 单源（与 terrain.sample 同式）：烘焙锚点在格心，格 (i,j) 即场采样点
+    const ti0 = Math.floor(worldToGrid(viewL, tc, t.originX)) - 1
+    const tj0 = Math.floor(worldToGrid(viewT, tc, t.originY)) - 1
+    const ti1 = Math.ceil(worldToGrid(viewR, tc, t.originX)) + 1
+    const tj1 = Math.ceil(worldToGrid(viewB, tc, t.originY)) + 1
+    if (ti0 !== this.ti0 || tj0 !== this.tj0 || ti1 !== this.ti1 || tj1 !== this.tj1) {
+      this.terrainCount = b.terrainBake(ti0, tj0, ti1, tj1)
+      gl.uploadTerrain(b.terrainData, this.terrainCount)
+      this.ti0 = ti0
+      this.tj0 = tj0
+      this.ti1 = ti1
+      this.tj1 = tj1
+    }
   }
 
   private drawSky(b: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number, h: number) {
@@ -264,12 +277,12 @@ export class Renderer {
   }
 
   private drawSunHalo(b: MeshBatch) {
-    b.discGrad(SUN_POS.x, SUN_POS.y, SUN_RADIUS * 3, 40, ...SUN, 0.4, ...SUN, 0)
+    b.discGrad(SUN_POS[0], SUN_POS[1], SUN_RADIUS * 3, 40, ...SUN, 0.4, ...SUN, 0)
   }
 
   private drawSun(b: MeshBatch, now: number) {
     const r = SUN_RADIUS + SUN_BREATH_AMP * Math.sin(now / SUN_BREATH_PERIOD)
-    b.disc(SUN_POS.x, SUN_POS.y, r, r, 0, 48, ...SUN, 1)
+    b.disc(SUN_POS[0], SUN_POS[1], r, r, 0, 48, ...SUN, 1)
   }
 
   // 每朵云一个四边形（两三角形）：uv 纵轴与世界 y 同向（向下），片元底边压平即积云下沿
@@ -551,13 +564,14 @@ export class Renderer {
     const pts = this.trailPts
     const fade = this.trailFade
     let any = false
-    for (let k = 0; k < n; k++) {
-      pts[k * 2] = trail.xAt(k)
-      pts[k * 2 + 1] = trail.yAt(k)
-      const f = Math.min(trail.retentionAt(k), tailFade(k, PLANE_TRAIL_TAIL_SEGS))
+    // 批量遍历：for k 循环内每点一次回绕换算（indexOf 单次），免 xAt/yAt/tAt 三次取模
+    trail.forEachPoint((x, y, t, k) => {
+      pts[k * 2] = x
+      pts[k * 2 + 1] = y
+      const f = Math.min(fadeRetention(trail.time, t, trail.fadeTime), tailFade(k, PLANE_TRAIL_TAIL_SEGS))
       fade[k] = 0.5 * f
       if (f > VISIBLE_ALPHA) any = true
-    }
+    })
     if (!any) return
     const p = sim.plane
     pts[n * 2] = p.x

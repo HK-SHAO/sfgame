@@ -85,12 +85,20 @@ export function isUnlocked(id: string, completed: (id: string) => boolean): bool
   return completed(g.ids[i - 1]) || completed(id)
 }
 
-// lv 双形态解析：{ id } = 内置关卡；{ json } = URL 内联 JSON（解析失败视为无效，外部输入须完整校验）
+// lv 双形态解析：{ id } = 内置关卡；{ json } = URL 内联 JSON（解析失败视为无效，外部输入须完整校验）。
+// {json} 单槽缓存：同文本重复派生（dev 确认/屏幕往返/popstate 重同步）免重复全量校验+全域烘焙，
+// 且返回同一 LevelDef 身份——keyed(activeLevel) 不误重建（LevelDef 全链路不可变，共享安全）
+let inlineJsonCache: string | undefined
+let inlineLevelCache: LevelDef | undefined
 export function resolveLevel(lv: LvValue): LevelDef | undefined {
   if (lv === null) return undefined
   if ('id' in lv) return LEVELS_BY_ID.get(lv.id)
+  if (lv.json === inlineJsonCache) return inlineLevelCache
   try {
-    return levelFromJson(JSON.parse(lv.json) as LevelJson)
+    const level = levelFromJson(JSON.parse(lv.json) as LevelJson)
+    inlineJsonCache = lv.json
+    inlineLevelCache = level
+    return level
   } catch {
     return undefined
   }
@@ -106,17 +114,23 @@ function fnv1a(text: string): number {
   return h >>> 0
 }
 
-// 关卡内容 hash（base36）：内置 = 关卡文件原文（LEVEL_SOURCES）；内联 = URL 里的 JSON 文本本身。
+// 内置关卡内容 hash 预计算：标题页每渲染每关 2 次、导航/结算再各 1 次——原文不可变，模块加载算一次复用
+const BUILTIN_HASH_BY_ID = new Map<string, string>()
+for (const l of LEVELS) {
+  const text = LEVEL_SOURCES.get(l.id)
+  if (text) BUILTIN_HASH_BY_ID.set(l.id, fnv1a(text).toString(36))
+}
+
+// 关卡内容 hash（base36）：内置 = 关卡文件原文（预计算）；内联 = URL 里的 JSON 文本本身。
 // 玩家解法记录据此绑定（progress.ts）：关卡改版 hash 变旧解自然失效；内联 DIY 关卡同 id 不同内容互不串号
 export function levelHash(lv: LvValue): string | undefined {
-  const text = lv === null ? undefined : 'id' in lv ? LEVEL_SOURCES.get(lv.id) : lv.json
-  return text ? fnv1a(text).toString(36) : undefined
+  if (lv === null) return undefined
+  if ('id' in lv) return BUILTIN_HASH_BY_ID.get(lv.id)
+  return lv.json ? fnv1a(lv.json).toString(36) : undefined
 }
 
 // 内置关卡 hash 集（progress 据此区分内联 DIY 条目做上限修剪；内置进度永不动）
-export const BUILTIN_LEVEL_HASHES: ReadonlySet<string> = new Set(
-  LEVELS.map((l) => levelHash({ id: l.id })).filter((h): h is string => h !== undefined),
-)
+export const BUILTIN_LEVEL_HASHES: ReadonlySet<string> = new Set(BUILTIN_HASH_BY_ID.values())
 
 // 内置关卡 1 基序号（非内置/DIY = 0）：标题屏与状态条共用同源编号
 export function levelNo(id: string): number {

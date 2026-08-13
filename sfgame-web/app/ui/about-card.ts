@@ -1,7 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import { customElement } from 'lit/decorators.js'
 import { author, description, version } from '../../package.json'
-import { boxReset, brandIn, card } from './shared-styles.ts'
+import { boxReset, brandIn, card, pillLink } from './shared-styles.ts'
 
 // 关于卡片：dev 页与独立关于页共用（信息单源，避免双处漂移）；品牌组合图小号展示
 @customElement('sf-about-card')
@@ -57,6 +57,7 @@ export class SfAboutCard extends LitElement {
 
   static styles = [
     boxReset,
+    pillLink,
     brandIn,
     card,
     css`
@@ -188,27 +189,7 @@ export class SfAboutCard extends LitElement {
         margin-top: var(--sp-3);
       }
 
-      /* 与主页 .link-btn 同配方的胶囊玻璃钮：不引入链接专属色，保持全局暖色玻璃质感 */
-      .links a {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--sp-1-5);
-        padding: var(--sp-2) var(--sp-4);
-        font-size: 0.75rem;
-        color: var(--ink-soft);
-        text-decoration: none;
-        background: rgba(255, 253, 248, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.6);
-        border-radius: var(--r-pill);
-        corner-shape: squircle;
-        transition: color 120ms ease-out, box-shadow 120ms ease-out;
-      }
-
-      .links a:hover {
-        color: var(--ink);
-        box-shadow: 0 0.25rem 0.875rem rgba(61, 52, 39, 0.08);
-      }
-
+      /* .links a 配方来自 shared-styles.pillLink */
       .copyright {
         margin: var(--sp-3) 0 0;
         font-size: 0.75rem;

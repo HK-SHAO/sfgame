@@ -16,6 +16,7 @@ import {
   type CandidateMetric,
   type SourceTuple,
 } from './solve-lib.ts'
+import { createEngine } from '../app/wasm/engine.ts'
 
 const file = process.argv[2]
 if (!file) {
@@ -68,28 +69,38 @@ function workerCount(): number {
 // —— 命令：一选项一入口 ——
 function cmdSim() {
   const simCap = Number(opt('--sim', '20'))
-  const r = evalCandidate(level, [], { dt: FINE_DT, cap: simCap })
+  const r = evalCandidate(level, [], { dt: FINE_DT, cap: simCap }, engine)
   console.log(r.won ? `无操作：${r.time.toFixed(1)}s 通关` : `无操作：${simCap}s 未通关（站点 ${r.progress / 1000 | 0}/${level.goals.length}）`)
 }
 
 function cmdVerify() {
   const sources = parseSources(opt('--verify'))
-  const m = evalCandidate(level, sources, { dt: FINE_DT, cap: 120 })
+  const m = evalCandidate(level, sources, { dt: FINE_DT, cap: 120 }, engine)
   console.log(`解有效：${fmt(m)}`)
   if (args.includes('--robust')) {
-    const r = verifyRobustness(level, sources)
+    const r = verifyRobustness(level, sources, 120, engine)
     console.log(`扰动鲁棒性：${r.ok}/${r.total}（${((r.ok / r.total) * 100).toFixed(0)}%）${r.failed.length > 0 ? `，失败摆法：${r.failed.join(' ')}` : ''}`)
   }
 }
 
-// 已知解回归验证：scripts/known-solutions.ts 序列化的解必须仍通关（物理/关卡改动后跑一遍）
+// 已知解回归验证：scripts/known-solutions.ts 序列化的解必须仍通关，且总耗时与登记一致
+//（物理/关卡改动后跑一遍；漂移 >0.5s 提示人工确认后回填——只打印不写文件）
 function cmdVerifyKnown() {
   const known = KNOWN_SOLUTIONS[level.id]
   if (known === undefined) {
     console.log(`关卡 ${level.id} 未登记已知解`)
   } else {
-    const m = evalCandidate(level, known.src, { dt: FINE_DT, cap: 120 })
+    const m = evalCandidate(level, known.src, { dt: FINE_DT, cap: 120 }, engine)
     console.log(`已知解（${known.src.length === 0 ? '无源' : solutionUrl(known.src)}）：${fmt(m)}`)
+    if (m.won) {
+      const now = totalTime(m)
+      const reg = known.total
+      if (Math.abs(now - reg) > 0.5) {
+        console.log(`✗ 总耗时漂移：登记 ${reg.toFixed(1)}s → 实测 ${now.toFixed(1)}s（物理/关卡改动？确认后回填 known-solutions.ts）`)
+      } else {
+        console.log(`✓ 总耗时与登记一致（${now.toFixed(1)}s）`)
+      }
+    }
   }
 }
 
@@ -127,7 +138,7 @@ async function cmdSolve() {
     },
   })
   if (best && best.m.won) {
-    const fine = evalCandidate(level, best.src, { dt: FINE_DT, cap: 120 })
+    const fine = evalCandidate(level, best.src, { dt: FINE_DT, cap: 120 }, engine)
     console.log(`[solve] 最优（${workers} worker 并行）：${srcComma(best.src)}`)
     console.log(`[solve] 粗筛 ${fmt(best.m)} → 精验 ${fmt(fine)}`)
     if (hall.length > 1) {
@@ -179,6 +190,8 @@ async function cmdRefine() {
 }
 
 await initBackend()
+// 主进程顺序评估复用一个引擎实例（与 worker 同策略）
+const engine = createEngine()
 if (args.includes('--sim')) cmdSim()
 if (args.includes('--verify')) cmdVerify()
 if (args.includes('--verify-known')) cmdVerifyKnown()

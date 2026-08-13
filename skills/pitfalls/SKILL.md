@@ -455,6 +455,8 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **根因**：bun（JSC）对含 SIMD 指令的 wasm 模块存在误编译，advectPass/平流路径产出越界或发散值（实测同一二进制 node/V8 与浏览器逐位正确）。`evalCandidate` 已加 NaN 守卫——发散即抛错，绝不输出假通关。
 **修法**：脚本验证改用 node 运行时（vitest 侧测试）或浏览器实测；`run-level.ts --verify` 在 bun 下不可靠（#27 起注册解求解与验证本就交给玩家实测，run-level 仅作参考）。等 bun 修复后恢复 run-level 工作流。JS 回退后端已随 #21 移除，无备用后端。
 
+**补充（2026-08 SOR 实验实踩）**：具体触发条件之一 = **SIMD 读同格写入目标**（GS 的 SOR 需读 p_old=p[idx] 再写回 p[idx]，打包 f64x2 后 bun 误编译，负常数 splat / 松弛形式 p+ω·(gs−p) 均复现；node/V8 逐位正确）。原 plain GS SIMD 只读邻居不读自身，不受影响。**Safari 同为 JSC，有同源风险**——改物理加"读自身"类 SIMD 前必须 bun/node 双运行时对拍 golden。
+
 ### I6 iOS Safari WebGL（ANGLE→Metal）性能要点（2026-08 实测 + WebKit bug 255987）
 **根因**：iOS 15.4 起 WebGL 默认走 Metal 后端，同内容 GPU 负载显著更高（"内容本质是 GPU 受限"），另有帧呈现依赖（254912，可致有效 30fps）等系统问题；Chrome/Android/macOS Safari 无此问题。
 **对策**（已落地）：

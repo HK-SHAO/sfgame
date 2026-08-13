@@ -189,7 +189,7 @@ function checkSpawn(ctx: Ctx, j: Record<string, unknown>, wMax?: number, hMax?: 
   if (so.vy !== undefined) num(ctx, 'spawn.vy', so.vy)
 }
 
-function checkGoals(ctx: Ctx, j: Record<string, unknown>, wMax?: number) {
+function checkGoals(ctx: Ctx, j: Record<string, unknown>, wMax?: number, hMax?: number) {
   const list = arr(ctx, 'goals', j.goals, 1)
   if (!list) return
   for (let i = 0; i < list.length; i++) {
@@ -200,6 +200,7 @@ function checkGoals(ctx: Ctx, j: Record<string, unknown>, wMax?: number) {
     }
     const g = go as Record<string, unknown>
     num(ctx, `goals[${i}].x`, g.x, { min: 0, max: wMax })
+    if (g.y !== undefined) num(ctx, `goals[${i}].y`, g.y, { minExcl: 0, max: hMax })
     num(ctx, `goals[${i}].r`, g.r, { minExcl: 0, max: GOAL_R_MAX })
   }
 }
@@ -277,7 +278,7 @@ export function validateLevelJson(raw: unknown): string[] {
   checkTerrain(ctx, j, world?.w, world?.h)
   checkBudget(ctx, j)
   checkSpawn(ctx, j, world?.w, world?.h)
-  checkGoals(ctx, j, world?.w)
+  checkGoals(ctx, j, world?.w, world?.h)
   checkAmbient(ctx, j)
   checkFixed(ctx, j, world?.w, world?.h)
   checkFans(ctx, j, world?.w, world?.h)

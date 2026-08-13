@@ -65,6 +65,7 @@
         "required": ["x", "r"],
         "properties": {
           "x": { "type": "number", "minimum": 0, "description": "站点中心 x" },
+          "y": { "type": "number", "exclusiveMinimum": 0, "description": "锚点 y（杆底落点，检测圆在其上 GOAL_LIFT 处）；缺省 = 该 x 处地表高度（洞穴内需显式指定）" },
           "r": { "type": "number", "exclusiveMinimum": 0, "maximum": 15, "description": "抵达半径" }
         }
       }

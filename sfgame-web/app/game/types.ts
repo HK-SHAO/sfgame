@@ -23,6 +23,8 @@ export interface AmbientDef {
 
 export interface GoalDef {
   x: number
+  // 锚点 y（杆底落点，检测圆在其上 GOAL_LIFT 处）；缺省 = 该 x 处地表高度（贴地自动放）
+  y?: number
   r: number
 }
 

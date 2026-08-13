@@ -51,8 +51,8 @@ export class LevelSimulation {
   visited: boolean[]
   visitedCount = 0
   paused = false
-  // 目标列地表高度（静态量构造期预存）：判定与渲染每 tick/帧消费，免重复采样
-  readonly goalGroundY: number[]
+  // 目标锚点 y（静态量构造期预存）：判定与渲染每 tick/帧消费，免重复采样；显式 y 覆盖地表推导
+  readonly goalAnchorY: number[]
 
   private nextId = 1
   private usedHot = 0
@@ -87,7 +87,7 @@ export class LevelSimulation {
     this.fluid.setTerrain(this.terrain)
     this.applyAmbient(0)
     this.visited = level.goals.map(() => false)
-    this.goalGroundY = level.goals.map((g) => surfaceY(this.terrain, g.x, h))
+    this.goalAnchorY = level.goals.map((g) => g.y ?? surfaceY(this.terrain, g.x, h))
     // 负 id 区段：与玩家源 id 空间隔离；born=-1 免生长动画（渲染 pop 恒为 1）
     this.fixedSources = level.fixed.map((f, i) => ({
       id: -i - 1,
@@ -262,7 +262,7 @@ export class LevelSimulation {
     for (let i = 0; i < this.level.goals.length; i++) {
       if (this.visited[i]) continue
       const g = this.level.goals[i]
-      const gy = this.goalGroundY[i] - GOAL_LIFT
+      const gy = this.goalAnchorY[i] - GOAL_LIFT
       // 圆心/半径与渲染虚线圆一致：滑行与飞行同等计数（#11）；
       // 距离用 sqrt(a²+b²) 而非 Math.hypot（跨引擎位级一致）
       const dx = this.plane.x - g.x

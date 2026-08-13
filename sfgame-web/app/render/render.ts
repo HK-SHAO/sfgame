@@ -290,7 +290,7 @@ export class Renderer {
   private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {
     const goals = sim.level.goals
     for (let i = 0; i < goals.length; i++) {
-      const gy = sim.goalGroundY[i]
+      const gy = sim.goalAnchorY[i]
       // 底端从 gy - POLE_W/2 起画：圆头帽尖正好落在地面线上（地形填充画在其后，杆身不埋地）
       b.stroke(goals[i].x, gy - POLE_W / 2, goals[i].x, gy - POLE_HEIGHT, POLE_W, ...FLAG_POLE, 1, true)
     }
@@ -302,7 +302,7 @@ export class Renderer {
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]
       if (sim.visited[i]) continue
-      const gy = sim.goalGroundY[i]
+      const gy = sim.goalAnchorY[i]
       const flagTop = gy - POLE_HEIGHT
 
       b.dashRing(g.x, gy - GOAL_LIFT, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)

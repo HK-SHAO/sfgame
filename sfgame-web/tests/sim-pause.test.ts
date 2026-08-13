@@ -25,7 +25,7 @@ test('暂停冻结时间、位置与判定，恢复后继续', () => {
 test('过关即冻结：物理与计时停在通关时刻', () => {
   const sim = new LevelSimulation(LEVEL_1)
   sim.plane.x = LEVEL_1.goals[0].x
-  sim.plane.y = sim.goalGroundY[0] - 3
+  sim.plane.y = sim.goalAnchorY[0] - 3
   sim.step(DT)
   expect(sim.phase).toBe('won')
   const t = sim.time

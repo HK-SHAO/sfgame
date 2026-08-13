@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { LEVELS_BY_ID } from '../app/game/levels.ts'
+import { levelFromJson, parseLevelText } from '../app/game/level-format.ts'
 import { LevelSimulation } from '../app/game/simulation.ts'
 import { WasmFluid } from '../app/sim/fluid.ts'
 import { surfaceY } from '../app/sim/terrain.ts'
@@ -59,15 +60,42 @@ test('restart 保留玩家已放置的源与预算，仅清场复位飞机', () 
 test('抵达语义：贴地滑入与飞入目标圈同等计数', () => {
   const slide = new LevelSimulation(LEVEL_2)
   slide.plane.x = LEVEL_2.goals[0].x
-  slide.plane.y = slide.goalGroundY[0] - 0.5
+  slide.plane.y = slide.goalAnchorY[0] - 0.5
   slide.step(DT)
   expect(slide.phase).toBe('won')
 
   const fly = new LevelSimulation(LEVEL_2)
   fly.plane.x = LEVEL_2.goals[0].x
-  fly.plane.y = fly.goalGroundY[0] - 3
+  fly.plane.y = fly.goalAnchorY[0] - 3
   fly.step(DT)
   expect(fly.phase).toBe('won')
+})
+
+// 显式 y 锚点：洞穴内旗子落点可精确指定，不被地表高度推导覆盖
+
+test('目标锚点：显式 y 覆盖地表推导（洞穴内放置）', () => {
+  const level = levelFromJson(
+    parseLevelText(JSON.stringify({
+      id: 'cave-goal',
+      name: '穴',
+      tagline: '测',
+      win: { title: '测', text: '测' },
+      world: { w: 64, h: 56, cell: 0.75 },
+      terrain: { sdf: 'smax(flat(40), -circle(30, 20, 8), 3)' },
+      budget: { hot: 1, cold: 1 },
+      spawn: { x: -5, y: 8, vx: 16 },
+      goals: [{ x: 30, y: 20, r: 3 }],
+    })),
+  )
+  const sim = new LevelSimulation(level)
+  // 地表在 x=30 处约 40，洞穴在 y≈20——显式 y 应把锚点定在洞穴内
+  expect(sim.goalAnchorY[0]).toBe(20)
+  expect(sim.goalAnchorY[0]).toBeLessThan(surfaceY(sim.terrain, 30, level.world.h))
+  // 飞机入洞抵达检测圈（锚点上方 GOAL_LIFT 处）即过关
+  sim.plane.x = 30
+  sim.plane.y = 18
+  sim.step(DT)
+  expect(sim.phase).toBe('won')
 })
 
 test('applySources 差异应用：撤销/重做/替换/清空，存活源保留 id 与 born', () => {

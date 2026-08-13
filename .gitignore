@@ -45,15 +45,14 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+.tmp
 # AI 工具本地配置（settings.local 等）
 .claude/
 .qoder/
 .opencode/
 # wasm 引擎产物（bun run build:wasm 生成）
 sfgame-web/app/wasm/*.wasm
-# Moonbit 构建目录与 js 目标产物（build:wasm 生成；d.ts 入库）
 sfgame-web/moon/_build/
-sfgame-web/app/game/sdfjs/*.js
 # AI 会话导出文件（非项目内容）
 *-export-*.md
 dist.zip

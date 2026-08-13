@@ -42,6 +42,7 @@ export class SfStatusBar extends LitElement {
 
   static styles = css`
     :host {
+      text-autospace: normal;
       position: fixed;
       left: 50%;
       transform: translateX(-50%);

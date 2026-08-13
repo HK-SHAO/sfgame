@@ -13,6 +13,8 @@ export const boxReset = css`
   /* 文档 color-scheme 不传入 shadow root（WebKit 已知缺陷）：深色系统下滚动条/控件会渲染成黑，须逐组件钉死浅色 */
   :host {
     color-scheme: light;
+    /* 与 color-scheme 同源：继承属性跨 shadow 边界在 WebKit 不可靠，text-autospace 须逐组件自声明（shadow 内文本才能自动留白） */
+    text-autospace: normal;
     /* 禁 iOS 双击放大：Safari 的 touch-action 不跨 shadow 边界（:host 只约束本组件内空白区），交互元素须自身声明，见下 */
     touch-action: manipulation;
   }

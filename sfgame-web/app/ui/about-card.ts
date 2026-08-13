@@ -47,8 +47,8 @@ export class SfAboutCard extends LitElement {
         <p class="line">作者：${author.name}</p>
         <p class="line">版本：v${version}</p>
         <div class="links">
-          <a href="https://github.com/HK-SHAO/sfgame" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://shaofun.itch.io/sfgame" target="_blank" rel="noopener">itch.io</a>
+          <a href="https://github.com/HK-SHAO/sfgame" target="_blank" rel="noopener">开源代码</a>
+          <a href="https://www.bilibili.com/video/BV1RMgW6nE72/" target="_blank" rel="noopener">B站@烧风</a>
         </div>
         <p class="copyright">版权所有 © ${new Date().getFullYear()} HK-SHAO</p>
       </section>
@@ -182,6 +182,7 @@ export class SfAboutCard extends LitElement {
 
       .links {
         display: flex;
+        flex-wrap: wrap;
         justify-content: center;
         gap: var(--sp-2);
         margin-top: var(--sp-3);

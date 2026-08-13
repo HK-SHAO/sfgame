@@ -6,7 +6,7 @@ import { progress } from '../game/progress.ts'
 import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
 import { artBg, boxReset, brandIn, reduceMotion } from './shared-styles.ts'
-import { iconChevron, iconGear, iconInfo, iconLock } from './icons.ts'
+import { iconChevron, iconGear, iconInfo, iconLock, iconPlay } from './icons.ts'
 
 // 主页关卡选择屏：从 app.ts 拆出（app 收敛为路由 + 结算 + dev 生命周期）
 @customElement('sf-title-screen')
@@ -153,10 +153,19 @@ export class SfTitleScreen extends LitElement {
       : nothing
   }
 
-  // 底部链接：非 dev 模式关于钮（长按 500ms 进开发者页面，隐藏入口），dev 模式开发者页面钮
+  // 底部链接：B站视频入口（恒显）+ 非 dev 模式关于钮（长按 500ms 进开发者页面，隐藏入口），dev 模式开发者页面钮
   private renderLinks() {
     return html`
       <div class="links">
+        <a
+          class="link-btn"
+          href="https://www.bilibili.com/video/BV1RMgW6nE72/"
+          target="_blank"
+          rel="noopener"
+          aria-label="B站视频"
+        >
+          ${iconPlay}<span>B站视频</span>
+        </a>
         ${!this.dev
           ? html`<button
               class="link-btn"
@@ -465,6 +474,7 @@ export class SfTitleScreen extends LitElement {
         padding: var(--sp-2) var(--sp-4);
         font-size: 0.75rem;
         color: var(--ink-soft);
+        text-decoration: none;
         background: rgba(255, 253, 248, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.6);
         border-radius: var(--r-pill);

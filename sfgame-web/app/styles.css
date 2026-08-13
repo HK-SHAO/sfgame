@@ -64,6 +64,7 @@ body {
 body {
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  text-autospace: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;

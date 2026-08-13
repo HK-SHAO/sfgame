@@ -1,8 +1,7 @@
-// 流体内核（assembly/core.ts + main.ts 的 Moonbit 同构移植）：f32 存储 / f64 中间量。
-// AS 版 step 流水线内有 8 格 SIMD 车道拆分，其语义经原实现验证与标量路径逐位等价
-// （红黑 GS 同奇偶相内更新顺序无关——von Neumann 邻域全为异奇偶），故此处取标量直写：
-// 可读性优先，逐位一致由 tests/mbt-fluid-parity.test.ts 双引擎对拍守护。
-// 混沌流场（李雅普诺夫放大）下任何中间量降 f32 都会指数放大差异，全链路严禁。
+// 流体内核（assembly/core.ts 的 Moonbit 同构移植）：f32 存储 / f64 中间量，
+// 混沌流场（李雅普诺夫放大）下任何降 f32 都会指数放大差异，全链路严禁；
+// 逐位一致由 tests/engine-golden.test.ts golden hash 钉死。红黑 GS 相位内单元格
+// 独立（von Neumann 邻域全异奇偶）→ 空气索引表 + f64x2 SIMD 与标量逐位等价。
 
 ///|
 let max_nx : Int = 160
@@ -58,10 +57,8 @@ let fx_v : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
 
 ///|
 let solid_list : FixedArray[Int] = FixedArray::make(max_cells, 0)
-// 空气索引表（rebuild_solid 时按行主序重建；地形静态，表跨步复用）：
-// 各全网格扫描只迭代空气格，免固体分支；GS 红黑相位内单元格独立（von Neumann
-// 邻域全异奇偶），遍历顺序与旧逐行扫描逐位等价。bulk = 四邻全空气的主体格，
-// GS 走免固体检查快路径（多数格命中）
+// 空气索引表（rebuild_solid 按行主序重建，地形静态跨步复用）：扫描只迭代空气格免固体分支；
+// bulk = 四邻全空气主体格走 GS 免检查快路径（红黑相位内遍历顺序无关，见文件头）
 
 ///|
 let air_list : FixedArray[Int] = FixedArray::make(max_cells, 0)
@@ -722,9 +719,7 @@ fn apply_buoyancy(dt : Double) -> Unit {
   let a_t = pm.ambient_t
   let nx = pm.nx
   let ny = pm.ny
-  // 总温度 = 场温 + 环境偏置（ambient_t=0 时逐位不变）。注意：固体格也要施加
-  // （旧行为：v[solid] = -k·a_t 会经 copy_fields 进入 v0，被平流回溯采样读到）——
-  // 这是中间状态的一部分，跳过会破坏 ambient_t≠0 时的逐位一致性；末段 enforce_boundary 照常清零
+  // 固体格也要施加：v[solid] 经 copy_fields 进 v0 被平流采样读到（合法中间态，见 pitfalls G19）
   for j in 1..<(ny - 1) {
     let row = j * nx
     for i in 1..<(nx - 1) {
@@ -827,29 +822,29 @@ fn project_div() -> Unit {
 // f64 中间量加法顺序与标量一致（((pL+pR)+pU)+pD − div_h2）×0.25 → 逐位等价。
 // p[a+1]（异相位格）由对相位本迭代重写后才被读取，故写回仅限各自车道（双 32 位存储）
 
+// f32x4 抽 lane0/lane2 → f64x2：相距 2 格的元素对（横/竖邻居均非连续 f32，不能 load32x2）
+
+///|
+fn lanes02(v : V128) -> V128 {
+  @v128.f64x2_promote_low_f32x4(
+    @v128.i8x16_shuffle(v, v, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15),
+  )
+}
+
 ///|
 fn gs_pair(a : Int) -> Unit {
   let nx = pm.nx
   let off = a * 4
+  // 车道 = 格 a / 格 b（a+2）的邻居对；横邻居跨两个相邻 f32x4（p[a-1..a+2]、p[a+1..a+4]）
   let v1 = v128_load4_f32(p, off - 4)
   let v2 = v128_load4_f32(p, off + 4)
-  // HA = (p[a-1], p[a+1])、HB = (p[a+1], p[a+3])：车道 = 格 a / 格 b 的横邻居对
-  let ha = @v128.f64x2_promote_low_f32x4(
-    @v128.i8x16_shuffle(v1, v1, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15),
-  )
+  let ha = lanes02(v1)
   let hb = @v128.f64x2_promote_low_f32x4(
     @v128.i8x16_shuffle(v1, v2, 8, 9, 10, 11, 24, 25, 26, 27, 4, 5, 6, 7, 12, 13, 14, 15),
   )
   let h = @v128.f64x2_add(ha, hb)
-  // 竖邻居（p[a±nx] 与 p[a+2±nx] 相距 8 字节，非连续）：4 宽载入 + 抽 lane0/lane2
-  let vu_v = v128_load4_f32(p, off - nx * 4)
-  let vd_v = v128_load4_f32(p, off + nx * 4)
-  let vu = @v128.f64x2_promote_low_f32x4(
-    @v128.i8x16_shuffle(vu_v, vu_v, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15),
-  )
-  let vd = @v128.f64x2_promote_low_f32x4(
-    @v128.i8x16_shuffle(vd_v, vd_v, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15),
-  )
+  let vu = lanes02(v128_load4_f32(p, off - nx * 4))
+  let vd = lanes02(v128_load4_f32(p, off + nx * 4))
   let t = @v128.f64x2_add(h, vu)
   let s = @v128.f64x2_add(t, vd)
   let d = v128_load1_f64_lane1(div_h2, (a + 2) * 8, v128_load1_f64(div_h2, a * 8))
@@ -859,7 +854,7 @@ fn gs_pair(a : Int) -> Unit {
   v128_store1_f32_lane1(p, off + 8, f)
 }
 
-// GS 单格路径（未配对格）：bulk 走免检查快表达式，边界格走含固体替换的完整路径
+// GS 单格路径：bulk 快表达式 / 边界格固体替换
 
 ///|
 fn gs_cell(idx : Int) -> Unit {

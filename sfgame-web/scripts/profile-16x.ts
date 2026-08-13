@@ -1,5 +1,5 @@
-// 16x 性能剖析（开发工具，不入库）：测量满速帧的逐项成本分布，找出优化靶点。
-// 用法：bun run scripts/profile-16x.ts [level-1.json]
+// 16x 性能剖析（开发工具）：测量满速帧的逐项成本分布，找优化靶点。
+// 用法：bun run scripts/profile-16x.ts [levels/level-1.json]
 import { readFileSync } from 'node:fs'
 import { initEngine } from '../app/wasm/engine.ts'
 if (!initEngine(readFileSync('app/wasm/sfengine.wasm'))) throw new Error('WASM 引擎加载失败')
@@ -25,78 +25,56 @@ const probes = buildWindProbes(level.world.w, level.world.h)
 const tmpAir = { x: 0, y: 0 }
 const batch = new MeshBatch(engine)
 
-// 放两个源模拟真实对局
 sim.placeSource(20, 20, 'hot')
 sim.placeSource(40, 18, 'cold')
-
-// 预热 + 让流场成型（60 tick）
-for (let i = 0; i < 60; i++) sim.step(1 / 60)
+for (let i = 0; i < 60; i++) sim.step(1 / 60) // 预热让流场成型
 
 const { w, h, cell } = level.world
-const nx = sim.terrain.nx
-const ny = sim.terrain.ny
 const c = sim.terrain.cell
-const viewL = -10
-const viewT = -10
-const viewR = w + 10
-const viewB = h + 10
-const i0 = Math.floor(viewL / c + sim.terrain.originX) - 1
-const j0 = Math.floor(viewT / c + sim.terrain.originY) - 1
-const i1 = Math.ceil(viewR / c + sim.terrain.originX) + 1
-const j1 = Math.ceil(viewB / c + sim.terrain.originY) + 1
+const i0 = Math.floor(-10 / c + sim.terrain.originX) - 1
+const j0 = Math.floor(-10 / c + sim.terrain.originY) - 1
+const i1 = Math.ceil((w + 10) / c + sim.terrain.originX) + 1
+const j1 = Math.ceil((h + 10) / c + sim.terrain.originY) + 1
 
 const N = 200
-const acc = {
-  simStep: 0, fluidStep: 0, sources: 0, body: 0,
-  tracersStep: 0, cloudsStep: 0, trailPush: 0, wind: 0, terrainDraw: 0,
-  tracerTess: 0, total: 0,
-}
-const t0 = performance.now()
-
-function bench(name: keyof typeof acc, fn: () => void) {
+const acc: Record<string, number> = { simStep: 0, tracersStep: 0, cloudsStep: 0, trailPush: 0, wind: 0, terrainDraw: 0, tracerTess: 0 }
+const bench = (name: string, fn: () => void) => {
   const s = performance.now()
   fn()
   acc[name] += performance.now() - s
 }
 
 for (let k = 0; k < N; k++) {
-  // —— 单 tick 路径（16x 下每帧 16 tick）——
-  bench('sources', () => {
-    for (const s of sim.sources) sim.fluid.addHeat(s.x, s.y, s.kind === 'hot' ? 10 / 60 : -10 / 60)
-  })
-  bench('fluidStep', () => sim.fluid.step(1 / 60))
-  bench('body', () => {
-    // stepBody 等价内联（含 terrain.sample）
-  })
+  // —— 每 tick（16x 下每帧 16 tick）——
+  bench('simStep', () => sim.step(1 / 60))
   bench('tracersStep', () => tracers.step(1 / 60, sim.sources))
   bench('cloudsStep', () => clouds.step(1 / 60, sim.fluid))
   bench('trailPush', () => trail.push(sim.plane.x, sim.plane.y, sim.time))
   bench('wind', () => sampleWind(sim.fluid, probes, sim.plane, tmpAir))
-  bench('simStep', () => sim.step(1 / 60))
-  // —— 每帧一次渲染路径（batch 装配，无 GL）——
+  // —— 每帧一次渲染批（无 GL）——
   bench('terrainDraw', () => {
     batch.reset()
     batch.terrainDraw(i0, j0, i1, j1)
   })
   bench('tracerTess', () => {
-    // 近似 drawTracers 的 JS 循环 + 单次 tessellate
     batch.reset()
     batch.tracers(400, 0.3, 0.3)
   })
 }
-acc.total = performance.now() - t0
-// 单 tick 成本 = 模拟 tick 各项之和（sources 含在 simStep 内的重复度量剔除，只作分解参考）
-const tickItems = ['simStep', 'tracersStep', 'cloudsStep', 'trailPush', 'wind'] as const
-const tickTotal = tickItems.reduce((s, k) => s + acc[k] / N, 0)
-const perFrame16 = tickTotal * 16 + acc.terrainDraw / N + acc.tracerTess / N
-console.log(`关卡 ${level.id} ${level.world.w}×${level.world.h} cell=${cell} 流体网格 ${nx}×${ny} = ${nx * ny} 格`)
-console.log(`--- ${N} 轮均摊（单 tick / ms，合计 ${tickTotal.toFixed(4)}）---`)
-for (const k of Object.keys(acc) as (keyof typeof acc)[]) {
-  if (k === 'total') continue
-  const per = acc[k] / N
-  console.log(`${k.padEnd(12)} ${per.toFixed(4)} ms  ${(per / tickTotal * 100).toFixed(1)}%`)
+
+// fluid 单独微基准（不进 tick 循环，避免与 simStep 重复调用混淆）
+const FLUID_N = 500
+const fs = performance.now()
+for (let k = 0; k < FLUID_N; k++) sim.fluid.step(1 / 60)
+const fluidMs = (performance.now() - fs) / FLUID_N
+
+const tickTotal = (acc.simStep + acc.tracersStep + acc.cloudsStep + acc.trailPush + acc.wind) / N
+const frame16 = tickTotal * 16 + (acc.terrainDraw + acc.tracerTess) / N
+console.log(`关卡 ${level.id} ${w}×${h} cell=${cell} 流体网格 ${sim.terrain.nx}×${sim.terrain.ny}`)
+console.log(`--- 单 tick / ms（合计 ${tickTotal.toFixed(4)}）---`)
+for (const [k, ms] of Object.entries(acc)) {
+  console.log(`${k.padEnd(12)} ${(ms / N).toFixed(4)}  ${((ms / N / tickTotal) * 100).toFixed(1)}%`)
 }
-console.log(`--- 16x 单帧估算（16 tick + 1 帧渲染批，不含 GL/让出） ---`)
-console.log(`tick 合计 ${(tickTotal * 16).toFixed(2)} ms 渲染批 ${((acc.terrainDraw + acc.tracerTess) / N).toFixed(3)} ms`)
-console.log(`帧成本 ${(perFrame16).toFixed(2)} ms → 理论帧率 ${(1000 / perFrame16).toFixed(1)} fps`)
-console.log(`fluid 占 tick 成本 ${(acc.fluidStep / N / tickTotal * 100).toFixed(0)}%`)
+console.log(`fluidStep（单独基准） ${fluidMs.toFixed(4)} ms  ≈ sim.step 的 ${((fluidMs / (acc.simStep / N)) * 100).toFixed(0)}%`)
+console.log(`--- 16x 单帧估算（16 tick + 1 帧渲染批，不含 GL/让出）---`)
+console.log(`帧成本 ${frame16.toFixed(2)} ms → 理论帧率 ${(1000 / frame16).toFixed(1)} fps`)

@@ -125,9 +125,16 @@ test('计时与罚时：按场上源数计费、移除减免、restart 保留、
   hud = sim.hudState()
   expect(hud.time).toBe(0)
   expect(hud.extra).toBe(8)
-  // won 冻结：直接置 phase=won 验证时间冻结（具体通关解随物理版本漂移，不在此断言）
+  let wonAt = -1
+  for (let t = 0; t < 60; t += DT) {
+    sim.step(DT)
+    if (sim.phase === 'won') {
+      wonAt = t
+      break
+    }
+  }
+  expect(wonAt).toBeGreaterThan(0)
   const frozen = sim.hudState().time
-  sim.phase = 'won'
   for (let i = 0; i < 60; i++) sim.step(DT)
   expect(sim.hudState().time).toBe(frozen)
 }, 30000)

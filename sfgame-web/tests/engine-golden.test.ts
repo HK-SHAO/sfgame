@@ -47,7 +47,7 @@ const FLUID_SCENARIOS: [string, FluidScenario][] = [
       for (let i = 0; i < 3; i++) e.ex.addHeat(36, 38, 16 * dt)
     },
     probes: [[36, 32], [20, 20], [50, 10], [5, 40]],
-    golden: { u: '1d6b84c5', v: 'b493da89', t: '603c821b', fx: 'fc27d7d542d919c5', probes: 'f442e739' },
+    golden: { u: '01099ab0', v: '9238dc34', t: '11a53755', fx: 'fc27d7d542d919c5', probes: 'be13e19e' },
   }],
   ['冷源 + 环境风 + 温度偏置', {
     nx: 48, ny: 36, margin: 0,
@@ -57,7 +57,7 @@ const FLUID_SCENARIOS: [string, FluidScenario][] = [
       e.ex.addHeat(36, 20, -16 * dt)
     },
     probes: [[36, 26], [10, 30], [60, 42], [24, 5]],
-    golden: { u: 'a10033b3', v: 'f19a6127', t: 'df787aa2', fx: 'fc27d7d542d919c5', probes: '71cc21dd' },
+    golden: { u: 'bf2b58cd', v: 'd3db4776', t: 'e17c711c', fx: 'fc27d7d542d919c5', probes: '0b77afbc' },
   }],
   ['风扇注入 + 边距 sponge', {
     nx: 48, ny: 36, margin: 4,
@@ -67,7 +67,7 @@ const FLUID_SCENARIOS: [string, FluidScenario][] = [
       e.ex.addForce(30, 30, 1, -0.3, 0.9, 3.2)
     },
     probes: [[30, 30], [8, 24], [52, 40], [2, 2]],
-    golden: { u: 'b4a1218f', v: '9569f331', t: '42d919c5', fx: '6d3fca7542d919c5', probes: 'f8062f79' },
+    golden: { u: '67158994', v: '3da9b7b2', t: '42d919c5', fx: '6d3fca7542d919c5', probes: '5f975249' },
   }],
   ['坡地固体 + 奇数 nx', {
     nx: 47, ny: 36, margin: 0,
@@ -78,7 +78,7 @@ const FLUID_SCENARIOS: [string, FluidScenario][] = [
       e.ex.addHeat(50, 26, -10 * dt)
     },
     probes: [[20, 24], [50, 20], [35, 12], [6, 33]],
-    golden: { u: 'f5a049d2', v: 'e672fbb5', t: 'f54614a4', fx: '6011dd835a3b60ab', probes: '67bd0c97' },
+    golden: { u: 'fa09e9f0', v: '3bf64859', t: '8125d243', fx: '6011dd835a3b60ab', probes: '22c131ff' },
   }],
 ]
 

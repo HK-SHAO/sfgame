@@ -34,6 +34,12 @@ let v0 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
 let t0 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
 
 ///|
+let q1 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+
+///|
+let q2 : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
+
+///|
 let p : FixedArray[Float] = FixedArray::make(max_cells, 0.0)
 // 散度 × h²（f64）：project_div 直接产出，GS 消费（不存 f32 中间量，少一趟扫描）
 
@@ -575,19 +581,16 @@ fn copy_fields() -> Unit {
 
 // 单趟半拉格朗日平流：sign=1 回溯 / -1 前推（gather 无法向量化，天然标量）
 
-// 单趟半拉格朗日平流 + 阻尼融合（MacCormack 补偿已移除：普通半拉格朗日固有耗散更大，
-// 热羽流/烟迹更糊，但平流从 9 趟降为 3 趟）
-
 ///|
-fn advect(
+fn advect_pass(
   dst : FixedArray[Float],
   src : FixedArray[Float],
   dt : Double,
-  damping : Double,
+  sign : Double,
 ) -> Unit {
   let nx = pm.nx
   let ny = pm.ny
-  let dt0 = dt / pm.cell
+  let dt0 = dt / pm.cell * sign
   let ac = pm.air_count
   for m in 0..<ac {
     let idx = air_list[m]
@@ -612,12 +615,102 @@ fn advect(
     let c = a + nx
     let d = c + 1
     dst[idx] = Float::from_double(
-      (src[a].to_double() * (1.0 - fx) * (1.0 - fy) +
+      src[a].to_double() * (1.0 - fx) * (1.0 - fy) +
       src[b].to_double() * fx * (1.0 - fy) +
       src[c].to_double() * (1.0 - fx) * fy +
-      src[d].to_double() * fx * fy) *
-      damping,
+      src[d].to_double() * fx * fy,
     )
+  }
+}
+
+// MacCormack 补偿单格：9 邻域 min/max 钳制防过冲，末乘阻尼（固体格由 enforce_boundary 清零，不写）
+
+///|
+fn correct_cell(
+  idx : Int,
+  dst : FixedArray[Float],
+  src : FixedArray[Float],
+  damping : Double,
+) -> Unit {
+  let nx = pm.nx
+  let mut lo = src[idx].to_double()
+  let mut hi = lo
+  let mut s = src[idx - nx - 1].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  s = src[idx - nx].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  s = src[idx - nx + 1].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  s = src[idx - 1].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  s = src[idx].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  s = src[idx + 1].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  s = src[idx + nx - 1].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  s = src[idx + nx].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  s = src[idx + nx + 1].to_double()
+  if s < lo {
+    lo = s
+  } else if s > hi {
+    hi = s
+  }
+  let mut val = q1[idx].to_double() +
+    (src[idx].to_double() - q2[idx].to_double()) * 0.5
+  if val < lo {
+    val = lo
+  } else if val > hi {
+    val = hi
+  }
+  dst[idx] = Float::from_double(val * damping)
+}
+
+///|
+fn advect_maccormack(
+  dst : FixedArray[Float],
+  src : FixedArray[Float],
+  dt : Double,
+  damping : Double,
+) -> Unit {
+  advect_pass(q1, src, dt, 1.0)
+  advect_pass(q2, q1, dt, -1.0)
+  let ac = pm.air_count
+  for m in 0..<ac {
+    correct_cell(air_list[m], dst, src, damping)
   }
 }
 
@@ -866,9 +959,9 @@ fn project() -> Unit {
 pub fn step(dt : Double) -> Unit {
   apply_buoyancy(dt)
   copy_fields()
-  advect(u, u0, dt, pm.vel_damping)
-  advect(v, v0, dt, pm.vel_damping)
-  advect(t, t0, dt, pm.t_damping)
+  advect_maccormack(u, u0, dt, pm.vel_damping)
+  advect_maccormack(v, v0, dt, pm.vel_damping)
+  advect_maccormack(t, t0, dt, pm.t_damping)
   apply_sponge()
   project()
   enforce_boundary()

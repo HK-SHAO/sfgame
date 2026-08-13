@@ -211,7 +211,7 @@ export class SfStorage extends LitElement {
 
       .del {
         flex: none;
-        padding: 0.375rem var(--sp-3);
+        padding: var(--sp-1-5) var(--sp-3);
         font-size: 0.75rem;
         font-weight: 600;
         border-radius: var(--r-pill);
@@ -226,7 +226,7 @@ export class SfStorage extends LitElement {
 
       .raw {
         margin: var(--sp-2) 0 0;
-        padding: 0.625rem var(--sp-3);
+        padding: var(--sp-2-5) var(--sp-3);
         max-height: 10rem;
         overflow: auto;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -243,7 +243,7 @@ export class SfStorage extends LitElement {
     .empty {
       display: flex;
       align-items: center;
-      gap: 0.625rem;
+      gap: var(--sp-2-5);
       margin: 0;
       padding: var(--sp-6) var(--sp-4);
       font-size: 0.875rem;
@@ -275,7 +275,7 @@ export class SfStorage extends LitElement {
     }
 
     .clear {
-      padding: 0.6875rem 1.375rem;
+      padding: var(--ctl-pad);
       font-size: 0.875rem;
       font-weight: 600;
       border-radius: var(--r-lg);

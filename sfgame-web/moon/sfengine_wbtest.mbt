@@ -1,4 +1,4 @@
-// 白盒：ffi 裸内存原语（包内可见 priv）。宿主侧寻址约定由 tests/mbt-engine.test.ts 端到端校验，
+// 白盒：ffi 裸内存原语（包内可见 priv）。宿主侧寻址约定由 tests/engine-wasm.test.ts 端到端校验，
 // 此处只测 mem_fill/mem_copy 的字节语义
 
 ///|

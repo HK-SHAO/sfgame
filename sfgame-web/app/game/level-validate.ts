@@ -1,8 +1,8 @@
 // 关卡 JSON 结构校验 = levels/level.schema-1.json 的运行时镜像：schema 表达的静态约束两处同源，
 // 由 tests/level-schema.test.ts 守护；world 依赖的动态边界（x≤w 等）与 SDF 语义仅此处可表达。
-// 错误逐字段 JSON 路径 + 实值；world 非法时动态边界自动失效（undefined），只查结构不级联误报
-import { compileSdf, SdfError } from './sdf.ts'
-import { terrainDims, FLUID_MARGIN } from '../sim/terrain.ts'
+// 错误逐字段 JSON 路径 + 实值；world 非法（结构/网格越界）时动态边界与烘焙自动失效（null），只查结构不级联误报
+import { bakeSdf, compileSdf, SdfError } from './sdf.ts'
+import { terrainDims, terrainFromField, FLUID_MARGIN } from '../sim/terrain.ts'
 import { GRID_MIN, GRID_MAX_NX, GRID_MAX_NY, CELL_MIN, CELL_MAX } from './grid-limits.ts'
 
 // 关卡 id = 小写 slug（URL 直传零转义、语义化命名）；URL 内联判别（state.ts）依赖此字符集
@@ -100,8 +100,9 @@ function checkMeta(ctx: Ctx, j: Record<string, unknown>) {
   }
 }
 
-// 返回 {w, h}；结构非法返回 null（下游动态边界随之失效）
-function checkWorld(ctx: Ctx, j: Record<string, unknown>): { w: number; h: number } | null {
+// 返回 {w, h, cell}；结构非法或网格越界返回 null（下游动态边界与烘焙随之失效——越界不短路会让
+// 攻击者控制的 w/h 驱动逐点采样冻结主线程）
+function checkWorld(ctx: Ctx, j: Record<string, unknown>): { w: number; h: number; cell: number } | null {
   const wo = j.world
   if (!wo || typeof wo !== 'object') {
     ctx.errs.push(`${ctx.id} world 必须为对象（含 w/h/cell 正数）`)
@@ -122,11 +123,12 @@ function checkWorld(ctx: Ctx, j: Record<string, unknown>): { w: number; h: numbe
       `${ctx.id} 流体网格 ${dims.nx}×${dims.ny}（含边距 ${FLUID_MARGIN}）超出 ` +
         `${GRID_MIN}..${GRID_MAX_NX} × ${GRID_MIN}..${GRID_MAX_NY} 范围`,
     )
+    return null
   }
-  return { w: wv, h: hv }
+  return { w: wv, h: hv, cell: cv }
 }
 
-function checkTerrain(ctx: Ctx, j: Record<string, unknown>, wMax?: number, hMax?: number) {
+function checkTerrain(ctx: Ctx, j: Record<string, unknown>, world: { w: number; h: number; cell: number } | null) {
   const t = j.terrain
   if (!t || typeof t !== 'object') {
     ctx.errs.push(`${ctx.id} terrain 必须为对象（含 sdf 表达式）`)
@@ -137,32 +139,42 @@ function checkTerrain(ctx: Ctx, j: Record<string, unknown>, wMax?: number, hMax?
     ctx.errs.push(`${ctx.id} terrain.sdf 必须为非空表达式字符串`)
     return
   }
-  let f: ((x: number, y: number) => number) | null = null
   try {
-    f = compileSdf(sdf)
+    compileSdf(sdf)
   } catch (e) {
     ctx.errs.push(`${ctx.id} terrain.sdf 语法错误：${e instanceof SdfError ? e.message : String(e)}`)
     return
   }
-  if (wMax !== undefined && hMax !== undefined) sampleTerrain(ctx, f, wMax, hMax)
-}
-
-// 语义校验：编译通过的 SDF 在世界网格采样，固/气必须共存（否则永不着地或无处可飞）
-function sampleTerrain(ctx: Ctx, f: (x: number, y: number) => number, w: number, h: number) {
-  let solid = 0
-  let air = 0
+  if (!world) return
+  // 与游戏同路径全域烘焙（含边距带）：发散（NaN/∞）在此拦截，1.0 步长抽查漏掉的窄发散带也被覆盖；
+  // 网格越界已由 checkWorld 短路，此处烘焙规模有内核容量上限
+  const dims = terrainDims(world, world.cell)
+  let field: Float32Array
   try {
-    for (let y = 0.5; y < h; y += 1) {
-      for (let x = 0.5; x < w; x += 1) {
-        const d = f(x, y)
-        if (!Number.isFinite(d)) throw new Error(`(${x}, ${y}) 处非有限值`)
-        if (d <= 0) solid++
-        else air++
-      }
-    }
+    field = bakeSdf(sdf, dims.nx, dims.ny, dims.origin, world.cell)
   } catch (e) {
     ctx.errs.push(`${ctx.id} terrain.sdf 求值错误：${e instanceof Error ? e.message : String(e)}`)
     return
+  }
+  // 固/气必须共存（判定限世界内，否则永不着地或无处可飞）：
+  // 格心计数 + 世界底缘同源采样兜底（地表可能落在末层格心与世界底之间的薄条带，如 h=4 时地表 3.5）
+  const ter = terrainFromField(field, dims, world.cell)
+  const { nx, ny, origin } = dims
+  let solid = 0
+  let air = 0
+  for (let j = 0; j < ny; j++) {
+    const wy = (j - origin + 0.5) * world.cell
+    if (wy < 0 || wy > world.h) continue
+    const row = j * nx
+    for (let i = 0; i < nx; i++) {
+      const wx = (i - origin + 0.5) * world.cell
+      if (wx < 0 || wx > world.w) continue
+      if (field[i + row] <= 0) solid++
+      else air++
+    }
+  }
+  for (let x = 0; solid === 0 && x <= world.w; x += 1) {
+    if (ter.sample(x, world.h) <= 0) solid = 1
   }
   if (solid === 0) ctx.errs.push(`${ctx.id} terrain.sdf 世界内无实体（飞机永不着地）`)
   if (air === 0) ctx.errs.push(`${ctx.id} terrain.sdf 世界内全为实体（无处可飞）`)
@@ -278,7 +290,7 @@ export function validateLevelJson(raw: unknown): string[] {
   const ctx: Ctx = { id: `(id=${JSON.stringify(j.id)})`, errs }
   checkMeta(ctx, j)
   const world = checkWorld(ctx, j)
-  checkTerrain(ctx, j, world?.w, world?.h)
+  checkTerrain(ctx, j, world)
   checkBudget(ctx, j)
   checkSpawn(ctx, j, world?.w, world?.h)
   checkGoals(ctx, j, world?.w, world?.h)

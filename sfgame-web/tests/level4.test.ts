@@ -16,5 +16,8 @@ test('潮汐风：环境风速随模拟时钟周期性变化，半周期后反�
   }
   const span = Math.max(...samples) - Math.min(...samples)
   expect(span).toBeGreaterThan(1)
-  expect(samples[Math.floor(samples.length / 2)]).toBeLessThan(samples[0])
+  // 反向点取 3/4 周期（波谷）：半周期处是正弦过零点，真值由 1-ulp 级 sin(π) 残差决定——
+  // 旧断言取在过零点，对浮点残差与基场符号敏感（语义名不副实）
+  const period = LEVEL_4.ambient!.tide!.period
+  expect(samples[Math.floor((3 * period) / 4)]).toBeLessThan(samples[0])
 }, 30000)

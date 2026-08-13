@@ -73,6 +73,22 @@ test('网格容量：内核导出与 grid-limits 镜像一致', () => {
   const cells = GRID_MAX_NX * GRID_MAX_NY
   expect(ex.tSdfCap()).toBe(cells)
   expect(ex.bTerrainFieldCap()).toBe(cells)
-  // marching squares 最坏全实体每格 2 三角 = 6 顶点
-  expect(ex.bTerrainCap()).toBe(cells * 6)
+  // marching squares 常规路径最坏 3 三角/格（三固角扇形化）= 9 顶点
+  expect(ex.bTerrainCap()).toBe(cells * 9)
+})
+
+// 内核执行侧守卫的负向 canary：容量常量镜像之外，超限/非法参数必须在 init 处被拒
+//（守卫被误删时门面会放行，越界读写表现为静默错误物理——此处是唯一回归守护）
+test('内核守卫：超容量/非法参数 init 被拒', async () => {
+  const ex = boot() as unknown as MbExports & {
+    init: (...a: unknown[]) => number
+  }
+  const params = [0.75, 2.0, 9, 10, 3.4, 0.997, 0.99, 12, 0] as unknown[]
+  expect(ex.init(GRID_MAX_NX + 1, 36, ...params)).not.toBe(0)
+  expect(ex.init(48, GRID_MAX_NY + 1, ...params)).not.toBe(0)
+  expect(ex.init(2, 2, ...params)).not.toBe(0)
+  // margin 越界（> nx−2）与 cell 非正均被拒
+  expect(ex.init(48, 36, 0.75, 2.0, 9, 10, 3.4, 0.997, 0.99, 12, 47)).not.toBe(0)
+  expect(ex.init(48, 36, 0, 2.0, 9, 10, 3.4, 0.997, 0.99, 12, 0)).not.toBe(0)
+  expect(ex.init(48, 36, 0.75, 2.0, 9, 10, 3.4, 0.997, 0.99, 12, 0)).toBe(0)
 })

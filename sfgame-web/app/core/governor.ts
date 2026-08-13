@@ -50,3 +50,7 @@ export class PerformanceGovernor {
     return Math.min(deviceDpr || 1, this.dprTiers[this._dprTier])
   }
 }
+
+// 全局单例（与 bgm/fb/progress 同模式）：降级档须跨关卡延续——设备能力不随关卡重建，
+// 每关新建实例会把 tier 归零，弱设备每关重新掉帧 150 帧后才降级
+export const governor = new PerformanceGovernor(DPR_TIERS)

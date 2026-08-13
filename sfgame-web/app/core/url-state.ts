@@ -93,7 +93,9 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
 
   constructor(def: D, source?: UrlStateSource) {
     this.def = def
-    this.source = source ?? createBrowserSource()
+    this.source =
+      source ??
+      createBrowserSource(typeof window === 'undefined' ? undefined : (window as unknown as UrlStateWindow))
     this.unsubscribe = this.source.onChange(() => this.sync())
     this.sync()
   }
@@ -213,15 +215,39 @@ export class UrlState<D extends Record<string, UrlStateCodec<unknown>>> {
   }
 }
 
-function createBrowserSource(): UrlStateSource {
+// 浏览器面（可注入，与 getParams 等同一契约）：sf 标记与 bfcache 兜底在此落点，
+// 注入 stub 后 popstate/pageshow 行为与 history.state 标记可无头测试
+export interface UrlStateWindow {
+  location: { pathname: string; search: string; hash: string }
+  history: {
+    state: unknown
+    pushState(state: unknown, _title: string, url: string): void
+    replaceState(state: unknown, _title: string, url: string): void
+  }
+  addEventListener(type: string, cb: () => void): void
+  removeEventListener(type: string, cb: () => void): void
+}
+
+export function createBrowserSource(win: UrlStateWindow | undefined): UrlStateSource {
+  // node/无头环境无 window：空状态 + 写无操作 + 无监听（与旧 typeof 守卫同语义）
+  if (!win) {
+    return {
+      getParams: () => new URLSearchParams(),
+      pushState() {},
+      replaceState() {},
+      onChange() {
+        return () => {}
+      },
+    }
+  }
   const buildUrl = (params: URLSearchParams) => {
     const q = params.toString()
-    return (q ? `${window.location.pathname}?${q}` : window.location.pathname) + window.location.hash
+    return (q ? `${win.location.pathname}?${q}` : win.location.pathname) + win.location.hash
   }
   return {
     getParams() {
       try {
-        return new URLSearchParams(window.location.search)
+        return new URLSearchParams(win.location.search)
       } catch {
         return new URLSearchParams()
       }
@@ -229,15 +255,15 @@ function createBrowserSource(): UrlStateSource {
     pushState(params) {
       try {
         // sf 标记 = 应用内导航条目：返回按钮据此区分"可回退上一应用页"与"直达/外部进入（回首页）"
-        window.history.pushState({ sf: true }, '', buildUrl(params))
+        win.history.pushState({ sf: true }, '', buildUrl(params))
       } catch {
       }
     },
     replaceState(params) {
       try {
         // 保留当前条目标记：应用条目上 replace 不丢标记，文档条目（无标记）不被污染
-        window.history.replaceState(
-          window.history.state && window.history.state.sf ? { sf: true } : null,
+        win.history.replaceState(
+          win.history.state && (win.history.state as { sf?: boolean }).sf ? { sf: true } : null,
           '',
           buildUrl(params),
         )
@@ -245,14 +271,13 @@ function createBrowserSource(): UrlStateSource {
       }
     },
     onChange(cb) {
-      if (typeof window === 'undefined') return () => {}
       const fire = () => cb()
-      window.addEventListener('popstate', fire)
+      win.addEventListener('popstate', fire)
       // pageshow 兜 bfcache 恢复：某些 iOS 环境后退时 popstate 不可靠
-      window.addEventListener('pageshow', fire)
+      win.addEventListener('pageshow', fire)
       return () => {
-        window.removeEventListener('popstate', fire)
-        window.removeEventListener('pageshow', fire)
+        win.removeEventListener('popstate', fire)
+        win.removeEventListener('pageshow', fire)
       }
     },
   }

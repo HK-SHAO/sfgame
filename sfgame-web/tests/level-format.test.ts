@@ -264,3 +264,29 @@ test('顶层未知字段拒绝、错误带精确路径与实值', () => {
   expect(errs).toMatch(/world\.w = -1，需 > 0/)
   expect(errs).not.toMatch(/goals\[/)
 })
+
+test('网格越界 world 短路：报错即止，不做攻击者控制规模的逐点采样（R3-01 回归守护）', () => {
+  // 旧实现越界只报错不短路，w×h 逐点采样由 URL 输入驱动（w=h=1e5 ≈ 90s 冻结）。
+  // 新实现返回 null 跳过烘焙：恰好 1 条网格错误、无级联（采样/固气检查都不跑）
+  const j = {
+    id: 'cr-short', name: 't', tagline: 't', win: { title: 't', text: 't' },
+    world: { w: 100_000, h: 100_000, cell: 0.75 }, terrain: { sdf: '40 - y' },
+    budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
+  }
+  const errs = validateLevelJson(j)
+  expect(errs.length).toBe(1)
+  expect(errs[0]).toMatch(/流体网格/)
+  expect(errs.join('')).not.toMatch(/无实体|全为实体/)
+})
+
+test('SDF 发散（NaN 带）在烘焙级被拒：不落检查漏洞、不产出 NaN 场（R2-01 回归守护）', () => {
+  // y∈(−3.65,−3.45) 的 NaN 带在边距带内：旧 1.0 步长抽查只扫世界内，0 错误放行 → 瞬时通关
+  const j = {
+    id: 'cr-nan', name: 't', tagline: 't', win: { title: 't', text: 't' },
+    world: { w: 40, h: 20, cell: 1 }, terrain: { sdf: 'max(8 - y, 0 - sqrt((y+3.45)*(y+3.65)))' },
+    budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 20, r: 2 }],
+  }
+  const errs = validateLevelJson(j)
+  expect(errs.length).toBe(1)
+  expect(errs[0]).toMatch(/求值错误.*发散/)
+})

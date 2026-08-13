@@ -3,9 +3,7 @@ import {
   buildWindProbes,
   isLanding,
   sampleWind,
-  LAND_ALT_AFTER,
-  LAND_ALT_BEFORE,
-  LAND_IMPACT_MIN,
+  LAND_ALT,
 } from '../app/core/wind.ts'
 import type { FluidLike } from '../app/sim/fluid.ts'
 import type { Vec2 } from '../app/sim/types.ts'
@@ -57,10 +55,11 @@ test('sampleWind：零场场强为 0、相对风 = 飞机速度；常风叠加',
   expect(wind.rel).toBeCloseTo(Math.hypot(8 - 2.6, 2), 10)
 })
 
-test('isLanding：跨越高度阈值且冲击速度足够才算落地', () => {
-  expect(isLanding(1.0, 0.5, 1.0)).toBe(true)
-  expect(isLanding(LAND_ALT_BEFORE, 0.5, 1.0)).toBe(false)
-  expect(isLanding(1.0, LAND_ALT_AFTER, 1.0)).toBe(true)
-  expect(isLanding(1.0, 0.5, LAND_IMPACT_MIN)).toBe(false)
-  expect(isLanding(0.5, 1.0, 1.0)).toBe(false)
+test('isLanding：空中→触地的下降边沿才算落地，无速度门槛（响度按 vy 调）', () => {
+  expect(isLanding(1.0, 0.0, 1.0)).toBe(true) // 正常降落：静风终端 vy≈1 也触发
+  expect(isLanding(LAND_ALT, 0.0, 1.0)).toBe(false) // 恰好贴地（未离地）
+  expect(isLanding(1.0, 0.0, 0)).toBe(false) // 悬停触地（vy=0）
+  expect(isLanding(0.0, 0.0, 1.0)).toBe(false) // 贴地滑行不触发
+  expect(isLanding(0.3, 0.0, -1)).toBe(false) // 上升穿越不触发
+  expect(isLanding(1.0, 0.0, 21)).toBe(true) // 高速撞击同样触发（响度按 vy 缩放）
 })

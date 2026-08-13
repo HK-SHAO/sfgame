@@ -5,9 +5,8 @@ import type { Vec2 } from '../sim/types.ts'
 
 export const WIND_PROBE_FX = [0.22, 0.5, 0.78]
 export const WIND_PROBE_FY = [0.2, 0.35]
-export const LAND_ALT_BEFORE = 0.9
-export const LAND_ALT_AFTER = 0.55
-export const LAND_IMPACT_MIN = 0.8
+// 贴地判定阈值（SDF 高度）：接触解算把质点投影到表面（alt≈0），阈值只须区分"贴地"与"贴地飞行"
+export const LAND_ALT = 0.05
 
 export function buildWindProbes(w: number, h: number): Vec2[] {
   return WIND_PROBE_FX.flatMap((fx) => WIND_PROBE_FY.map((fy) => ({ x: fx * w, y: fy * h })))
@@ -32,10 +31,8 @@ export function sampleWind(
   }
 }
 
+// 落地 = 空中→触地的下降边沿。响度由撞击前 vy 调（fb.land），不做速度门槛：
+// 旧"单 tick 降幅 ≥0.35"需要 |vy|≥21 u/s，而静风终端速度仅 1 u/s——正常降落永远无声
 export function isLanding(altBefore: number, altAfter: number, vyBefore: number): boolean {
-  return (
-    altBefore > LAND_ALT_BEFORE &&
-    altAfter <= LAND_ALT_AFTER &&
-    Math.abs(vyBefore) > LAND_IMPACT_MIN
-  )
+  return altBefore > LAND_ALT && altAfter <= LAND_ALT && vyBefore > 0
 }

@@ -128,7 +128,8 @@ bun run scripts/run-level.ts levels/level-N.json --sim 150
 bun run scripts/run-level.ts levels/level-N.json --verify 20-29.3-h,50-21.3-h
 # 解精炼（可选）：以已知解为种子坐标下降，总耗时（含罚时）压到局部最优，见 §7；无参时自动以登记解为种子
 bun run scripts/run-level.ts levels/level-N.json --refine 20-29.3-h,50-21.3-h
-# 已知解回归验证：scripts/known-solutions.ts 登记了全部 15 关的解（精筛验证过、坐标 1 位小数），
+# 已知解回归验证：scripts/known-solutions.ts 登记了 19/20 关的解（精筛验证过、坐标 1 位小数）；
+# gui-xu（归墟）尚未登记——GA 求解未收敛（--budget-ms 300000 卡在进展 ~19），补登时同 §6 流程
 # 物理/关卡改动后跑一遍，全部应仍通关
 bun run scripts/run-level.ts levels/level-N.json --verify-known
 ```

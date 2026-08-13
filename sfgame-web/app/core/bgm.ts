@@ -61,7 +61,11 @@ class Bgm {
     this.muted = m
     if (!this.el) return
     if (m) this.el.pause()
-    else this.attempt()
+    else {
+      // 创建期按静音态定过一次音量：解除静音必须写回，否则以 0 音量播放到刷新
+      this.el.volume = BGM_VOLUME
+      this.attempt()
+    }
   }
 
   setRate(rate: number) {

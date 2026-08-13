@@ -70,7 +70,6 @@ export class SfDevPanel extends LitElement {
       background: rgba(20, 18, 14, 0.72);
       color: var(--dev-fg);
       pointer-events: auto;
-      touch-action: none;
       user-select: none;
       will-change: transform;
     }
@@ -84,6 +83,8 @@ export class SfDevPanel extends LitElement {
       font-size: 0.6875rem;
       line-height: 1.5;
       cursor: grab;
+      /* 拖拽句柄专属：touch-action 收敛到 .head，面板体保持可滚动（iOS） */
+      touch-action: none;
       -webkit-user-select: none;
       user-select: none;
     }

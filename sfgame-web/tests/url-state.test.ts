@@ -2,8 +2,10 @@ import { expect, test } from 'vitest'
 import {
   UrlState,
   codecs,
+  createBrowserSource,
   type UrlStateListCodec,
   type UrlStateSource,
+  type UrlStateWindow,
 } from '../app/core/url-state.ts'
 
 function fakeSource(initial = '') {
@@ -156,4 +158,62 @@ test('写读分离：set 不通知订阅者，外部 URL 变化才同步并通�
   fake.applyUrl('count=5')
   expect(n).toBe(1)
   expect(state.get('count')).toBe(5)
+})
+
+test('has：区分"无参数"与"解码失败回落默认"', () => {
+  const { state } = make('level=abc')
+  expect(state.has('level')).toBe(true) // URL 有参数（值非法回落 null）仍算"有"
+  expect(state.has('count')).toBe(false)
+})
+
+test('dispose：退订外部变化、拒绝后续写入', async () => {
+  const { state, fake } = make('level=1')
+  let n = 0
+  state.onChange('level', () => n++)
+  state.dispose()
+  fake.applyUrl('level=2')
+  expect(n).toBe(0)
+  expect(state.get('level')).toBe(1) // 不再同步外部变化
+  state.set('count', 3)
+  await flush()
+  expect(fake.pushes).toHaveLength(0) // 写入被拒
+})
+
+test('浏览器源：pushState 带 sf 标记、replaceState 保留/不污染标记、popstate+pageshow 挂载与退订', () => {
+  const history: Array<{ state: unknown; url: string }> = []
+  const listeners = new Map<string, () => void>()
+  const win = {
+    location: { pathname: '/play', search: '', hash: '' },
+    history: {
+      state: null as unknown,
+      pushState(state: unknown, _t: string, url: string) {
+        history.push({ state, url })
+      },
+      replaceState(state: unknown, _t: string, url: string) {
+        history.push({ state, url })
+      },
+    },
+    addEventListener(type: string, cb: () => void) {
+      listeners.set(type, cb)
+    },
+    removeEventListener(type: string) {
+      listeners.delete(type)
+    },
+  } as unknown as UrlStateWindow
+  const src = createBrowserSource(win)
+  src.pushState(new URLSearchParams('level=2'))
+  expect(history.at(-1)).toEqual({ state: { sf: true }, url: '/play?level=2' })
+  // 应用条目上 replace 保留标记；文档条目（无标记）不被污染
+  win.history.state = { sf: true }
+  src.replaceState(new URLSearchParams('level=3'))
+  expect(history.at(-1)).toEqual({ state: { sf: true }, url: '/play?level=3' })
+  win.history.state = null
+  src.replaceState(new URLSearchParams('level=4'))
+  expect(history.at(-1)).toEqual({ state: null, url: '/play?level=4' })
+  // popstate/pageshow 均在 onChange 注册时挂载（bfcache 兜底契约），退订全清
+  const off = src.onChange(() => {})
+  expect(listeners.has('popstate')).toBe(true)
+  expect(listeners.has('pageshow')).toBe(true)
+  off()
+  expect(listeners.size).toBe(0)
 })

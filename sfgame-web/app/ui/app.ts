@@ -9,6 +9,7 @@ import { progress } from '../game/progress.ts'
 import { SfGame, type DenyDetail } from './sf-game.ts'
 import type { SfHud } from './hud.ts'
 import { DevTools } from '../dev/devtools.ts'
+import './unsupported'
 import '../dev/dev-menu'
 import './storage-view'
 import './win-overlay'
@@ -54,6 +55,8 @@ export class SfApp extends LitElement {
   private urlSubs: (() => void)[] = []
   // 关卡内容 hash 缓存：renderGame 每渲染调用 levelHash 会对全文重算 FNV，这里随关卡变化算一次
   private activeLevelHash = ''
+  // 关卡开始上报的去重指针：进关路径（按钮/直达/后退）都在 applyScreen 汇聚，见 applyScreen
+  private lastStartLevel: LevelDef | null = null
 
   @query('sf-game') private gameEl!: SfGame
   @query('sf-hud') private hudEl!: SfHud
@@ -129,6 +132,9 @@ export class SfApp extends LitElement {
         this.gameEl?.applySources(v)
         fb.uiClick()
       }),
+      urlState.onChange('dev', (v) => {
+        this.dev = v
+      }),
     ]
   }
 
@@ -145,6 +151,11 @@ export class SfApp extends LitElement {
       this.activeLevel = s.level
       this.activeLevelHash = levelHash(urlState.get('lv')) ?? ''
     }
+    // 关卡开始的公共上报点：按钮进关/URL 直达/后退进关同一路径，GA 漏斗无孤儿完成
+    if (s.screen === 'game' && s.level && s.level !== this.lastStartLevel) {
+      this.lastStartLevel = s.level
+      this.emitLevelStart(s.level)
+    }
     this.initialSources = s.sources
     // 退出关卡屏（主页/存储/dev）速率归 1：倍率只在关卡内有意义，BGM 播放速率同步恢复
     if (s.screen !== 'game' && this.rate !== 1) {
@@ -153,12 +164,11 @@ export class SfApp extends LitElement {
     }
   }
 
-  // 进关共用：写 lv + 清旧摆法 + 应用 URL 派生 + 上报关卡开始；同屏换关时 willUpdate 检测 activeLevel 变化重置 HUD
+  // 进关共用：写 lv + 清旧摆法 + 应用 URL 派生（关卡开始上报由 applyScreen 统一触发）
   private enterLevel(id: string) {
     urlState.set('lv', { id })
     urlState.clear('s')
     this.applyScreen(screenFromUrl())
-    this.emitLevelStart(this.activeLevel)
   }
 
   private startGame(id: string) {
@@ -239,13 +249,14 @@ export class SfApp extends LitElement {
   }
 
   // 撤销/重做 = 浏览器历史导航（全局语义，如浏览器左右箭头）：每次应用内状态变更都是带 sf 标记的 pushState 条目，
-  // popstate 应用路径由 urlState 写读分离保证不回写；输入框内由原生文本撤销优先，keys 层已过滤
+  // popstate 应用路径由 urlState 写读分离保证不回写；输入框内由原生文本撤销优先，keys 层已过滤。
+  // 与 goBack 同策略：当前条目无 sf 标记（直达链接会话）时后退会离开本站——视为无可撤销
   private undoMove() {
-    window.history.back()
+    if (window.history.state && window.history.state.sf) window.history.back()
   }
 
   private redoMove() {
-    window.history.forward()
+    if (window.history.state && window.history.state.sf) window.history.forward()
   }
 
   // ===== hud 事件处理器 =====
@@ -271,6 +282,13 @@ export class SfApp extends LitElement {
     else urlState.set('s', e.detail)
   }
 
+  // WebGL 不可用：与 wasm 失败同策略——替换为终端页，不盲玩（盲玩可写通关记录、无画面反馈）
+  private onUnsupported() {
+    const el = document.createElement('sf-unsupported') as HTMLElement & { reason: string }
+    el.reason = 'webgl'
+    document.body.replaceChildren(el)
+  }
+
   private recordWin() {
     const lv = urlState.get('lv')
     const h = levelHash(lv)
@@ -284,7 +302,9 @@ export class SfApp extends LitElement {
   }
 
   // ===== 上报（语义事件：业务侧只发事件，传输由 main.ts 装配的适配器接管） =====
+  // dev 会话（devTools 活跃）不上报：无限源/16× 速/编辑器覆写会污染正式漏斗与转化率
   private emitLevelStart(level: LevelDef) {
+    if (this.devTools) return
     analytics.emit({
       type: 'level_start',
       payload: { levelId: level.id, levelName: level.name },
@@ -292,6 +312,7 @@ export class SfApp extends LitElement {
   }
 
   private emitLevelComplete(newRecord: boolean) {
+    if (this.devTools) return
     analytics.emit({
       type: 'level_complete',
       payload: {
@@ -394,6 +415,7 @@ export class SfApp extends LitElement {
             @hudchange=${this.onHudChange}
             @deny=${this.onDeny}
             @sourceschange=${this.onSourcesChange}
+            @unsupported=${this.onUnsupported}
           ></sf-game>`,
         )}
 

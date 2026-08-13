@@ -44,6 +44,12 @@ export function terrainDims(
   }
 }
 
+// 格点 (0,0) 的世界坐标：烘焙在格心 (i−origin+0.5)·cell 采样，内核把 field[i,j] 当格点值——
+// 锚点取格心使两者对齐，等值线与物理面逐位一致（渲染 setupTerrain 与测试共用此单源）
+export function gridAnchor(origin: number, cell: number): number {
+  return (0.5 - origin) * cell
+}
+
 // 场 → Terrain：mask（边缘恒固体 + d≤0）+ 双线性 sample/normal（clamp = 域外取边缘值，地形自然延展）
 export function terrainFromField(field: Float32Array, dims: TerrainDims, cell: number): Terrain {
   const { nx, ny, origin } = dims
@@ -119,9 +125,11 @@ export function surfaceY(t: Terrain, x: number, worldH: number): number {
   const col = Math.round(gx)
   for (let j = 1; j < t.ny; j++) {
     const idx = col + j * t.nx
-    if (t.field[idx] > 0) continue
+    const v = t.field[idx]
+    // 非有限值永不判为表面（防御：上游 bake 已拒绝发散，此处防 NaN 渗入锚点/出生点）
+    if (!Number.isFinite(v) || v > 0) continue
     const prev = t.field[idx - t.nx]
-    const frac = prev > 0 ? prev / (prev - t.field[idx]) : 0
+    const frac = prev > 0 ? prev / (prev - v) : 0
     return (j - 1 + frac - t.originY + 0.5) * t.cell
   }
   return worldH

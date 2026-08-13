@@ -35,7 +35,8 @@ function parseEntry(raw: unknown): ScoreEntry | null {
   const time = Number(e.time)
   const extra = Number(e.extra)
   const at = Number(e.at)
-  if (!Number.isFinite(time) || !Number.isFinite(extra) || !Number.isFinite(at)) return null
+  // 非负语义：负 total 条目会让 record 的 `prev.total <= full.total` 永久拒绝新纪录并显示负耗时
+  if (!Number.isFinite(time) || time < 0 || !Number.isFinite(extra) || extra < 0 || !Number.isFinite(at)) return null
   return { time, extra, total: time + extra, at }
 }
 

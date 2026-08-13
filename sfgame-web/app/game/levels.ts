@@ -118,6 +118,12 @@ export const BUILTIN_LEVEL_HASHES: ReadonlySet<string> = new Set(
   LEVELS.map((l) => levelHash({ id: l.id })).filter((h): h is string => h !== undefined),
 )
 
+// 内置关卡 1 基序号（非内置/DIY = 0）：标题屏与状态条共用同源编号
+export function levelNo(id: string): number {
+  const i = LEVELS.findIndex((l) => l.id === id)
+  return i < 0 ? 0 : i + 1
+}
+
 // 装饰种子：slug 哈希 + 盐（云与粒子以不同盐派生，同关可复现、互不串号）
 export function levelSeed(id: string, salt = 0): number {
   return (fnv1a(id) ^ salt) >>> 0

@@ -63,6 +63,5 @@ bun run scripts/run-level.ts levels/level-N.json --solve            # 离线求�
 
 ## 更多
 
-- 开发守则与实现要点：`../docs/development.md`
 - 避坑手册（症状→条目）：`../skills/pitfalls/SKILL.md`
 - 仓库级约定：`../AGENTS.md`

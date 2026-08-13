@@ -3,6 +3,13 @@ import type { Source } from '../game/types.ts'
 
 const MOVE_SLOP_PX = 14
 
+// 按键→源种类（玩法不变量：左键热、右键冷走 contextmenu）；纯函数供无头测试守护
+export function buttonKind(button: number): 'hot' | 'cold' | null {
+  if (button === 0) return 'hot'
+  if (button === 2) return 'cold'
+  return null
+}
+
 export interface GestureHandlers {
   toWorld(clientX: number, clientY: number): Vec2 | null
   hitSource(w: Vec2): Source | null
@@ -66,7 +73,7 @@ export class GestureInput {
 
   private onDown = (e: PointerEvent) => {
     // 右键走 contextmenu 放冷源；此处放行会先按 tap 放热源
-    if (e.button !== 0) return
+    if (buttonKind(e.button) !== 'hot') return
     const w = this.handlers.toWorld(e.clientX, e.clientY)
     if (!w) {
       // 世界盒外（letterbox 带）按左键意图给热源 deny

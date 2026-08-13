@@ -2,7 +2,7 @@ import { GameLoop } from '../core/loop.ts'
 import { sfx } from '../core/sfx.ts'
 import { bgm } from '../core/bgm.ts'
 import { fb } from '../core/feedback.ts'
-import { PerformanceGovernor, DPR_TIERS } from '../core/governor.ts'
+import { governor } from '../core/governor.ts'
 import { buildWindProbes, isLanding, sampleWind } from '../core/wind.ts'
 import { Tracers, TRAIL_LEN } from '../sim/particles.ts'
 import { Clouds } from '../sim/clouds.ts'
@@ -18,11 +18,11 @@ import { createEngine, type EngineHandle } from '../wasm/engine.ts'
 import { totalPenaltySeconds } from '../game/timer.ts'
 import type { PerfRecorder } from '../dev/devtools.ts'
 
-// WebGL 不可用提醒：设备不支持是持久条件，全会话只弹一次
-let webglWarned = false
-
-const PLANE_TRAIL_MAX_POINTS = 150
+// 拖尾按时间淡出（6s，见 trail.ts）：容量须容下淡出窗内最高可持续航速的采样点，
+// 否则满环覆写还在淡出期内的旧点，高速段拖尾尾端提前消失（偏离"随时间淡出"契约）
+const PLANE_TRAIL_MAX_SPEED = 30
 const PLANE_TRAIL_SAMPLE = 0.3
+const PLANE_TRAIL_MAX_POINTS = Math.ceil((PLANE_TRAIL_MAX_SPEED * PLANE_TRAIL_FADE) / PLANE_TRAIL_SAMPLE)
 const LAND_SOUND_MIN_INTERVAL = 150
 // 粒子数全平台恒定（视觉一致）；性能兜底只降 dpr 分辨率档
 const TRACER_COUNT = 400
@@ -51,7 +51,6 @@ export class GameController {
   private lastPhase: 'playing' | 'won' = 'playing'
   private windProbes: { x: number; y: number }[]
   private tmpAir = { x: 0, y: 0 }
-  private governor: PerformanceGovernor
   private tickMs = 0
   private lastLand = -Infinity
   private rate = 1
@@ -75,8 +74,6 @@ export class GameController {
     this.devTools = devTools ?? null
     // dev 模式道具不限量：devTools 非空即 dev（app.ts 按 ?dev=1 才构造面板）
     this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })
-    // 各平台同参数起步，视觉一致；性能不足时由 governor 按实测自适应降 dpr（所有平台同一策略）
-    this.governor = new PerformanceGovernor(DPR_TIERS)
     // 示踪粒子与云同采烘焙地形场：可随流体飞出地图，采样 clamp 即延展（内核驻 wasm，同引擎实例）。
     // 种子由关卡 slug 派生（与云同策略异盐）：同关粒子场逐位可复现，刷新/重进不变
     this.tracers = new Tracers(
@@ -88,11 +85,6 @@ export class GameController {
     const { w, h } = level.world
     this.windProbes = buildWindProbes(w, h)
     this.renderer = new Renderer(canvas, this.engine)
-    // 设备不支持 WebGL 是持久条件：只提醒一次，避免每关重复弹
-    if (!this.renderer.available && !webglWarned) {
-      webglWarned = true
-      window.alert('此设备不支持 WebGL，游戏画面无法显示。请更换支持 WebGL 的浏览器或设备。')
-    }
     this.loop = new GameLoop({ tick: this.tick, render: this.render })
     this.input = new GestureInput(canvas, {
       toWorld: (cx, cy) => this.renderer.toWorld(cx, cy),
@@ -139,6 +131,11 @@ export class GameController {
     this.pushHud()
   }
 
+  // WebGL 上下文创建失败（持久条件）：宿主据此走不支持页，不盲玩
+  get renderable(): boolean {
+    return this.renderer.available
+  }
+
   setRate(rate: number) {
     this.rate = rate
     this.loop.setRate(rate)
@@ -179,17 +176,18 @@ export class GameController {
   }
 
   private pixelRatio(): number {
-    return this.governor.pixelRatio(window.devicePixelRatio || 1)
+    return governor.pixelRatio(window.devicePixelRatio || 1)
   }
 
-  private fit = () => {
+  private fit = (force = false) => {
     const rect = this.host.getBoundingClientRect()
     const w = Math.round(rect.width)
     const h = Math.round(rect.height)
     // 任一边为 0（布局瞬态）跳过：会算出 NaN/Inf 视口坐标并在 drawTerrain 抛 RangeError
     if (w === 0 || h === 0) return
-    // 尺寸未变跳过：防 ResizeObserver 抖动导致画布每帧重建（iOS 已知坑）
-    if (w === this.fitW && h === this.fitH) return
+    // 尺寸未变跳过：防 ResizeObserver 抖动导致画布每帧重建（iOS 已知坑）；
+    // force（dpr 降级）绕过——降级不改变宿主尺寸，守卫会让 resize 永不执行
+    if (!force && w === this.fitW && h === this.fitH) return
     this.fitW = w
     this.fitH = h
     // 画布铺满宿主，世界 contain 后界外由渲染器以天空外推填充（取景宽容：宽屏/竖屏均满屏）
@@ -219,8 +217,15 @@ export class GameController {
 
   // silent = 挂载初始应用，不回写 URL（避免多余历史条目）
   applySources(list: SourcePlacement[], silent = false) {
-    // 胜利结算让位：若仍满足胜利条件，下一帧会重新判定
-    if (this.sim.phase === 'won') this.sim.phase = 'playing'
+    // 胜利结算让位：清 visited 让下一帧按"抵达即通关"重新判定（飞机仍在圆内则立即复胜，与注释契约一致）；
+    // 结算中暂停+撤销会留下"覆盖层消失而物理冻结"的僵尸态，暂停一并解除
+    if (this.sim.phase === 'won') {
+      this.sim.phase = 'playing'
+      this.sim.visited.fill(false)
+      this.sim.visitedCount = 0
+      this.sim.setPaused(false)
+      bgm.setPaused(false)
+    }
     this.sim.applySources(list)
     this.pushHud()
     if (!silent) this.emitSources()
@@ -298,7 +303,7 @@ export class GameController {
     })
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0
-    // 降级执行留在 controller（fit 涉及渲染对象）
-    if (this.governor.record(cost, this.rate)) this.fit()
+    // 降级执行留在 controller（fit 涉及渲染对象）；force 绕尺寸守卫：tier 变化不改变宿主尺寸
+    if (governor.record(cost, this.rate)) this.fit(true)
   }
 }

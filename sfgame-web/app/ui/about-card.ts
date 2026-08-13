@@ -65,7 +65,7 @@ export class SfAboutCard extends LitElement {
       }
 
       .about {
-        padding: var(--sp-4) 1.25rem;
+        padding: var(--sp-4) var(--sp-5-25);
       }
 
       .brand {
@@ -140,15 +140,15 @@ export class SfAboutCard extends LitElement {
         display: grid;
         grid-template-columns: auto auto;
         justify-content: center;
-        column-gap: 0.75rem;
-        row-gap: 0.25rem;
+        column-gap: var(--sp-3);
+        row-gap: var(--sp-1);
         font-size: 0.75rem;
         color: var(--ink-soft);
       }
 
       .kbd-group {
         display: flex;
-        gap: 0.25rem;
+        gap: var(--sp-1);
         justify-content: flex-end;
       }
 
@@ -156,7 +156,7 @@ export class SfAboutCard extends LitElement {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0.125rem 0.375rem;
+        padding: var(--sp-0-5) var(--sp-1-5);
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 0.6875rem;
         line-height: 1;
@@ -192,7 +192,7 @@ export class SfAboutCard extends LitElement {
       .links a {
         display: inline-flex;
         align-items: center;
-        gap: 0.375rem;
+        gap: var(--sp-1-5);
         padding: var(--sp-2) var(--sp-4);
         font-size: 0.75rem;
         color: var(--ink-soft);

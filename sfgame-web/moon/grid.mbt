@@ -4,5 +4,6 @@
 let grid_max_nx : Int = 256
 let grid_max_ny : Int = 160
 let grid_max_cells : Int = grid_max_nx * grid_max_ny
-// marching squares 最坏全实体每格 2 三角 = 6 顶点：地形烘焙输出缓冲按此定容
-let grid_terrain_verts : Int = grid_max_cells * 6
+// marching squares 常规路径最坏 3 三角/格（三固角扇形化）= 9 顶点：地形烘焙输出缓冲按此定容
+//（逐格 +12 预算不变：容量临界时优雅截断，见 b_terrain_draw）
+let grid_terrain_verts : Int = grid_max_cells * 9

@@ -9,7 +9,7 @@ import { compileSdf, SdfError } from '../app/game/sdf.ts'
 
 interface Golden {
   grid: [number, number][]
-  cases: { expr: string; values: number[]; approx?: boolean }[]
+  cases: { expr: string; values: number[]; approx?: boolean; near?: [number, number][]; nearValues?: number[] }[]
 }
 
 const golden = JSON.parse(
@@ -23,6 +23,14 @@ test('SDF golden 基线：确定性算术逐位一致 + trig/exp 容差一致', 
       const got = f(x, y)
       if (c.approx) expect(got, `${c.expr} @(${x},${y})`).toBeCloseTo(c.values[i], 12)
       else expect(got, `${c.expr} @(${x},${y})`).toBe(c.values[i])
+    })
+    // 近场采样：共享网格只覆盖远场角落（形状近场/smin/smax 混合带/ss 过渡区在此钉死，
+    // 求值器只在这些区域漂移时，远场网格不报警）
+    ;(c.near ?? []).forEach(([x, y], i) => {
+      const got = f(x, y)
+      const want = c.nearValues![i]
+      if (c.approx) expect(got, `${c.expr} near@(${x},${y})`).toBeCloseTo(want, 12)
+      else expect(got, `${c.expr} near@(${x},${y})`).toBe(want)
     })
   }
 })

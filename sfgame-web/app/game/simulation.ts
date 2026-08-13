@@ -27,6 +27,8 @@ const MIN_SOURCE_GAP = 3.2
 const SOURCE_HIT_RADIUS = 3.0
 const GROUND_PLACE_MARGIN = 0.6
 const GROUND_SNAP_LIFT = 0.7
+// 顶部禁带上限（世界单位）：常规世界取 3，小世界按 h/6 收缩，见 canPlaceAt
+const TOP_BAND = 3
 // URL 位置匹配容差：对齐 URL 的 1 位小数精度（舍入误差 ≤0.05）
 const URL_PRECISION_TOLERANCE = 0.06
 
@@ -161,9 +163,10 @@ export class LevelSimulation {
   }
 
   canPlaceAt(x: number, y: number): boolean {
-    const { w } = this.level.world
-    // 边界对齐 toWorld ±0.5 与粒子重生边界：整个可视世界皆可放置，无不可放置死角
-    if (x < 0.5 || x > w - 0.5 || y < 3) return false
+    const { w, h } = this.level.world
+    // 顶部禁带 = min(TOP_BAND, h/6)：常规世界保留顶部净空（太阳/状态视觉区），小世界按比例收缩——
+    // 与贴地净空（0.6）之和恒 < h，任何合法世界都不会"整图不可放置"
+    if (x < 0.5 || x > w - 0.5 || y < Math.min(TOP_BAND, h / 6)) return false
     if (this.terrain.sample(x, y) < GROUND_PLACE_MARGIN) return false
     for (const s of this.sources) {
       if (Math.sqrt((s.x - x) * (s.x - x) + (s.y - y) * (s.y - y)) < MIN_SOURCE_GAP) return false
@@ -266,7 +269,9 @@ export class LevelSimulation {
       // 距离用 sqrt(a²+b²) 而非 Math.hypot（跨引擎位级一致）
       const dx = this.plane.x - g.x
       const dy = this.plane.y - gy
-      if (Math.sqrt(dx * dx + dy * dy) >= g.r) continue
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      // 非有限距离（防御：上游 bake 已拒发散）绝不判抵达
+      if (!Number.isFinite(dist) || dist >= g.r) continue
       this.visited[i] = true
       this.visitedCount++
       changed = true

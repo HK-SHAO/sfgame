@@ -8,15 +8,14 @@
 
 ## 仓库布局
 
-- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡搭建指南）与 `docs/` 同仓
+- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡搭建指南）与仓库同仓
 - web 版本 app 源代码在 `sfgame-web/`，路径常需加上这个前缀
-- 要重点参考 `docs/development.md`
 
 ## 命令（以 package.json 为准）
 
 - 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`。脚本/插件运行时入口一律 bun（`bun run scripts/…`）；vite 经 `scripts/vite.mjs` 门面以 bun 运行时执行（`bun vite` 会尊重 bin 的 node shebang 而落到 node，config 内 Bun 全局失效；门面直接 import 入口绕过 shebang——wasm-rebuild 插件依赖 Bun）
 - 依赖经根 `package.json` workspaces（sfgame-web + cloudflare）统一管理：根目录一次 `bun install` 装齐，单一根 `bun.lock`；新依赖加到对应子包 package.json 后根目录重装
-- `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = build:wasm + test:moon + vitest
+- `bun run check` = typecheck → test → build（fail-fast 一键验证，顺序与语义以 package.json 为准）；`bun run test` = build:wasm + test:moon + vitest；根目录亦有同名透传脚本（--cwd sfgame-web），可在仓库根直接跑
 - `bun run dev` = vite（`scripts/plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `moon/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
 - `bun run build:wasm` = Moonbit 数值内核编译（moon 工具链需先装），wasm 单目标出单产物（dev/test/build 均已内置，改 moon/ 后无需手动跑）：
   - wasm 目标 → `app/wasm/sfengine.wasm`（流体+顶点批+示踪三内核单模块单内存；SDF 表达式求值器为纯 TS `app/game/sdf.ts`，不经 moon）
@@ -24,7 +23,7 @@
 - `bun run bench:moon` = 内核性能基线（moon bench；满网格流体步 ≈4.6ms @ 256×160，GS f64x2 双格 SIMD + MacCormack 平流；SIMD 在 bun/JSC 的"无地形全 bulk"路径误编译——生产恒有地形不触发，无地形测试路径是 JSC 例外，见 pitfalls I8）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
 - 关卡工具：`bun run scripts/run-level.ts levels/level-N.json --verify … --solve … --sim N`（物理内核恒为 WASM·Moonbit 内核；详见 `skills/level-design/SKILL.md` §5-6）
-- `bun run test` 通过 `tests/setup.ts` 预热 WASM 引擎（缺产物会抛错提示先 build:wasm）
+- `bun run test` 已内置 build:wasm（产物恒存在）；直跑 `vitest run`（不经脚本）才需先 `bun run build:wasm`（tests/setup.ts 预热 WASM 引擎，缺产物抛错）
 
 ## 类型配置
 
@@ -40,7 +39,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 - `app/game/` — 无头关卡逻辑：`simulation.ts`（LevelSimulation）、`state.ts`（URL 状态 schema 单例：lv/s/v/dev）、`levels.ts`（关卡加载/分组/解锁 + lv 双形态解析 + 关卡内容 hash）、`progress.ts`（通关记录：每关最佳总耗时与关卡 hash 绑定）
 - `app/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）
 - `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面遮挡；纸飞机与其拖尾在画面顶层，不被地面遮挡，画在旗/源/风扇之后；地形 = marching squares 固体填充：烘焙格心 SDF 场每关上传顶点批内核一次，每帧按视域单调用切 d=0 等值线（格内线性插值，矢量级锐边，鞍点拆独立三角、越界格钳场外推延展；地表色=旧描边色按 SDF 深度指数渐近混向原填充色，特征长度 GROUND_DEPTH_LEN=8））、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `moon/batch.mbt`，静态容量零分配，可无头测试）
-- `app/dev/` — ?dev=1 开发者工具：面板 + 性能块 + 关卡 JSON 编辑器（默认折叠）+ 开发者页面，由 app 持有跨关卡重建延续
+- `app/dev/` — ?dev=1 开发者工具：面板 + 性能块 + 关卡 JSON 编辑器（默认折叠）+ 开发者页面，由 app 持有跨关卡重建延续；dev 会话不进入 GA 上报（无限源/倍速会污染正式漏斗与转化率）
 - `app/core/` — 固定步长循环、音效与反馈（离散反馈一律走 `feedback.ts` 门面 = `sfx.ts` 音频 + `haptics.ts` 震动唯一配对点；连续风声层由 controller 直驱 sfx）、性能治理（`governor.ts` 降级策略 / `wind.ts` 风强度与落地判定，均纯逻辑可无头测试）、通用 URL 状态模块、分析上报门面（`analytics.ts` 语义 schema + 可注入 transport，传输适配器在 `ui/analytics-gtag.ts`——换上报服务只改适配器 + main.ts 装配）
 
 ## 拖尾约定（2026-08 起）

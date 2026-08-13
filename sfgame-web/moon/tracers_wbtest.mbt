@@ -1,4 +1,4 @@
-// 白盒：示踪粒子内核不变量（宿主侧全状态对拍由 tests/mbt-tracers-parity.test.ts 覆盖，
+// 白盒：示踪粒子内核不变量（宿主侧行为由 tests/tracers.test.ts 守护，
 // 且已证与 assembly 逐位一致；此处只测参数校验与 RNG 确定性）
 
 ///|

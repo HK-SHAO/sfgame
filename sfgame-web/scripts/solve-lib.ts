@@ -64,7 +64,6 @@ export function evalCandidate(
   let refX = sim.plane.x
   let refY = sim.plane.y
   for (let t = 0; t < cap; t += dt) {
-    const stepStart = sim.time
     sim.step(dt)
     const p = sim.plane
     // 流场发散（NaN/Inf）即内核在此运行时不可信：抛错而非继续产出假"通关"
@@ -76,7 +75,8 @@ export function evalCandidate(
     py = p.y
     if (sim.phase === 'won') {
       // 贴地秒数直取 sim.groundedTime：与游戏罚时同口径，免手工重复累计
-      return { won: true, time: stepStart, pathLen, groundTime: sim.groundedTime, progress: level.goals.length, sources: src.length }
+      // 通关时刻取 step 后的 sim.time（游戏端先 time+=dt 再判胜，展示口径同源）
+      return { won: true, time: sim.time, pathLen, groundTime: sim.groundedTime, progress: level.goals.length, sources: src.length }
     }
     if (earlyExit) {
       const dx = p.x - refX

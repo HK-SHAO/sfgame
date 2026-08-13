@@ -1,4 +1,4 @@
-// 白盒：流体内核不变量（宿主侧行为由 tests/mbt-fluid-parity.test.ts 对拍覆盖，此处只测内核自洽性）。
+// 白盒：流体内核不变量（宿主侧行为由 tests/fluid.test.ts 与 engine-golden 守护，此处只测内核自洽性）。
 // 内核状态为全局单例，每个测试先 reset 到干净网格
 
 ///|

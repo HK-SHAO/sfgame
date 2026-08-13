@@ -99,7 +99,7 @@ export class SfWinOverlay extends LitElement {
     }
 
     .desc {
-      margin: 0 0 1.375rem;
+      margin: 0 0 var(--sp-5-5);
       font-size: 0.875rem;
       line-height: 1.7;
       color: var(--ink-soft);
@@ -152,7 +152,7 @@ export class SfWinOverlay extends LitElement {
       flex-direction: column;
       gap: var(--sp-3);
       width: 100%;
-      max-width: 15rem;
+      max-width: var(--maxw-actions);
       margin: 0 auto;
     }
 
@@ -162,7 +162,7 @@ export class SfWinOverlay extends LitElement {
 
     .row {
       display: flex;
-      gap: 0.625rem;
+      gap: var(--sp-2-5);
       justify-content: center;
     }
 
@@ -173,7 +173,7 @@ export class SfWinOverlay extends LitElement {
     button {
       border: none;
       background: none;
-      padding: 0.6875rem 1.375rem;
+      padding: var(--ctl-pad);
       font-size: 0.875rem;
       font-weight: 600;
       border-radius: var(--r-lg);

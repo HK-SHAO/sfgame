@@ -23,8 +23,10 @@ function toGtagParams(e: AnalyticsEvent): Record<string, unknown> {
 }
 
 export function mountGtagAnalytics(): void {
-  const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag
-  if (typeof gtag !== 'function') return
-  const transport: AnalyticsTransport = (e) => gtag('event', e.type, toGtagParams(e))
+  // 惰性重取：gtag.js 可能晚于本装配加载（广告拦截/网络时序），mount 时缓存会把事件永久丢进 noop
+  const transport: AnalyticsTransport = (e) => {
+    const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag
+    if (typeof gtag === 'function') gtag('event', e.type, toGtagParams(e))
+  }
   analytics.transport = transport
 }

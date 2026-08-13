@@ -1,11 +1,12 @@
 import { LitElement, css, html, type PropertyValues } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { formatPenalty, formatTime } from '../game/timer.ts'
+import { boxReset } from './shared-styles.ts'
 
 // 声明式状态条：属性每帧由 sf-game 驱动，shouldUpdate 内格式化比对短路，文本未变零渲染成本
 @customElement('sf-status')
 export class SfStatusBar extends LitElement {
-  @property({ type: Number }) levelId = 0
+  @property({ type: Number }) levelNo = 0
   @property({ type: String }) levelName = ''
   @property({ type: Number }) time = 0
   @property({ type: Number }) penalty = 0
@@ -15,10 +16,10 @@ export class SfStatusBar extends LitElement {
   protected override shouldUpdate(changed: PropertyValues): boolean {
     const t = formatTime(this.time)
     const p = formatPenalty(this.penalty)
-    const lv = this.levelId > 0 ? `第 ${this.levelId} 关` : ''
+    const lv = this.levelNo > 0 ? `第 ${String(this.levelNo).padStart(2, '0')} 关` : ''
     const name = this.levelName
     if (
-      !changed.has('levelId') &&
+      !changed.has('levelNo') &&
       !changed.has('levelName') &&
       t === this.cached.t &&
       p === this.cached.p
@@ -40,7 +41,9 @@ export class SfStatusBar extends LitElement {
     `
   }
 
-  static styles = css`
+  static styles = [
+    boxReset,
+    css`
     :host {
       text-autospace: normal;
       position: fixed;
@@ -100,7 +103,7 @@ export class SfStatusBar extends LitElement {
       color: var(--ink-soft);
       font-weight: 500;
       font-size: 0.75rem;
-      margin-right: 0.125rem;
+      margin-right: var(--sp-0-5);
     }
 
     .t {
@@ -111,7 +114,8 @@ export class SfStatusBar extends LitElement {
       color: var(--ink-soft);
       font-weight: 500;
     }
-  `
+  `,
+  ]
 }
 
 declare global {

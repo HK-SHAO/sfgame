@@ -318,6 +318,9 @@ export class GlRenderer {
 
   // 顶点批上传→绘制尾段（bakeBg 与 draw 共用；成员方法零闭包，每帧调用 JIT 内联）
   drawBatch(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number) {
+    // 与其余 GL 入口同款守卫：restore 重建失败（lost 复位但 program/buffer 为 null）时不碰失效对象，
+    // 避免每帧向 null program 发 drawArrays（D9 恢复失败纪律）
+    if (this.lost || !this.program || !this.buffer || batch.count === 0) return
     const gl = this.gl
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
     const bytes = batch.count * VERTEX_STRIDE * 4

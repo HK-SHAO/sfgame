@@ -1,7 +1,7 @@
 // Wasm 底层原语（内联 WAT）。寻址约定：FixedArray 经 #borrow 传入内联 WAT 时，
 // i32 参数即数据区首地址（wasm 后端装箱传递表示，数据前头部在负偏移）——内核缓冲一律静态容量
 // FixedArray，宿主以导出地址建 typed view 零拷贝读写。该约定非文档化 ABI，由宿主握手测试
-// （tests/mbt-engine.test.ts）与流体对拍（tests/mbt-fluid-parity.test.ts）双向校验，
+// 由宿主握手测试（tests/engine-wasm.test.ts）与引擎位稳定性基线（tests/engine-golden.test.ts）守护，
 // 工具链升级若变更布局会响亮失败，绝不静默。
 
 ///|

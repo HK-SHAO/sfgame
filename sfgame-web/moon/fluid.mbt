@@ -143,7 +143,19 @@ pub fn fluid_init(
   iterations_ : Int,
   margin_cells_ : Int,
 ) -> Int {
-  guard nx_ >= 3 && ny_ >= 3 && nx_ <= grid_max_nx && ny_ <= grid_max_ny else { 1 }
+  // 防御面：cell 非正/NaN（采样除零产 NaN 场）与 margin 超界（sponge 越界写）不可接受；
+  // 侧带以 m≤nx−2 钉在场内；顶带 j≤m 依赖满容量静态缓冲（grid_max_cells）吸收 m=ny 的极端
+  guard
+    nx_ >= 3 &&
+    ny_ >= 3 &&
+    nx_ <= grid_max_nx &&
+    ny_ <= grid_max_ny &&
+    cell_ > 0.0 &&
+    margin_cells_ >= 0 &&
+    margin_cells_ <= nx_ - 2
+  else {
+    1
+  }
   pm.nx = nx_
   pm.ny = ny_
   pm.cell = cell_

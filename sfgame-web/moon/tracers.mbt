@@ -235,7 +235,8 @@ pub fn tracers_init(
   if count != t_count || trail_len != t_trail_len {
     return 1
   }
-  if snx < 2 || sny < 2 || snx * sny > sdf_capacity {
+  // scell 非正/NaN（采样除零/NaN 场）拒绝；!(>0) 同时捕获 NaN（NaN 比较恒 false）
+  if snx < 2 || sny < 2 || snx * sny > sdf_capacity || !(scell > 0.0) {
     return 2
   }
   ts.world_w = world_w

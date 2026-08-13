@@ -126,12 +126,12 @@ export const pageShell = css`
     letter-spacing: 0.01em;
   }
 
+  /* 居中 + 溢出兜底：子项 margin auto（禁 place-items，溢出双向裁切） */
   .icon-btn {
     flex: none;
     width: var(--ctl-h);
     height: var(--ctl-h);
     display: grid;
-    place-items: center;
     border: none;
     border-radius: var(--r-md);
     corner-shape: squircle;
@@ -147,6 +147,10 @@ export const pageShell = css`
 
   .icon-btn:active {
     transform: scale(0.97);
+  }
+
+  .icon-btn > * {
+    margin: auto;
   }
 
   .icon-btn svg {

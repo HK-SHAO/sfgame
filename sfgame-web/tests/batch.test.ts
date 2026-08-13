@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
 import { MeshBatch, VERTEX_STRIDE } from '../app/render/batch.ts'
+import { bakeSdf } from '../app/game/sdf.ts'
+import { gridAnchor, terrainDims } from '../app/sim/terrain.ts'
 
 function vertex(b: MeshBatch, k: number) {
   const o = k * VERTEX_STRIDE
@@ -91,6 +93,24 @@ test('terrainBake：marching squares 固体填充——等值线精确切割、�
   }
 })
 
+test('terrainBake 对齐烘焙场：格心锚点（gridAnchor）下等值线与物理面重合', () => {
+  const b = new MeshBatch()
+  // 生产链路：bakeSdf 在格心采样 + render 传 gridAnchor 锚点——平面地表 y=10 必须切出 y=10
+  // （角点锚定 −origin·cell 会恒偏半格切出 9.625，本测试即该回归的守护）
+  const cell = 0.75
+  const dims = terrainDims({ w: 40, h: 20 }, cell)
+  const field = bakeSdf('10 - y', dims.nx, dims.ny, dims.origin, cell)
+  expect(b.terrainSetup(
+    dims.nx, dims.ny, gridAnchor(dims.origin, cell), gridAnchor(dims.origin, cell), cell,
+    1, 0, 0, 0, 0, 1, 8,
+  )).toBe(true)
+  b.terrainField.set(field)
+  const n = b.terrainBake(0, 0, dims.nx - 1, dims.ny - 1)
+  let minY = Infinity
+  for (let k = 0; k < n; k++) minY = Math.min(minY, b.terrainData[k * VERTEX_STRIDE + 1])
+  expect(minY).toBeCloseTo(10, 5)
+})
+
 test('tracers 批量：单调用输出与 polylineFade + disc 逐顶点一致', () => {
   const b = new MeshBatch()
   const buf = b.tracerData
@@ -106,6 +126,28 @@ test('tracers 批量：单调用输出与 polylineFade + disc 逐顶点一致', 
   ref.disc(4, 0, 0.3, 0.3, 0, 10, 1, 0, 0, 0.8)
   expect(b.count).toBe(ref.count)
   for (let k = 0; k < b.count; k++) expect(vertex(b, k)).toEqual(vertex(ref, k))
+})
+
+test('tracers 边界：满记录（np=25）恰好写满 stride；越界 np 被内核钳制不串扰（G1-02 回归守护）', () => {
+  const b = new MeshBatch()
+  const buf = b.tracerData
+  const stride = b.tracerStride
+  expect(stride).toBe(80) // 5 + 25×3：TRAIL_LEN+1 恰满，零余量
+  // 满记录：24 拖尾 + 头点，末位 float 恰为头点 x
+  buf[0] = 1; buf[1] = 0; buf[2] = 0
+  buf[3] = 25; buf[4] = 0.5
+  for (let k = 0; k < 25; k++) {
+    buf[5 + k * 3] = k
+    buf[6 + k * 3] = 0
+    buf[7 + k * 3] = 0.4
+  }
+  b.tracers(1, 0.5, 0.3)
+  expect(b.count).toBeGreaterThan(0)
+  // 越界 np（26）被钳制：不越界读、不跨记录串扰（写入侧渲染已钳，此处钉内核防御）
+  buf[0] = 1; buf[1] = 0; buf[2] = 0
+  buf[3] = 26
+  b.reset()
+  expect(() => b.tracers(1, 0.5, 0.3)).not.toThrow()
 })
 
 test('静态容量：写满后整体丢弃图元不越界，reset 复用缓冲', () => {

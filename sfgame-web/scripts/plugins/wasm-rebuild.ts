@@ -23,8 +23,12 @@ export function wasmRebuild(): Plugin {
       return
     }
     compiling = true
-    await compileWasm()
-    compiling = false
+    try {
+      await compileWasm()
+    } finally {
+      // 编译抛错也必须复位：否则 compiling 恒 true，后续变更全被吞进 pending，重建链静默失效
+      compiling = false
+    }
     if (pending) {
       pending = false
       schedule()

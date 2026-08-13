@@ -1,18 +1,29 @@
 import { LitElement, css, html } from 'lit'
-import { customElement } from 'lit/decorators.js'
+import { customElement, property } from 'lit/decorators.js'
 import { boxReset, warmBg } from './shared-styles.ts'
 
-// 终端页：WebAssembly 不可用时由 main.ts 挂载（无游戏可玩，不提供任何入口）
+// 终端页：WebAssembly/WebGL 不可用时由装配方挂载（无游戏可玩，不提供任何入口）
 @customElement('sf-unsupported')
 export class SfUnsupported extends LitElement {
+  @property() reason: 'wasm' | 'webgl' = 'wasm'
+
   protected override render() {
+    const body =
+      this.reason === 'webgl'
+        ? html`
+            <p>渲染需要 WebGL</p>
+            <p>请升级浏览器或更换设备后重试。</p>
+          `
+        : html`
+            <p>物理模拟需要 WebAssembly</p>
+            <p>(Chrome 57+、Safari 11+、Firefox 52+)</p>
+            <p>请升级浏览器或更换设备后重试。</p>
+          `
     return html`
       <main class="page">
         <div class="card">
           <h1>此设备无法运行</h1>
-          <p>物理模拟需要 WebAssembly</p>
-          <p>(Chrome 57+、Safari 11+、Firefox 52+)</p>
-          <p>请升级浏览器或更换设备后重试。</p>
+          ${body}
         </div>
       </main>
     `

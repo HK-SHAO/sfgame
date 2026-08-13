@@ -3,13 +3,13 @@ import { GlRenderer } from './gl.ts'
 import { bilinearSample } from '../sim/fluid.ts'
 import type { EngineHandle } from '../wasm/engine.ts'
 import type { Tracers } from '../sim/particles.ts'
-import type { Clouds } from '../sim/clouds.ts'
+import { CLOUD_COUNT, type Clouds } from '../sim/clouds.ts'
 import { fadeRetention, TRAIL_FADE_T, type Trail } from '../sim/trail.ts'
 import { PLANE_LOCAL } from '../sim/bodies.ts'
 import type { Vec2 } from '../sim/types.ts'
 import type { LevelSimulation } from '../game/simulation.ts'
 import { fanDirection } from '../game/simulation.ts'
-import type { Terrain } from '../sim/terrain.ts'
+import { gridAnchor, type Terrain } from '../sim/terrain.ts'
 import { GOAL_LIFT, LONG_PRESS_MS, type PressVisual } from '../sim/types.ts'
 
 export interface SceneState {
@@ -110,12 +110,15 @@ export class Renderer {
   private oy = 0
   // 地形 SDF 场：关卡变化时上传内核一次（marching squares 每帧切等值线），每帧只按视域发范围
   private terrainKey: Terrain | null = null
-  // 地形烘焙输出：视域（格索引串）变化才重烘，每帧免 marching squares 重切
-  private terrainBakeKey: string | null = null
+  // 地形烘焙输出：视域（格索引数值四分量）变化才重烘——数值比较免模板串分配（D4 热路径零分配）
+  private ti0 = NaN
+  private tj0 = NaN
+  private ti1 = NaN
+  private tj1 = NaN
   private terrainCount = 0
   private bgDirty = true
-  // 云顶点批（pos2+uv2+alpha+seed × 6 顶点/云）：形状全在片元，宿主只发四边形
-  private cloudBuf = new Float32Array(3 * 6 * 6)
+  // 云顶点批（pos2+uv2+alpha+seed × 6 顶点/云）：形状全在片元，宿主只发四边形；容量随 CLOUD_COUNT 单源
+  private cloudBuf = new Float32Array(CLOUD_COUNT * 6 * 6)
   lastVertexCount = 0
   lastUploadBytes = 0
 
@@ -194,15 +197,18 @@ export class Renderer {
     const t = sim.terrain
     if (t !== this.terrainKey) this.setupTerrain(b, t)
     const tc = t.cell
-    const ti0 = Math.floor(viewL / tc + t.originX) - 1
-    const tj0 = Math.floor(viewT / tc + t.originY) - 1
-    const ti1 = Math.ceil(viewR / tc + t.originX) + 1
-    const tj1 = Math.ceil(viewB / tc + t.originY) + 1
-    const tKey = `${ti0},${tj0},${ti1},${tj1}`
-    if (this.terrainBakeKey !== tKey) {
+    // 格索引映射与 terrain.sample 同式（x/cell − 0.5 + origin）：烘焙锚点在格心，格 (i,j) 即场采样点
+    const ti0 = Math.floor(viewL / tc - 0.5 + t.originX) - 1
+    const tj0 = Math.floor(viewT / tc - 0.5 + t.originY) - 1
+    const ti1 = Math.ceil(viewR / tc - 0.5 + t.originX) + 1
+    const tj1 = Math.ceil(viewB / tc - 0.5 + t.originY) + 1
+    if (ti0 !== this.ti0 || tj0 !== this.tj0 || ti1 !== this.ti1 || tj1 !== this.tj1) {
       this.terrainCount = b.terrainBake(ti0, tj0, ti1, tj1)
       gl.uploadTerrain(b.terrainData, this.terrainCount)
-      this.terrainBakeKey = tKey
+      this.ti0 = ti0
+      this.tj0 = tj0
+      this.ti1 = ti1
+      this.tj1 = tj1
     }
     b.reset()
     // 遮挡契约（远→近）：天空烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
@@ -242,15 +248,19 @@ export class Renderer {
   // SDF 场上传内核（每关一次）：此后 marching squares 在 terrainBake 里切一次 d=0 等值线（静态几何），
   // 每帧仅绘制烘焙输出；配色 = 地表色随入地深度指数渐近混向填充色，采样与物理同源
   private setupTerrain(b: MeshBatch, t: Terrain) {
+    // 锚点 = 格心（gridAnchor）：烘焙在格心采样、内核把 field[i,j] 当格点值——对齐后等值线即物理面
     if (!b.terrainSetup(
-      t.nx, t.ny, -t.originX * t.cell, -t.originY * t.cell, t.cell,
+      t.nx, t.ny, gridAnchor(t.originX, t.cell), gridAnchor(t.originY, t.cell), t.cell,
       GROUND_EDGE[0], GROUND_EDGE[1], GROUND_EDGE[2],
       GROUND_FILL[0], GROUND_FILL[1], GROUND_FILL[2],
       GROUND_DEPTH_LEN,
     )) throw new Error('地形场超出顶点批内核容量')
     b.terrainField.set(t.field)
     this.terrainKey = t
-    this.terrainBakeKey = null
+    this.ti0 = NaN
+    this.tj0 = NaN
+    this.ti1 = NaN
+    this.tj1 = NaN
   }
 
   private drawSunHalo(b: MeshBatch) {
@@ -266,7 +276,7 @@ export class Renderer {
   private fillClouds(clouds: Clouds): number {
     const d = this.cloudBuf
     let n = 0
-    for (let i = 0; i < clouds.count; i++) {
+    for (let i = 0; i < clouds.count && n < CLOUD_COUNT; i++) {
       const a = clouds.alpha[i]
       if (a <= VISIBLE_ALPHA) continue
       // 四边形 = 可见云体（片元基椭圆约 0.68/0.61 占空）的反算包围盒
@@ -471,6 +481,8 @@ export class Renderer {
     const buf = b.tracerData
     const stride = b.tracerStride
     const cap = b.tracerCap
+    // 定长记录点数上限（头点占末位）：写入钳制，防越界写跨记录串扰（内核侧另有镜像钳制）
+    const maxPts = (stride - 5) / 3
     const now = tracers.time
     let m = 0
     for (let i = 0; i < count && m < cap; i++) {
@@ -494,7 +506,8 @@ export class Renderer {
       buf[off + 2] = cb
       buf[off + 4] = headAlpha
       let np = 0
-      const n = trailN[i]
+      // 头点占末位：拖尾点最多 maxPts−1（写入钳制，与内核 b_tracers 的读取钳制成对）
+      const n = Math.min(trailN[i], maxPts - 1)
       if (n > 0) {
         const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
         const base = i * trailLen

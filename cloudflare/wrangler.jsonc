@@ -16,7 +16,8 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true,
+	// 纯静态 assets 部署本无 .map 可传；一旦开启 vite build.sourcemap，true 会把完整 TS 源码公开上传——显式关闭
+	"upload_source_maps": false,
 	"compatibility_flags": [
 		"nodejs_compat",
 	],

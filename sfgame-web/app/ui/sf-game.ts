@@ -4,6 +4,7 @@ import type { SourceKind } from '../sim/types.ts'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types.ts'
 import type { PerfRecorder } from '../dev/devtools.ts'
 import { GameController } from './controller.ts'
+import { levelNo } from '../game/levels.ts'
 import './status-bar'
 import { boxReset, reduceMotion } from './shared-styles.ts'
 
@@ -11,6 +12,7 @@ import { boxReset, reduceMotion } from './shared-styles.ts'
 export const HUD_CHANGE = 'hudchange'
 export const DENY = 'deny'
 export const SRC_CHANGE = 'sourceschange'
+export const UNSUPPORTED = 'unsupported'
 export interface DenyDetail {
   kind: SourceKind
   clientX: number
@@ -70,6 +72,11 @@ export class SfGame extends LitElement {
         this.statusPenalty = extra
       },
     }, this, this.devTools)
+    // WebGL 不可用是持久条件：与 wasm 失败同策略明示无法运行，绝不带病盲玩（可写入通关记录的无声局）
+    if (!this.controller.renderable) {
+      this.dispatchEvent(new Event(UNSUPPORTED))
+      return
+    }
     // 首轮 update 完成后再启动：start 内 fit 同步 render → onStatus 直写 @state，
     // firstUpdated 链内值变触发 change-in-update（如 URL 带源直达罚时 0→4）
     void this.updateComplete.then(() => {
@@ -105,7 +112,7 @@ export class SfGame extends LitElement {
       <canvas role="img" aria-label="烧风：放置热源与冷源，用风把纸飞机送达目标"></canvas>
       <div class="deny-ring" aria-hidden="true"></div>
       <sf-status
-        .levelId=${this.level?.id ?? ''}
+        .levelNo=${levelNo(this.level?.id ?? '')}
         .levelName=${this.level?.name ?? ''}
         .time=${this.statusTime}
         .penalty=${this.statusPenalty}

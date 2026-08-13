@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { keyed } from 'lit/directives/keyed.js'
 import { customElement, property } from 'lit/decorators.js'
-import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash } from '../game/levels.ts'
+import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash, levelNo } from '../game/levels.ts'
 import { progress } from '../game/progress.ts'
 import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
@@ -115,8 +115,8 @@ export class SfTitleScreen extends LitElement {
                 ? { cls: 'fair', emoji: '🙂' }
                 : { cls: 'good', emoji: '🏆' }
             : null
-          // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变；序数按 LEVELS 全局顺序派生，与 slug 解耦
-          const no = String(LEVELS.findIndex((x) => x.id === l.id) + 1).padStart(2, '0')
+          // 关卡号双位补零：列对齐稳定（01~15），不随位数跳变；序数 = levelNo（标题屏与状态条同源）
+          const no = String(levelNo(l.id)).padStart(2, '0')
           return keyed(l.id, html`
             <button
               class="level play ${locked ? 'locked' : ''}"
@@ -250,7 +250,7 @@ export class SfTitleScreen extends LitElement {
         display: block;
         width: 12rem;
         max-width: 100%;
-        margin: 0 auto 0.625rem;
+        margin: 0 auto var(--sp-2-5);
         font-size: 0;
         line-height: 0;
       }
@@ -424,7 +424,7 @@ export class SfTitleScreen extends LitElement {
 
       /* 最佳成绩徽章：仅有关卡记录时出现；耗时评级配色（优秀绿 = 纪录语义 / 一般琥珀 / 不优秀红） */
       .level .best {
-        padding: 0.1875rem 0.5rem;
+        padding: var(--chip-pad);
         font-size: 0.75rem;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
@@ -470,7 +470,7 @@ export class SfTitleScreen extends LitElement {
       .link-btn {
         display: inline-flex;
         align-items: center;
-        gap: 0.375rem;
+        gap: var(--sp-1-5);
         padding: var(--sp-2) var(--sp-4);
         font-size: 0.75rem;
         color: var(--ink-soft);

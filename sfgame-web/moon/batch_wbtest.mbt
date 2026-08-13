@@ -1,4 +1,4 @@
-// 白盒：顶点批内核不变量（宿主侧数值对拍由 tests/mbt-batch-parity.test.ts 覆盖，
+// 白盒：顶点批内核不变量（宿主侧行为由 tests/batch.test.ts 守护，
 // 且已证与 assembly 逐位一致；此处只测内核自洽结构）
 
 ///|

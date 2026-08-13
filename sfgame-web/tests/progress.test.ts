@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { PlayerProgress, type ProgressStorage } from '../app/game/progress.ts'
+import { BUILTIN_LEVEL_HASHES } from '../app/game/levels.ts'
 
 function memStorage(): { storage: ProgressStorage; raw(): string | null } {
   let raw: string | null = null
@@ -65,4 +66,24 @@ test('损坏数据容错：非法 JSON/未知版本/非法条目安全回落', (
   const vOld = memStorage()
   vOld.storage.set(JSON.stringify({ v: 2, levels: {} }))
   expect(new PlayerProgress(vOld.storage).best('h1')).toBeUndefined()
+})
+
+test('负值条目被拒：不为毒化最佳纪录留后门（R3-02 回归守护）', () => {
+  const { storage } = memStorage()
+  storage.set(JSON.stringify({ v: 1, levels: { h1: { time: -5, extra: 0, at: 1 } } }))
+  const p = new PlayerProgress(storage)
+  expect(p.best('h1')).toBeUndefined() // 负条目视为损坏，不再进入纪录集
+  expect(p.record('h1', { time: 1, extra: 0, at: 2 })).toBe(0) // 合法新纪录可写入
+})
+
+test('内联条目修剪：超 50 条按写入时间裁最旧（内置 hash 永不动）', () => {
+  const { storage, raw } = memStorage()
+  const p = new PlayerProgress(storage)
+  const builtin = [...BUILTIN_LEVEL_HASHES][0]
+  for (let i = 0; i < 51; i++) p.record(`inline-${i}`, { time: 10 + i, extra: 0, at: 1000 + i })
+  p.record(builtin, { time: 1, extra: 0, at: 1 })
+  const data = JSON.parse(raw() ?? '{}') as { levels: Record<string, unknown> }
+  const inline = Object.keys(data.levels).filter((k) => k.startsWith('inline-'))
+  expect(inline.length).toBe(50) // 最旧 1 条被裁
+  expect(data.levels[builtin]).toBeDefined() // 内置条目不动（即使 at 最旧）
 })

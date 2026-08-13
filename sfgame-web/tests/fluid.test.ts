@@ -83,6 +83,34 @@ test('门面 sampleVelocity 与内核导出 sampleVelocity 逐位一致', () => 
   }
 })
 
+// 生产路径 margin>0（origin 偏移格）：JS bilinearSample 与内核导出逐位一致——margin=0 只钉主路径，
+// 生产每关 margin=10，若内核采样公式漂移只更新 golden 探针会漏掉 JS 侧
+test('margin>0 采样：门面/内核导出/JS bilinearSample 逐位一致', () => {
+  const engine = createEngine()
+  const cfg: FluidConfig = { ...CFG, nx: 56, ny: 40, margin: 6 }
+  const f = createFluid(cfg, engine)
+  f.setAmbient(0.3, -0.2)
+  for (let i = 0; i < 120; i++) {
+    f.addHeat(42, 30, 16 * DT)
+    f.step(DT)
+  }
+  const { u, v, t, fxU, fxV } = f.fieldViews()
+  const org = engine.origin
+  const out1 = { x: 0, y: 0 }
+  const out2 = { x: 0, y: 0 }
+  for (let k = 0; k < 64; k++) {
+    const px = ((k * 7.13) % 80) + 0.4
+    const py = ((k * 3.77) % 56) + 0.4
+    bilinearSample(u, v, t, fxU, fxV, cfg.nx, cfg.ny, cfg.cell, org.x, org.y, 0.3, -0.2, px, py, out1)
+    f.sampleVelocity(px, py, out2)
+    expect(out1.x).toBe(out2.x)
+    expect(out1.y).toBe(out2.y)
+    engine.ex.sampleVelocity(px, py)
+    expect(out2.x).toBe(engine.ex.outX())
+    expect(out2.y).toBe(engine.ex.outY())
+  }
+})
+
 // 位流基场：横向环境风贴地绕流——迎风坡爬升、背风坡下沉（y 向下，上升 = v<0）
 test('ambient 横向风顺坡而上（基场绕流）', () => {
   const f = createFluid(CFG)

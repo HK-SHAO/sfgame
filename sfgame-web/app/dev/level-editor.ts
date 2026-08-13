@@ -4,6 +4,7 @@ import { parseLevelText } from '../game/level-format.ts'
 import { levelSource } from '../game/levels.ts'
 import { urlState } from '../game/state.ts'
 import { iconAlert, iconChevron } from '../ui/icons.ts'
+import { boxReset } from '../ui/shared-styles.ts'
 
 @customElement('sf-level-editor')
 export class SfLevelEditor extends LitElement {
@@ -12,7 +13,9 @@ export class SfLevelEditor extends LitElement {
   @state() private editorText = ''
   @state() private error = ''
 
-  static styles = css`
+  static styles = [
+    boxReset,
+    css`
     :host {
       display: block;
       /* dev 面板内的滚动条/控件按浅色渲染 */
@@ -132,9 +135,10 @@ export class SfLevelEditor extends LitElement {
       flex: none;
       width: 0.875rem;
       height: 0.875rem;
-      margin-top: 0.125rem;
+      margin-top: var(--sp-0-5);
     }
-  `
+  `,
+  ]
 
   protected override render() {
     return html`

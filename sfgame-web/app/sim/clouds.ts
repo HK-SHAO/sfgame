@@ -2,7 +2,7 @@ import type { FluidLike } from './fluid.ts'
 import type { TerrainLike } from './terrain.ts'
 import type { WorldBounds } from './types.ts'
 
-const CLOUD_COUNT = 3
+export const CLOUD_COUNT = 3
 // 半径 ×√(2/3)：视觉面积（感知体积）约为原设计的 2/3
 const CLOUD_R_MIN = 4.6
 const CLOUD_R_SPAN = 3.3

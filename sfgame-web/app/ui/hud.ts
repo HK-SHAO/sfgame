@@ -107,7 +107,6 @@ export class SfHud extends LitElement {
         display: block;
         /* --hud-h 内聚于此（供 dev-panel 子树继承）；.hud 是 absolute 不撑高，显式 height 才与可视高度一致 */
         height: var(--hud-h);
-        --hud-pad: 0.5625rem;
         --hud-h: calc(var(--hud-pad) * 2 + var(--ctl-h) + env(safe-area-inset-top, 0px));
       }
 
@@ -174,7 +173,7 @@ export class SfHud extends LitElement {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 0.375rem;
+        gap: var(--sp-1-5);
         padding: 0 var(--sp-3);
         border-radius: var(--r-md);
         corner-shape: squircle;

@@ -39,7 +39,14 @@ export async function compileWasm(opts: { force?: boolean } = {}): Promise<boole
   }
   const t0 = performance.now()
   rmSync(join(moonDir, '_build'), { recursive: true, force: true })
-  const r = Bun.spawnSync(['moon', 'build', '--release', '--target', 'wasm'], { cwd: moonDir })
+  let r: ReturnType<typeof Bun.spawnSync>
+  try {
+    r = Bun.spawnSync(['moon', 'build', '--release', '--target', 'wasm'], { cwd: moonDir })
+  } catch {
+    // 工具链缺失：spawnSync 对不存在的可执行文件直接抛错（非返回 success=false）——友好提示，保持失败语义
+    console.error('[moon] 未找到 moon 工具链：请先安装 Moonbit 并确保 moon 在 PATH 中')
+    return false
+  }
   if (!r.success) {
     const ms = (performance.now() - t0).toFixed(0)
     console.error(`[moon] wasm 编译 ✗（保留旧产物）${ms}ms`)

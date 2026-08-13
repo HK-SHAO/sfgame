@@ -291,7 +291,10 @@ export function bakeSdf(src: string, nx: number, ny: number, origin: number, cel
     const wy = (j - origin + 0.5) * cell
     const row = j * nx
     for (let i = 0; i < nx; i++) {
-      out[i + row] = f((i - origin + 0.5) * cell, wy)
+      const v = f((i - origin + 0.5) * cell, wy)
+      // 发散单点即拒绝（sqrt 负域/除零/∞−∞）：NaN 会被掩码判空气、被距离比较判"抵达"，静默坏局
+      if (!Number.isFinite(v)) throw new SdfError(`SDF 在 (${(i - origin + 0.5) * cell}, ${wy}) 处发散`)
+      out[i + row] = v
     }
   }
   return out

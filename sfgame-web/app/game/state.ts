@@ -31,6 +31,10 @@ export type AppView = 'title' | 'dev' | 'storage' | 'about'
 // 其余再试 base64 解码——损坏载荷（非法字符/坏填充/非 UTF-8）一律落 null 由调用方净化
 export type LvValue = { id: string } | { json: string } | null
 
+// 内联关卡载荷上限（b64url 字符）：合法关卡 ~1KB，16KB 留足编辑器余量；
+// 超限落 null（防超长输入进入 JSON 解析与烘焙——恶意 URL 借此驱动无界工作量）
+const LV_RAW_MAX = 16_000
+
 export const lvCodec: UrlStateCodec<LvValue> = {
   encode(v) {
     if (v === null) return ''
@@ -40,6 +44,7 @@ export const lvCodec: UrlStateCodec<LvValue> = {
   decode(raw) {
     if (raw === null || raw === '') return null
     if (ID_PATTERN.test(raw)) return { id: raw }
+    if (raw.length > LV_RAW_MAX) return null
     try {
       // fatal: 非法 UTF-8（损坏的 base64 输入）抛错回落 null，而非产出替换符垃圾串
       const text = new TextDecoder('utf-8', { fatal: true }).decode(fromBase64Url(raw))

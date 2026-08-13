@@ -141,7 +141,8 @@ class Sfx {
         document.addEventListener('visibilitychange', () => {
           if (!this.ctx) return
           if (document.hidden) void this.ctx.suspend()
-          else if (this.ctx.state === 'suspended') void this.ctx.resume()
+          // suspended 之外，iOS 打断场景会停在 'interrupted' 且回前台不自动恢复——非 running 即恢复
+          else if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => {})
         })
       } catch {
         // WebAudio 创建失败（极端环境）：静默降级为无音效，游戏照常
@@ -150,7 +151,7 @@ class Sfx {
         return
       }
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume()
+    if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => {})
   }
 
   // planeRel 是飞机相对空气的速度：随风飘安静，逆风/坠落切割空气才呼啸

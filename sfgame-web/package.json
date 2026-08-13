@@ -12,12 +12,12 @@
     "dev": "bun scripts/vite.mjs",
     "build": "bun build:wasm && bun scripts/vite.mjs build",
     "preview": "bun scripts/vite.mjs preview",
-    "test": "bun test:moon && vitest run",
+    "test": "bun run build:wasm && bun run test:moon && vitest run",
     "typecheck": "bun tsc -b",
     "build:wasm": "bun scripts/build-wasm.ts",
     "test:moon": "cd moon && moon test",
     "bench:moon": "cd moon && moon bench",
-    "check": "bun run build && bun run test"
+    "check": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "lit": "^3.3.3"

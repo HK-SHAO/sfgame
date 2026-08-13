@@ -4,7 +4,7 @@
 
 ///|
 let vertex_stride : Int = 6
-// 最坏帧 ≈ 地形 ~11 万 + 示踪 ~7 万 + 其余 ~1 万：留足余量，取 12 整倍便于恰好写满
+// 最坏帧 ≈ 示踪 ~7 万 + 其余 ~1 万：留足余量，取 12 整倍便于恰好写满（地形已迁出主批至独立 tg_data）
 
 ///|
 let capacity : Int = 262152
@@ -804,7 +804,9 @@ pub fn b_tracers(count : Int, w : Double, head_r : Double) -> Unit {
     let r = tracer_buf[off].to_double()
     let g = tracer_buf[off + 1].to_double()
     let bl = tracer_buf[off + 2].to_double()
-    let np = tracer_buf[off + 3].to_double().to_int()
+    let np_raw = tracer_buf[off + 3].to_double().to_int()
+    // np 由宿主写入：钳到定长记录上限——越界读头点会跨记录串扰（末条则越出缓冲）
+    let np = if np_raw > tracer_max_pts { tracer_max_pts } else { np_raw }
     let head_a = tracer_buf[off + 4].to_double()
     if np <= 0 {
       continue

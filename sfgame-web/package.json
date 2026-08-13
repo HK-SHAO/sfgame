@@ -9,15 +9,15 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "bun node_modules/vite/bin/vite.js",
-    "build": "bun run typecheck && bun run test && bun vite build",
-    "preview": "bun node_modules/vite/bin/vite.js preview",
-    "test": "bun run build:wasm && bun run test:moon && bun vitest run",
+    "dev": "bun scripts/vite.mjs",
+    "build": "bun build:wasm && bun scripts/vite.mjs build",
+    "preview": "bun scripts/vite.mjs preview",
+    "test": "bun test:moon && vitest run",
     "typecheck": "bun tsc -b",
-    "build:wasm": "bun run scripts/build-wasm.ts",
+    "build:wasm": "bun scripts/build-wasm.ts",
     "test:moon": "cd moon && moon test && moon test sdf --target js",
     "bench:moon": "cd moon && moon bench",
-    "check": "bun run build"
+    "check": "bun run build && bun run test"
   },
   "dependencies": {
     "lit": "^3.3.3"

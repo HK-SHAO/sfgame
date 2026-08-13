@@ -14,7 +14,7 @@
 
 ## 命令（以 package.json 为准）
 
-- 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`。脚本/插件运行时入口一律 bun（`bun run scripts/…`）；vite 经 `bun node_modules/vite/bin/vite.js` 以 bun 运行时执行（bin 的 node shebang 会被 bun 尊重而落到 node，直接给文件路径才能保证 config 内 Bun 全局可用——wasm-rebuild 插件依赖它）
+- 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`。脚本/插件运行时入口一律 bun（`bun run scripts/…`）；vite 经 `scripts/vite.mjs` 门面以 bun 运行时执行（`bun vite` 会尊重 bin 的 node shebang 而落到 node，config 内 Bun 全局失效；门面直接 import 入口绕过 shebang——wasm-rebuild 插件依赖 Bun）
 - 依赖经根 `package.json` workspaces（sfgame-web + cloudflare）统一管理：根目录一次 `bun install` 装齐，单一根 `bun.lock`；新依赖加到对应子包 package.json 后根目录重装
 - `bun run check` = typecheck → test → build（fail-fast 一键验证）；`bun run test` = build:wasm + test:moon + vitest
 - `bun run dev` = vite（`scripts/plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `moon/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数

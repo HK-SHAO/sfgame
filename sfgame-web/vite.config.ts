@@ -7,6 +7,7 @@ export default defineConfig({
   base: './',
   plugins: [wasmRebuild(), copyLevelSchema()],
   build: {
+    minify: true,
     // Safari 不消费 modulepreload 缓存并误报 "preloaded but not used"，禁用注入
     modulePreload: false,
     rollupOptions: {

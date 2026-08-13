@@ -457,6 +457,8 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 
 **补充（2026-08 SOR 实验实踩）**：具体触发条件之一 = **SIMD 读同格写入目标**（GS 的 SOR 需读 p_old=p[idx] 再写回 p[idx]，打包 f64x2 后 bun 误编译，负常数 splat / 松弛形式 p+ω·(gs−p) 均复现；node/V8 逐位正确）。原 plain GS SIMD 只读邻居不读自身，不受影响。**Safari 同为 JSC，有同源风险**——改物理加"读自身"类 SIMD 前必须 bun/node 双运行时对拍 golden。
 
+**补充（2026-08 第二触发：全空气全 bulk 路径）**：即使 plain GS 也会误编译——**无地形（solid 空）时**每个内域格都是 bulk、全部走 gs_pair 双格 SIMD，bun/JSC 下速度场产出全零（`tests/fluid.test.ts` 首条「热源上升风」实测 v≈0.28 而 node/V8 得 v≈6）。有地形时 bulk/边界标量混合、或 node/V8，均正常；golden 四场景都带地形，故 `bun node_modules/vitest/vitest.mjs run`（bun 运行时）只挂这一条而 golden 全绿。**结论：vitest 必须经 `bun vitest run`（bin shebang → node/V8）运行，禁止改成 `bun node_modules/vitest/vitest.mjs run`（bun/JSC）**；改 gs_pair 后如需 bun 下验证，务必含无地形场景对拍。
+
 ### I6 iOS Safari WebGL（ANGLE→Metal）性能要点（2026-08 实测 + WebKit bug 255987）
 **根因**：iOS 15.4 起 WebGL 默认走 Metal 后端，同内容 GPU 负载显著更高（"内容本质是 GPU 受限"），另有帧呈现依赖（254912，可致有效 30fps）等系统问题；Chrome/Android/macOS Safari 无此问题。
 **对策**（已落地）：

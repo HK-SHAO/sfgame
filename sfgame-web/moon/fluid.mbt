@@ -541,7 +541,12 @@ pub fn out_y() -> Double {
 // 4 抽头双线性（gx/gy 已 clamp 的格坐标）：操作数顺序固定 = 逐位契约，fluid/tracers 共用
 
 ///|
-fn bilinear4(f : FixedArray[Float], nx : Int, gx : Double, gy : Double) -> Double {
+fn bilinear4(
+  f : FixedArray[Float],
+  nx : Int,
+  gx : Double,
+  gy : Double,
+) -> Double {
   let i0 = gx.floor().to_int()
   let j0 = gy.floor().to_int()
   let fx = gx - i0.to_double()
@@ -827,7 +832,9 @@ fn project_div() -> Unit {
 ///|
 fn lanes02(v : V128) -> V128 {
   @v128.f64x2_promote_low_f32x4(
-    @v128.i8x16_shuffle(v, v, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15),
+    @v128.i8x16_shuffle(
+      v, v, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15,
+    ),
   )
 }
 
@@ -840,14 +847,20 @@ fn gs_pair(a : Int) -> Unit {
   let v2 = v128_load4_f32(p, off + 4)
   let ha = lanes02(v1)
   let hb = @v128.f64x2_promote_low_f32x4(
-    @v128.i8x16_shuffle(v1, v2, 8, 9, 10, 11, 24, 25, 26, 27, 4, 5, 6, 7, 12, 13, 14, 15),
+    @v128.i8x16_shuffle(
+      v1, v2, 8, 9, 10, 11, 24, 25, 26, 27, 4, 5, 6, 7, 12, 13, 14, 15,
+    ),
   )
   let h = @v128.f64x2_add(ha, hb)
   let vu = lanes02(v128_load4_f32(p, off - nx * 4))
   let vd = lanes02(v128_load4_f32(p, off + nx * 4))
   let t = @v128.f64x2_add(h, vu)
   let s = @v128.f64x2_add(t, vd)
-  let d = v128_load1_f64_lane1(div_h2, (a + 2) * 8, v128_load1_f64(div_h2, a * 8))
+  let d = v128_load1_f64_lane1(
+    div_h2,
+    (a + 2) * 8,
+    v128_load1_f64(div_h2, a * 8),
+  )
   let s = @v128.f64x2_mul(@v128.f64x2_sub(s, d), @v128.f64x2_splat(0.25))
   let f = @v128.f32x4_demote_f64x2_zero(s)
   v128_store1_f32_lane0(p, off, f)
@@ -861,10 +874,13 @@ fn gs_cell(idx : Int) -> Unit {
   let nx = pm.nx
   if bulk[idx] != b'\x00' {
     p[idx] = Float::from_double(
-      (p[idx - 1].to_double() +
-      p[idx + 1].to_double() +
-      p[idx - nx].to_double() +
-      p[idx + nx].to_double() - div_h2[idx]) *
+      (
+        p[idx - 1].to_double() +
+        p[idx + 1].to_double() +
+        p[idx - nx].to_double() +
+        p[idx + nx].to_double() -
+        div_h2[idx]
+      ) *
       0.25,
     )
   } else {
@@ -888,9 +904,7 @@ fn gs_cell(idx : Int) -> Unit {
     } else {
       p[idx + nx].to_double()
     }
-    p[idx] = Float::from_double(
-      (p_l + p_r + p_u + p_d - div_h2[idx]) * 0.25,
-    )
+    p[idx] = Float::from_double((p_l + p_r + p_u + p_d - div_h2[idx]) * 0.25)
   }
 }
 
@@ -904,8 +918,10 @@ fn project_gs() -> Unit {
       while k < n {
         let a = list[k]
         // 相邻同奇偶双格（b=a+2 且双 bulk）打包 SIMD；否则逐格慢路径
-        if k + 1 < n && list[k + 1] == a + 2 &&
-          bulk[a] != b'\x00' && bulk[a + 2] != b'\x00' {
+        if k + 1 < n &&
+          list[k + 1] == a + 2 &&
+          bulk[a] != b'\x00' &&
+          bulk[a + 2] != b'\x00' {
           gs_pair(a)
           k = k + 2
           continue

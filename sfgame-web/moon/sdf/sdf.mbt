@@ -311,9 +311,11 @@ fn parse_number(p : Parser) -> Node raise {
   }
   guard p.i > start else { fail("无效数字（位置 \{p.i}）") }
   // 词法已保证 token 形态合法，解析失败视为数字无效
-  let v = Float::from_double(@string.parse_double(p.src[start:p.i]) catch {
-    _ => fail("无效数字（位置 \{start}）")
-  })
+  let v = Float::from_double(
+    @string.parse_double(p.src[start:p.i]) catch {
+      _ => fail("无效数字（位置 \{start}）")
+    },
+  )
   Num(v)
 }
 
@@ -531,10 +533,7 @@ fn compile_node(n : Node) -> ((Float, Float) -> Float raise) raise {
     Call(kind, args) => {
       let compiled = args.map(compile_node)
       // scratch 每 call 节点独享复用，嵌套调用各持各的，无冲突（热路径零分配）
-      let scratch : FixedArray[Float] = FixedArray::make(
-        compiled.length(),
-        0.0,
-      )
+      let scratch : FixedArray[Float] = FixedArray::make(compiled.length(), 0.0)
       (x, y) => {
         for i in 0..<compiled.length() {
           scratch[i] = compiled[i](x, y)

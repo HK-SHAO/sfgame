@@ -58,7 +58,11 @@ extern "wasm" fn v128_load1_f64(a : FixedArray[Double], off : Int) -> V128 =
 
 ///|
 #borrow(a)
-extern "wasm" fn v128_load1_f64_lane1(a : FixedArray[Double], off : Int, v : V128) -> V128 =
+extern "wasm" fn v128_load1_f64_lane1(
+  a : FixedArray[Double],
+  off : Int,
+  v : V128,
+) -> V128 =
   #|(func (param i32 i32 v128) (result v128)
   #|  local.get 0
   #|  local.get 1
@@ -68,7 +72,11 @@ extern "wasm" fn v128_load1_f64_lane1(a : FixedArray[Double], off : Int, v : V12
 
 ///|
 #borrow(a)
-extern "wasm" fn v128_store1_f32_lane0(a : FixedArray[Float], off : Int, v : V128) -> Unit =
+extern "wasm" fn v128_store1_f32_lane0(
+  a : FixedArray[Float],
+  off : Int,
+  v : V128,
+) -> Unit =
   #|(func (param i32 i32 v128)
   #|  local.get 0
   #|  local.get 1
@@ -78,7 +86,11 @@ extern "wasm" fn v128_store1_f32_lane0(a : FixedArray[Float], off : Int, v : V12
 
 ///|
 #borrow(a)
-extern "wasm" fn v128_store1_f32_lane1(a : FixedArray[Float], off : Int, v : V128) -> Unit =
+extern "wasm" fn v128_store1_f32_lane1(
+  a : FixedArray[Float],
+  off : Int,
+  v : V128,
+) -> Unit =
   #|(func (param i32 i32 v128)
   #|  local.get 0
   #|  local.get 1

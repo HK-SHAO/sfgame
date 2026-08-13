@@ -57,7 +57,10 @@ let tg_field : FixedArray[Float] = FixedArray::make(tg_cap, 0.0)
 let tg_out_cap : Int = 115200
 
 ///|
-let tg_data : FixedArray[Float] = FixedArray::make(tg_out_cap * vertex_stride, 0.0)
+let tg_data : FixedArray[Float] = FixedArray::make(
+  tg_out_cap * vertex_stride,
+  0.0,
+)
 
 ///|
 let tg_cx : FixedArray[Double] = FixedArray::make(4, 0.0)

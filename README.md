@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="sfgame-web/public/logo-title.webp" width="220" alt="烧风">
+  <img src="sfgame-web/src/assets/logo-title.webp" width="220" alt="烧风">
 </p>
 
 <h1 align="center">烧风 · Shaofeng</h1>

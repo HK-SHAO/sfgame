@@ -143,17 +143,13 @@ class Parser {
   }
 
   private term(): Node {
-    let a = this.factor()
+    let a = this.unary()
     for (;;) {
       const op = this.peekOp(['*', '/'])
       if (!op) return a
       this.i++
-      a = { k: 'bin', op, a, b: this.factor() }
+      a = { k: 'bin', op, a, b: this.unary() }
     }
-  }
-
-  private factor(): Node {
-    return this.unary()
   }
 
   private unary(): Node {

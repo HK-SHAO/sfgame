@@ -9,6 +9,8 @@
 
 <p align="center">
   <a href="https://sf.game.shao.fun" target="_blank" rel="noopener noreferrer"><b>▶ 立即试玩 · Play Now</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://www.bilibili.com/video/BV1RMgW6nE72/" target="_blank" rel="noopener noreferrer"><b>观看视频</b></a>
 </p>
 
 ## 怎么玩 · How to Play

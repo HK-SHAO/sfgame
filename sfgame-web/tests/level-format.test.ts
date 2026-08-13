@@ -12,6 +12,10 @@ test('SDF 表达式求值：四则/函数/x、y 变量，语法错误抛 SdfErro
   expect(compileSdf('smoothstep(x)')(0.5, 0)).toBe(0.5)
   expect(compileSdf('abs(x) * sqrt(4)')(3, 0)).toBe(6)
   expect(compileSdf('min(x, y)')(3, 7)).toBe(3)
+  // 数字字面量形态（.5/科学计数法）
+  expect(compileSdf('.5')(0, 0)).toBe(0.5)
+  expect(compileSdf('1e3')(0, 0)).toBe(1000)
+  expect(compileSdf('2.5e-1')(0, 0)).toBe(0.25)
   // 幂/取模不进词法（避免 ^ 歧义与非距离语义）
   expect(() => compileSdf('x ^ 2')).toThrow(SdfError)
   expect(() => compileSdf('x % 2')).toThrow(SdfError)

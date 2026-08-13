@@ -36,8 +36,8 @@ export function loadLevel(file: string): LevelDef {
 export interface EvalOptions {
   dt?: number
   cap?: number
-  // 早停：卡死检测（仅搜索用，verify 不传）——5s 内位移 < 0.05 判死局提前终止，
-  // 把死候选的评估成本从满 cap 压到 ~5s，吞吐量数量级提升
+  // 早停：卡死检测（仅搜索用，verify 不传）——10s 内位移 < 0.05 判死局提前终止，
+  // 太激进会截断"等风"型候选（中途停滞等气流再动的解），10s 平衡吞吐与召回
   earlyExit?: boolean
 }
 
@@ -88,7 +88,7 @@ export function evalCandidate(
         refX = p.x
         refY = p.y
       }
-      if (stall > 300) {
+      if (stall > 600) {
         return { won: false, time: -1, pathLen, groundTime: sim.groundedTime, progress: sim.visitedCount * 1000 + Math.min(sim.plane.x, level.world.w), sources: src.length }
       }
     }

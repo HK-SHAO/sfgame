@@ -162,9 +162,9 @@ export class SfTitleScreen extends LitElement {
           href="https://www.bilibili.com/video/BV1RMgW6nE72/"
           target="_blank"
           rel="noopener"
-          aria-label="B站视频"
+          aria-label="观看视频"
         >
-          ${iconPlay}<span>B站视频</span>
+          ${iconPlay}<span>观看视频</span>
         </a>
         ${!this.dev
           ? html`<button

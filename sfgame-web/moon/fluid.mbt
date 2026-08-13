@@ -823,48 +823,100 @@ fn project_div() -> Unit {
 // 相内遍历顺序不影响读取值（air_even/odd 表行主序与旧逐行扫描逐位等价）。
 // bulk 主体格四邻全空气，免固体邻居检查直读（多数格命中）；边界格走含固体替换的完整路径
 
+// GS 双格 SIMD 快路径：相邻同奇偶格（b=a+2）打包 f64x2 双车道，每车道独立格，
+// f64 中间量加法顺序与标量一致（((pL+pR)+pU)+pD − div_h2）×0.25 → 逐位等价。
+// p[a+1]（异相位格）由对相位本迭代重写后才被读取，故写回仅限各自车道（双 32 位存储）
+
+///|
+fn gs_pair(a : Int) -> Unit {
+  let nx = pm.nx
+  let off = a * 4
+  let v1 = v128_load4_f32(p, off - 4)
+  let v2 = v128_load4_f32(p, off + 4)
+  // HA = (p[a-1], p[a+1])、HB = (p[a+1], p[a+3])：车道 = 格 a / 格 b 的横邻居对
+  let ha = @v128.f64x2_promote_low_f32x4(
+    @v128.i8x16_shuffle(v1, v1, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15),
+  )
+  let hb = @v128.f64x2_promote_low_f32x4(
+    @v128.i8x16_shuffle(v1, v2, 8, 9, 10, 11, 24, 25, 26, 27, 4, 5, 6, 7, 12, 13, 14, 15),
+  )
+  let h = @v128.f64x2_add(ha, hb)
+  // 竖邻居（p[a±nx] 与 p[a+2±nx] 相距 8 字节，非连续）：4 宽载入 + 抽 lane0/lane2
+  let vu_v = v128_load4_f32(p, off - nx * 4)
+  let vd_v = v128_load4_f32(p, off + nx * 4)
+  let vu = @v128.f64x2_promote_low_f32x4(
+    @v128.i8x16_shuffle(vu_v, vu_v, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15),
+  )
+  let vd = @v128.f64x2_promote_low_f32x4(
+    @v128.i8x16_shuffle(vd_v, vd_v, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15),
+  )
+  let t = @v128.f64x2_add(h, vu)
+  let s = @v128.f64x2_add(t, vd)
+  let d = v128_load1_f64_lane1(div_h2, (a + 2) * 8, v128_load1_f64(div_h2, a * 8))
+  let s = @v128.f64x2_mul(@v128.f64x2_sub(s, d), @v128.f64x2_splat(0.25))
+  let f = @v128.f32x4_demote_f64x2_zero(s)
+  v128_store1_f32_lane0(p, off, f)
+  v128_store1_f32_lane1(p, off + 8, f)
+}
+
+// GS 单格路径（未配对格）：bulk 走免检查快表达式，边界格走含固体替换的完整路径
+
+///|
+fn gs_cell(idx : Int) -> Unit {
+  let nx = pm.nx
+  if bulk[idx] != b'\x00' {
+    p[idx] = Float::from_double(
+      (p[idx - 1].to_double() +
+      p[idx + 1].to_double() +
+      p[idx - nx].to_double() +
+      p[idx + nx].to_double() - div_h2[idx]) *
+      0.25,
+    )
+  } else {
+    let p_l : Double = if solid[idx - 1] != b'\x00' {
+      p[idx].to_double()
+    } else {
+      p[idx - 1].to_double()
+    }
+    let p_r : Double = if solid[idx + 1] != b'\x00' {
+      p[idx].to_double()
+    } else {
+      p[idx + 1].to_double()
+    }
+    let p_u : Double = if solid[idx - nx] != b'\x00' {
+      p[idx].to_double()
+    } else {
+      p[idx - nx].to_double()
+    }
+    let p_d : Double = if solid[idx + nx] != b'\x00' {
+      p[idx].to_double()
+    } else {
+      p[idx + nx].to_double()
+    }
+    p[idx] = Float::from_double(
+      (p_l + p_r + p_u + p_d - div_h2[idx]) * 0.25,
+    )
+  }
+}
+
 ///|
 fn project_gs() -> Unit {
-  let nx = pm.nx
   for _ in 0..<pm.iterations {
     for phase in 0..<2 {
       let list = if phase == 0 { air_even } else { air_odd }
       let n = if phase == 0 { pm.air_even_count } else { pm.air_odd_count }
-      for k in 0..<n {
-        let idx = list[k]
-        if bulk[idx] != b'\x00' {
-          p[idx] = Float::from_double(
-            (p[idx - 1].to_double() +
-            p[idx + 1].to_double() +
-            p[idx - nx].to_double() +
-            p[idx + nx].to_double() - div_h2[idx]) *
-            0.25,
-          )
-        } else {
-          let p_l : Double = if solid[idx - 1] != b'\x00' {
-            p[idx].to_double()
-          } else {
-            p[idx - 1].to_double()
-          }
-          let p_r : Double = if solid[idx + 1] != b'\x00' {
-            p[idx].to_double()
-          } else {
-            p[idx + 1].to_double()
-          }
-          let p_u : Double = if solid[idx - nx] != b'\x00' {
-            p[idx].to_double()
-          } else {
-            p[idx - nx].to_double()
-          }
-          let p_d : Double = if solid[idx + nx] != b'\x00' {
-            p[idx].to_double()
-          } else {
-            p[idx + nx].to_double()
-          }
-          p[idx] = Float::from_double(
-            (p_l + p_r + p_u + p_d - div_h2[idx]) * 0.25,
-          )
+      let mut k = 0
+      while k < n {
+        let a = list[k]
+        // 相邻同奇偶双格（b=a+2 且双 bulk）打包 SIMD；否则逐格慢路径
+        if k + 1 < n && list[k + 1] == a + 2 &&
+          bulk[a] != b'\x00' && bulk[a + 2] != b'\x00' {
+          gs_pair(a)
+          k = k + 2
+          continue
         }
+        gs_cell(a)
+        k = k + 1
       }
     }
   }

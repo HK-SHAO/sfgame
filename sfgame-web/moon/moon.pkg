@@ -10,6 +10,7 @@ supported_targets = "wasm"
 import {
   "moonbitlang/core/math",
   "moonbitlang/core/cmp",
+  "moonbitlang/core/v128",
 }
 
 import {

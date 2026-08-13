@@ -108,6 +108,8 @@ async function cmdSolve() {
   ) as Set<'hot' | 'cold'>
   // 候选点离地高度下限：贴地源扰动易埋进地形，高鲁棒关卡用 --min-dy 8 抬离地面搜
   const minDy = Number(opt('--min-dy', '0'))
+  // 暖启动：已知解源数一致时作 GA 种子（f32 物理迁移后刀刃解失效，从旧解邻域重新搜）
+  const knownSeed = KNOWN_SOLUTIONS[level.id]?.src
   const { best, hall } = await geneticSolve({
     level,
     levelFile,
@@ -118,6 +120,7 @@ async function cmdSolve() {
     kinds,
     solveCap,
     minDy,
+    seed: knownSeed && knownSeed.length === n ? knownSeed : undefined,
     onStatus: (gen, ms, best, restart) => {
       if (restart) console.log(`[solve] 第 ${gen} 代 · 停滞重启（重随机）`)
       else console.log(`[solve] 第 ${gen} 代 · ${(ms / 1000).toFixed(0)}s · 最优 ${best ? fmt(best.m) : '—'}`)

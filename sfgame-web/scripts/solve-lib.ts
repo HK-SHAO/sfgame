@@ -36,6 +36,9 @@ export function loadLevel(file: string): LevelDef {
 export interface EvalOptions {
   dt?: number
   cap?: number
+  // 早停：卡死检测（仅搜索用，verify 不传）——5s 内位移 < 0.05 判死局提前终止，
+  // 把死候选的评估成本从满 cap 压到 ~5s，吞吐量数量级提升
+  earlyExit?: boolean
 }
 
 export function evalCandidate(
@@ -45,6 +48,7 @@ export function evalCandidate(
 ): CandidateMetric {
   const dt = opts.dt ?? FINE_DT
   const cap = opts.cap ?? 120
+  const earlyExit = opts.earlyExit ?? false
   const sim = new LevelSimulation(level)
   // 坐标统一舍入到 1 位小数：URL 只保留 1 位小数，候选解必须"URL 可放置"才有效（刀刃解玩家无法复现）
   for (const [x, y, k] of src) {
@@ -56,6 +60,9 @@ export function evalCandidate(
   let pathLen = 0
   let px = sim.plane.x
   let py = sim.plane.y
+  let stall = 0
+  let refX = sim.plane.x
+  let refY = sim.plane.y
   for (let t = 0; t < cap; t += dt) {
     const stepStart = sim.time
     sim.step(dt)
@@ -64,12 +71,26 @@ export function evalCandidate(
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
       throw new Error('流场发散（NaN）：当前运行时无法正确执行 WASM 流体内核')
     }
-    pathLen += Math.hypot(p.x - px, p.y - py)
+    pathLen += Math.sqrt((p.x - px) * (p.x - px) + (p.y - py) * (p.y - py))
     px = p.x
     py = p.y
     if (sim.phase === 'won') {
       // 贴地秒数直取 sim.groundedTime：与游戏罚时同口径，免手工重复累计
       return { won: true, time: stepStart, pathLen, groundTime: sim.groundedTime, progress: level.goals.length, sources: src.length }
+    }
+    if (earlyExit) {
+      const dx = p.x - refX
+      const dy = p.y - refY
+      if (dx * dx + dy * dy < 0.0025) {
+        stall = stall + 1
+      } else {
+        stall = 0
+        refX = p.x
+        refY = p.y
+      }
+      if (stall > 300) {
+        return { won: false, time: -1, pathLen, groundTime: sim.groundedTime, progress: sim.visitedCount * 1000 + Math.min(sim.plane.x, level.world.w), sources: src.length }
+      }
     }
   }
   return {

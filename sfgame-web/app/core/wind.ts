@@ -23,12 +23,12 @@ export function sampleWind(
   let sum = 0
   for (const pr of probes) {
     fluid.sampleVelocity(pr.x, pr.y, out)
-    sum += Math.hypot(out.x, out.y)
+    sum += Math.sqrt(out.x * out.x + out.y * out.y)
   }
   fluid.sampleVelocity(plane.x, plane.y, out)
   return {
-    field: (sum + Math.hypot(out.x, out.y)) / (probes.length + 1),
-    rel: Math.hypot(plane.vx - out.x, plane.vy - out.y),
+    field: (sum + Math.sqrt(out.x * out.x + out.y * out.y)) / (probes.length + 1),
+    rel: Math.sqrt((plane.vx - out.x) * (plane.vx - out.x) + (plane.vy - out.y) * (plane.vy - out.y)),
   }
 }
 

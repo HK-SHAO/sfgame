@@ -459,6 +459,8 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 
 **补充（2026-08 第二触发：全空气全 bulk 路径）**：即使 plain GS 也会误编译——**无地形（solid 空）时**每个内域格都是 bulk、全部走 gs_pair 双格 SIMD，bun/JSC 下速度场产出全零（`tests/fluid.test.ts` 首条「热源上升风」实测 v≈0.28 而 node/V8 得 v≈6）。有地形时 bulk/边界标量混合、或 node/V8，均正常；golden 四场景都带地形，故 `bun node_modules/vitest/vitest.mjs run`（bun 运行时）只挂这一条而 golden 全绿。**结论：vitest 必须经 `bun vitest run`（bin shebang → node/V8）运行，禁止改成 `bun node_modules/vitest/vitest.mjs run`（bun/JSC）**；改 gs_pair 后如需 bun 下验证，务必含无地形场景对拍。
 
+**终局（2026-08 跨引擎位级一致决策）**：f32x4 四格 SIMD 复现同一触发（无地形全 bulk 下 bun/JSC 全零，node/V8 正确）。为满足"Chrome/Safari 长时程数值完全一致"，**GS SIMD 已全部移除，回归纯标量**（满网格 1.53→1.97ms，~29% 代价换跨引擎位级一致）。副产品：JS 物理路径的 `Math.hypot`（飞机摩擦/地形法线/源间距）在 V8/JSC 末位不一致（实测长时程轨迹发散），已全改 `sqrt(a²+b²)`（IEEE 精确运算，跨引擎逐位确定）——`Math.atan2` 只作用于机头朝向（纯表现层，不进物理）。教训：**跨引擎一致性优先级高于 SIMD 微优化**；新增数值代码先 bun/node 双运行时对拍再合入。
+
 ### I6 iOS Safari WebGL（ANGLE→Metal）性能要点（2026-08 实测 + WebKit bug 255987）
 **根因**：iOS 15.4 起 WebGL 默认走 Metal 后端，同内容 GPU 负载显著更高（"内容本质是 GPU 受限"），另有帧呈现依赖（254912，可致有效 30fps）等系统问题；Chrome/Android/macOS Safari 无此问题。
 **对策**（已落地）：

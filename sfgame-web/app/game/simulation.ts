@@ -167,7 +167,7 @@ export class LevelSimulation {
     if (x < 0.5 || x > w - 0.5 || y < 3) return false
     if (this.terrain.sample(x, y) < GROUND_PLACE_MARGIN) return false
     for (const s of this.sources) {
-      if (Math.hypot(s.x - x, s.y - y) < MIN_SOURCE_GAP) return false
+      if (Math.sqrt((s.x - x) * (s.x - x) + (s.y - y) * (s.y - y)) < MIN_SOURCE_GAP) return false
     }
     return true
   }
@@ -176,7 +176,7 @@ export class LevelSimulation {
     let best: Source | null = null
     let bestDist = SOURCE_HIT_RADIUS
     for (const s of this.sources) {
-      const d = Math.hypot(s.x - x, s.y - y)
+      const d = Math.sqrt((s.x - x) * (s.x - x) + (s.y - y) * (s.y - y))
       if (d < bestDist) {
         bestDist = d
         best = s
@@ -263,8 +263,11 @@ export class LevelSimulation {
       if (this.visited[i]) continue
       const g = this.level.goals[i]
       const gy = this.goalGroundY[i] - GOAL_LIFT
-      // 圆心/半径与渲染虚线圆一致：滑行与飞行同等计数（#11）
-      if (Math.hypot(this.plane.x - g.x, this.plane.y - gy) >= g.r) continue
+      // 圆心/半径与渲染虚线圆一致：滑行与飞行同等计数（#11）；
+      // 距离用 sqrt(a²+b²) 而非 Math.hypot（跨引擎位级一致）
+      const dx = this.plane.x - g.x
+      const dy = this.plane.y - gy
+      if (Math.sqrt(dx * dx + dy * dy) >= g.r) continue
       this.visited[i] = true
       this.visitedCount++
       changed = true

@@ -66,8 +66,9 @@ export function stepBody(body: Body, fluid: FluidLike, dt: number, terrain: Terr
       body.vx -= vn * tmpN.x
       body.vy -= vn * tmpN.y
     }
-    // 投影后速度即切向分量：恒定减速度 μ·g 线性减速到停
-    const sp = Math.hypot(body.vx, body.vy)
+    // 投影后速度即切向分量：恒定减速度 μ·g 线性减速到停；
+    // 距离用 sqrt(a²+b²) 而非 Math.hypot（后者 V8/JSC 末位不一致，长时程会放大）
+    const sp = Math.sqrt(body.vx * body.vx + body.vy * body.vy)
     if (sp > 0) {
       const fric = GROUND_FRICTION_MU * GRAVITY * dt
       const s = sp > fric ? (sp - fric) / sp : 0
@@ -77,7 +78,7 @@ export function stepBody(body: Body, fluid: FluidLike, dt: number, terrain: Terr
   }
 
   // 机头朝运动方向：drag 使速度收敛于风，故即"机头稳稳指向风向"；无风落地时自然垂向坡面
-  const speed = Math.hypot(body.vx, body.vy)
+  const speed = Math.sqrt(body.vx * body.vx + body.vy * body.vy)
   if (speed > 0.01) {
     body.angle += wrapAngle(Math.atan2(body.vy, body.vx) - body.angle) * Math.min(1, ATT_RATE * dt)
   }

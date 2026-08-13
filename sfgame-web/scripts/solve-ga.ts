@@ -19,15 +19,20 @@ export interface GaOptions {
   solveCap: number
   // 候选点离地高度下限（透传 spotGrid）：抬离地面搜高鲁棒解
   minDy?: number
+  // 暖启动种子（已知解）：源数一致时前 1/4 种群用其扰动填充，快速进入正确盆地
+  seed?: SourceTuple[]
   // 周期进度（每 5s 一次）与停滞重启上报：restart=true 即本次为重启事件
   onStatus?: (gen: number, elapsedMs: number, best: GaEntry | null, restart: boolean) => void
 }
 
 export async function geneticSolve(opts: GaOptions): Promise<{ best: GaEntry | null; hall: GaEntry[] }> {
-  const { level, levelFile, n, budgetMs, workerCount, rng, kinds, solveCap, minDy, onStatus } = opts
+  const { level, levelFile, n, budgetMs, workerCount, rng, kinds, solveCap, minDy, seed, onStatus } = opts
   const spots = spotGrid(level, minDy).filter((s) => kinds.has(s[2]))
   const pool = new WorkerPool(levelFile, workerCount)
   let pop: SourceTuple[][] = []
+  // 暖启动：已知解（源数一致）扰动填充前 1/4 种群，其余随机
+  const seededCount = seed && seed.length === n ? Math.floor(POP / 4) : 0
+  for (let i = 0; i < seededCount; i++) pop.push(perturbSeed(seed!, spots, rng))
   while (pop.length < POP) pop.push(randomSources(n, spots, rng))
 
   const hall: GaEntry[] = []
@@ -76,6 +81,17 @@ function randomSources(n: number, spots: SourceTuple[], rng: () => number): Sour
   const c: SourceTuple[] = []
   for (let j = 0; j < n; j++) c.push(spots[Math.floor(rng() * spots.length)])
   return c
+}
+
+// 暖启动扰动：每个源在网格邻域 ±2 步内随机平移（保持 URL 一位小数）
+function perturbSeed(seed: SourceTuple[], spots: SourceTuple[], rng: () => number): SourceTuple[] {
+  return seed.map(([x, y, k]) => {
+    let idx = spots.findIndex((p) => p[0] === x && p[1] === y && p[2] === k)
+    if (idx < 0) idx = spots.findIndex((p) => p[2] === k)
+    if (idx < 0) return [x, y, k]
+    idx = Math.min(spots.length - 1, Math.max(0, idx + Math.floor(rng() * 5) - 2))
+    return spots[idx]
+  })
 }
 
 function srcKey(src: SourceTuple[]): string {

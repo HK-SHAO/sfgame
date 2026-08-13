@@ -15,6 +15,8 @@ interface Job {
   src: SourceTuple[]
   // 可选：--refine 下发长 cap；缺省 35s 快筛
   cap?: number
+  // 搜索侧恒开早停（worker 只服务搜索，verify 走主进程 evalCandidate）
+  earlyExit?: boolean
 }
 
 const rl = createInterface({ input: process.stdin })
@@ -27,6 +29,6 @@ for await (const line of rl) {
     continue
   }
   // cap 缺省 35s（调用方 --solve/--refine 均显式下发；--solve 默认 90s，--refine 用长 cap）
-  const m: CandidateMetric = evalCandidate(level, job.src, { dt: FINE_DT, cap: job.cap ?? 35 })
+  const m: CandidateMetric = evalCandidate(level, job.src, { dt: FINE_DT, cap: job.cap ?? 35, earlyExit: job.earlyExit ?? true })
   console.log(JSON.stringify({ id: job.id, m }))
 }

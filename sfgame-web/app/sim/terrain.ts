@@ -78,7 +78,7 @@ export function terrainFromField(field: Float32Array, dims: TerrainDims, cell: n
   function normal(x: number, y: number, out: Vec2): void {
     const dx = sample(x + cell, y) - sample(x - cell, y)
     const dy = sample(x, y + cell) - sample(x, y - cell)
-    const len = Math.hypot(dx, dy)
+    const len = Math.sqrt(dx * dx + dy * dy)
     if (len < 1e-6) {
       out.x = 0
       out.y = -1

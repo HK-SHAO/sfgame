@@ -45,7 +45,8 @@ coverage
 *.njsproj
 *.sln
 *.sw?
-.tmp
+.tmp*
+.bun-cache
 # AI 工具本地配置（settings.local 等）
 .claude/
 .qoder/

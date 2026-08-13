@@ -67,7 +67,9 @@ export interface BatchExports {
     nx: number, ny: number, x0: number, y0: number, cell: number,
     sr: number, sg: number, sb: number, dr: number, dg: number, db: number, depthLen: number,
   ): number
-  bTerrainDraw(i0: number, j0: number, i1: number, j1: number): void
+  bTerrainDraw(i0: number, j0: number, i1: number, j1: number): number
+  bTerrainData(): number
+  bTerrainCap(): number
   bTracers(count: number, w: number, headR: number): void
   bDisc(
     cx: number, cy: number, rx: number, ry: number, rot: number, seg: number,

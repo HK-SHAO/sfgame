@@ -110,6 +110,9 @@ export class Renderer {
   private oy = 0
   // 地形 SDF 场：关卡变化时上传内核一次（marching squares 每帧切等值线），每帧只按视域发范围
   private terrainKey: Terrain | null = null
+  // 地形烘焙输出：视域（格索引串）变化才重烘，每帧免 marching squares 重切
+  private terrainBakeKey: string | null = null
+  private terrainCount = 0
   private bgDirty = true
   // 云顶点批（pos2+uv2+alpha+seed × 6 顶点/云）：形状全在片元，宿主只发四边形
   private cloudBuf = new Float32Array(3 * 6 * 6)
@@ -187,6 +190,20 @@ export class Renderer {
     }
 
     const b = this.batch
+    // 地形静态几何：setup（每关）+ bake（场/视域变化才重烘）+ 上传（每次 bake 后）——每帧仅 drawArrays
+    const t = sim.terrain
+    if (t !== this.terrainKey) this.setupTerrain(b, t)
+    const tc = t.cell
+    const ti0 = Math.floor(viewL / tc + t.originX) - 1
+    const tj0 = Math.floor(viewT / tc + t.originY) - 1
+    const ti1 = Math.ceil(viewR / tc + t.originX) + 1
+    const tj1 = Math.ceil(viewB / tc + t.originY) + 1
+    const tKey = `${ti0},${tj0},${ti1},${tj1}`
+    if (this.terrainBakeKey !== tKey) {
+      this.terrainCount = b.terrainBake(ti0, tj0, ti1, tj1)
+      gl.uploadTerrain(b.terrainData, this.terrainCount)
+      this.terrainBakeKey = tKey
+    }
     b.reset()
     // 遮挡契约（远→近）：天空烘焙进背景纹理（一次不透明 blit 最底）→ 太阳光晕 → 气流粒子与轨迹 →
     // 太阳盘面 → 云（独立 GLSL 趟：遮粒子与日芒）→ 地形固体填充（云被山体精确遮挡）→ 旗杆 →
@@ -197,8 +214,8 @@ export class Renderer {
     const pass1 = b.count
     gl.draw(b, viewL, viewT, viewR, viewB)
     gl.drawClouds(this.cloudBuf, this.fillClouds(scene.clouds), viewL, viewT, viewR, viewB, sim.time)
+    gl.drawTerrain(this.terrainCount, viewL, viewT, viewR, viewB)
     b.reset()
-    this.drawTerrain(b, sim, viewL, viewT, viewR, viewB)
     this.drawGoalPoles(b, sim)
     this.drawGoal(b, sim)
     this.drawFixedSources(b, sim)
@@ -207,7 +224,7 @@ export class Renderer {
     this.drawPlaneTrail(b, sim, planeTrail)
     this.drawPlane(b, sim)
     if (press && press.kind === 'place') this.drawPress(b, press, now)
-    this.lastVertexCount = pass1 + b.count
+    this.lastVertexCount = pass1 + b.count + this.terrainCount
     this.lastUploadBytes = (pass1 + b.count) * VERTEX_STRIDE * 4
     gl.drawBatch(b, viewL, viewT, viewR, viewB)
   }
@@ -222,22 +239,9 @@ export class Renderer {
     if (bottomBandTop < viewB) b.rect(viewL, bottomBandTop, viewR, viewB, ...SKY_BOTTOM, 1)
   }
 
-  private drawTerrain(b: MeshBatch, sim: LevelSimulation, viewL: number, viewT: number, viewR: number, viewB: number) {
-    const t = sim.terrain
-    if (t !== this.terrainKey) this.uploadTerrain(b, t)
-    // 视域格心索引范围（越界由内核钳场延展）：单调用发当前可见格
-    const c = t.cell
-    b.terrainDraw(
-      Math.floor(viewL / c + t.originX) - 1,
-      Math.floor(viewT / c + t.originY) - 1,
-      Math.ceil(viewR / c + t.originX) + 1,
-      Math.ceil(viewB / c + t.originY) + 1,
-    )
-  }
-
-  // SDF 场上传内核（每关一次）：绘制端每帧 marching squares 切 d=0 等值线，轮廓矢量级锐利；
-  // 配色 = 地表色（旧描边色）随入地深度指数渐近混向原填充色，采样与物理同源
-  private uploadTerrain(b: MeshBatch, t: Terrain) {
+  // SDF 场上传内核（每关一次）：此后 marching squares 在 terrainBake 里切一次 d=0 等值线（静态几何），
+  // 每帧仅绘制烘焙输出；配色 = 地表色随入地深度指数渐近混向填充色，采样与物理同源
+  private setupTerrain(b: MeshBatch, t: Terrain) {
     if (!b.terrainSetup(
       t.nx, t.ny, -t.originX * t.cell, -t.originY * t.cell, t.cell,
       GROUND_EDGE[0], GROUND_EDGE[1], GROUND_EDGE[2],
@@ -246,6 +250,7 @@ export class Renderer {
     )) throw new Error('地形场超出顶点批内核容量')
     b.terrainField.set(t.field)
     this.terrainKey = t
+    this.terrainBakeKey = null
   }
 
   private drawSunHalo(b: MeshBatch) {

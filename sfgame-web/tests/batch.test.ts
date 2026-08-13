@@ -6,6 +6,11 @@ function vertex(b: MeshBatch, k: number) {
   return Array.from(b.data.subarray(o, o + VERTEX_STRIDE))
 }
 
+function terrainVertex(b: MeshBatch, k: number) {
+  const o = k * VERTEX_STRIDE
+  return Array.from(b.terrainData.subarray(o, o + VERTEX_STRIDE))
+}
+
 test('stroke：线段展开为宽度正确的四边形，零长度无顶点', () => {
   const b = new MeshBatch()
   b.stroke(0, 0, 2, 0, 0.4, 1, 1, 1, 1)
@@ -42,7 +47,7 @@ test('polylineFade：逐顶点 alpha 随数组生效', () => {
   expect(vertex(b, 1)[5]).toBeCloseTo(0.75, 5)
 })
 
-test('terrainDraw：marching squares 固体填充——等值线精确切割、全固格深度色、空气格跳过', () => {
+test('terrainBake：marching squares 固体填充——等值线精确切割、全固格深度色、空气格跳过', () => {
   const b = new MeshBatch()
   // 3×3 格心场（cell=1，原点 (0,10)）：顶行空气（d=1）、下两行实体（d=−1）
   const f = b.terrainField
@@ -52,10 +57,9 @@ test('terrainDraw：marching squares 固体填充——等值线精确切割、�
   expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 0)).toBe(false) // 长度非法
   expect(b.terrainSetup(200, 100, 0, 0, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(false) // 超容量
   b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)
-  b.terrainDraw(0, 0, 2, 2)
   // 行 0：上空气下实体 → 等值线 y=10.5 切出矩形 6 顶点；行 1 全固 6 顶点；两列共 24
-  expect(b.count).toBe(24)
-  const cut = Array.from({ length: 6 }, (_, k) => vertex(b, k)) // 首格（i=0,j=0）
+  expect(b.terrainBake(0, 0, 2, 2)).toBe(24)
+  const cut = Array.from({ length: 6 }, (_, k) => terrainVertex(b, k)) // 首格（i=0,j=0）
   // 等值线交点：y=10.5，地表色（1,0,0）不透明
   for (const v of cut.filter((v) => Math.abs(v[1] - 10.5) < 1e-5)) expect(v.slice(2)).toEqual([1, 0, 0, 1])
   // 实体角点 d=−1：指数渐近混色 k = 1−exp(−0.5)
@@ -67,43 +71,24 @@ test('terrainDraw：marching squares 固体填充——等值线精确切割、�
   }
 
   // 越界：位置外推、场钳至边缘列（地形延展），不崩不丢
-  b.reset()
-  b.terrainDraw(-1, 0, 0, 1)
-  expect(b.count).toBe(6)
+  expect(b.terrainBake(-1, 0, 0, 1)).toBe(6)
   let minX = Infinity
-  for (let k = 0; k < 6; k++) minX = Math.min(minX, vertex(b, k)[0])
+  for (let k = 0; k < 6; k++) minX = Math.min(minX, terrainVertex(b, k)[0])
   expect(minX).toBe(-1)
 
   // 全空气场：零顶点
-  b.reset()
   f.fill(1)
-  b.terrainDraw(0, 0, 2, 2)
-  expect(b.count).toBe(0)
+  expect(b.terrainBake(0, 0, 2, 2)).toBe(0)
 
   // 鞍点（对角双固体、格心空气）：拆两块独立三角形，不在格心错误连通
-  b.reset()
   f.fill(1.5)
   f[0] = -1 // TL
   f[4] = -1 // BR（对角双固体，格心均值 >0 = 空气）
-  b.terrainDraw(0, 0, 1, 1)
-  expect(b.count).toBe(6)
+  expect(b.terrainBake(0, 0, 1, 1)).toBe(6)
   for (let k = 0; k < 6; k++) {
-    const [x, y] = vertex(b, k)
+    const [x, y] = terrainVertex(b, k)
     expect(x > 0.3 && x < 0.7 && y - 10 > 0.3 && y - 10 < 0.7).toBe(false) // 格心无顶点
   }
-})
-
-test('terrainDraw 容量临界：逐格优雅降级，绝不整批丢弃导致地形消失', () => {
-  const b = new MeshBatch()
-  b.terrainField.fill(-1)
-  expect(b.terrainSetup(3, 3, 0, 10, 1, 1, 0, 0, 0, 0, 1, 2)).toBe(true)
-  // 填到只剩 12 顶点余量：全固格（6 顶点）仍能输出，再画则原样返回不越界
-  const cap = b.capacity
-  while (b.count < cap - 12) b.rect(0, 0, 1, 1, 1, 1, 1, 1)
-  b.terrainDraw(0, 0, 1, 1)
-  expect(b.count).toBe(cap - 6)
-  b.terrainDraw(0, 0, 1, 1)
-  expect(b.count).toBe(cap - 6)
 })
 
 test('tracers 批量：单调用输出与 polylineFade + disc 逐顶点一致', () => {

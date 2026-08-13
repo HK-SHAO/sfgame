@@ -12,6 +12,7 @@ export class MeshBatch {
   private fadeView: Float32Array
   private tracerView: Float32Array
   private terrainFieldView: Float32Array
+  private terrainDataView: Float32Array
 
   constructor(engine = createEngine()) {
     const ex = engine.ex
@@ -22,6 +23,7 @@ export class MeshBatch {
     this.fadeView = new Float32Array(buf, ex.bFadeBuf(), ex.bFadeCap())
     this.tracerView = new Float32Array(buf, ex.bTracerBuf(), ex.bTracerCap() * ex.bTracerStride())
     this.terrainFieldView = new Float32Array(buf, ex.bTerrainFieldBuf(), ex.bTerrainFieldCap())
+    this.terrainDataView = new Float32Array(buf, ex.bTerrainData(), ex.bTerrainCap() * VERTEX_STRIDE)
   }
 
   get data(): Float32Array {
@@ -75,9 +77,18 @@ export class MeshBatch {
     this.ex.bPolylineFade(n, w, r, g, b)
   }
 
-  // 地形固体填充：每关写入格心 SDF 场与网格参数/配色，每帧按视域单调用 marching squares
+  // 地形固体填充：每关写入格心 SDF 场与网格参数/配色；bake 一次静态几何（视域变化才重烘），
+  // 每帧只绘制烘焙输出，免 marching squares 重切 + 免重上传
   get terrainField(): Float32Array {
     return this.terrainFieldView
+  }
+
+  get terrainData(): Float32Array {
+    return this.terrainDataView
+  }
+
+  terrainBake(i0: number, j0: number, i1: number, j1: number): number {
+    return this.ex.bTerrainDraw(i0, j0, i1, j1)
   }
 
   // 容量/参数非法返回 false（宿主场超限 = 编译期容量不足，不得静默）
@@ -86,10 +97,6 @@ export class MeshBatch {
     sr: number, sg: number, sb: number, dr: number, dg: number, db: number, depthLen: number,
   ): boolean {
     return this.ex.bTerrainField(nx, ny, x0, y0, cell, sr, sg, sb, dr, dg, db, depthLen) === 0
-  }
-
-  terrainDraw(i0: number, j0: number, i1: number, j1: number) {
-    this.ex.bTerrainDraw(i0, j0, i1, j1)
   }
 
   // 示踪粒子批量缓冲：宿主直写定长记录（见 moon/batch.mbt 布局）后 tracers() 单调用 tessellate

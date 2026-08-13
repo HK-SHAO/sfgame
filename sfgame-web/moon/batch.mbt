@@ -50,6 +50,14 @@ let tracer_buf : FixedArray[Float] = FixedArray::make(
 
 ///|
 let tg_field : FixedArray[Float] = FixedArray::make(tg_cap, 0.0)
+// 地形烘焙输出缓冲（独立于主批）：静态几何一次烘焙，每帧免重切 + 免上传
+// 容量 = 最坏全实体 19200×6 顶点（与主批"地形 ~11 万"同级预算，超限逐格截断）
+
+///|
+let tg_out_cap : Int = 115200
+
+///|
+let tg_data : FixedArray[Float] = FixedArray::make(tg_out_cap * vertex_stride, 0.0)
 
 ///|
 let tg_cx : FixedArray[Double] = FixedArray::make(4, 0.0)
@@ -88,6 +96,7 @@ priv struct BState {
   mut tg_dg : Double
   mut tg_db : Double
   mut tg_len : Double
+  mut tg_count : Int
 }
 
 ///|
@@ -105,6 +114,7 @@ let bs : BState = BState::{
   tg_dg: 0.0,
   tg_db: 0.0,
   tg_len: 1.0,
+  tg_count: 0,
 }
 
 ///|
@@ -545,10 +555,29 @@ pub fn b_polyline_fade(
 // 鞍点（对角双固体）以格心均值消歧
 
 ///|
+fn tg_push(
+  x : Double,
+  y : Double,
+  r : Double,
+  g : Double,
+  bl : Double,
+  a : Double,
+) -> Unit {
+  let o = bs.tg_count * vertex_stride
+  tg_data[o] = Float::from_double(x)
+  tg_data[o + 1] = Float::from_double(y)
+  tg_data[o + 2] = Float::from_double(r)
+  tg_data[o + 3] = Float::from_double(g)
+  tg_data[o + 4] = Float::from_double(bl)
+  tg_data[o + 5] = Float::from_double(a)
+  bs.tg_count = bs.tg_count + 1
+}
+
+///|
 fn push_tg(x : Double, y : Double, d : Double) -> Unit {
   let depth : Double = if d < 0.0 { -d } else { 0.0 }
   let k = 1.0 - @math.exp(-depth / bs.tg_len)
-  push(
+  tg_push(
     x,
     y,
     bs.tg_sr + (bs.tg_dr - bs.tg_sr) * k,
@@ -606,13 +635,14 @@ pub fn b_terrain_field(
 
 ///|
 #export_name("bTerrainDraw")
-pub fn b_terrain_draw(i0 : Int, j0 : Int, i1 : Int, j1 : Int) -> Unit {
+pub fn b_terrain_draw(i0 : Int, j0 : Int, i1 : Int, j1 : Int) -> Int {
   if bs.tg_nx < 2 || bs.tg_ny < 2 {
-    return
+    return 0
   }
   if i1 <= i0 || j1 <= j0 {
-    return
+    return 0
   }
+  bs.tg_count = 0
   let mx = bs.tg_nx - 1
   let my = bs.tg_ny - 1
   let tg_nx = bs.tg_nx
@@ -636,8 +666,8 @@ pub fn b_terrain_draw(i0 : Int, j0 : Int, i1 : Int, j1 : Int) -> Unit {
     let y1 = y0 + tg_cell
     for i in i0..<i1 {
       // 逐格预算（每格至多 12 顶点）：容量临界时优雅截断，而非整批丢弃导致地形闪烁/消失
-      if bs.count + 12 > capacity {
-        return
+      if bs.tg_count + 12 > tg_out_cap {
+        return bs.tg_count
       }
       let mut ai = i
       if ai < 0 {
@@ -744,6 +774,19 @@ pub fn b_terrain_draw(i0 : Int, j0 : Int, i1 : Int, j1 : Int) -> Unit {
       }
     }
   }
+  bs.tg_count
+}
+
+///|
+#export_name("bTerrainData")
+pub fn b_terrain_data() -> Int {
+  addr_of_f32(tg_data)
+}
+
+///|
+#export_name("bTerrainCap")
+pub fn b_terrain_cap() -> Int {
+  tg_out_cap
 }
 
 // 示踪粒子批量：宿主把可见粒子写入 tracer_buf（定长记录），单调用完成全部拖尾 tessellate + 头部圆盘，

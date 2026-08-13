@@ -109,6 +109,7 @@ export class GlRenderer {
   private texBuffer: WebGLBuffer | null = null
   private cloud: CloudProgram | null = null
   private cloudBuffer: WebGLBuffer | null = null
+  private terrainBuffer: WebGLBuffer | null = null
   private quadData = new Float32Array(24)
   private bgTexture: WebGLTexture | null = null
   private bgFbo: WebGLFramebuffer | null = null
@@ -167,6 +168,7 @@ export class GlRenderer {
     if (this.texBuffer) gl.deleteBuffer(this.texBuffer)
     if (this.cloud) gl.deleteProgram(this.cloud.program)
     if (this.cloudBuffer) gl.deleteBuffer(this.cloudBuffer)
+    if (this.terrainBuffer) gl.deleteBuffer(this.terrainBuffer)
     if (this.bgTexture) gl.deleteTexture(this.bgTexture)
     if (this.bgFbo) gl.deleteFramebuffer(this.bgFbo)
     this.program = null
@@ -175,6 +177,7 @@ export class GlRenderer {
     this.texBuffer = null
     this.cloud = null
     this.cloudBuffer = null
+    this.terrainBuffer = null
     this.bgTexture = null
     this.bgFbo = null
     this.uploadedBytes = 0
@@ -239,6 +242,7 @@ export class GlRenderer {
       uTime: gl.getUniformLocation(cprogram, 'uTime'),
     }
     this.cloudBuffer = gl.createBuffer()
+    this.terrainBuffer = gl.createBuffer()
 
     gl.disable(gl.DEPTH_TEST)
     gl.disable(gl.BLEND)
@@ -353,6 +357,28 @@ export class GlRenderer {
     this.drawBatch(batch, viewL, viewT, viewR, viewB)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     return true
+  }
+
+  // 地形静态几何：每关/视域变化上传一次（STATIC_DRAW），每帧仅 drawArrays 零上传
+  uploadTerrain(data: Float32Array, count: number) {
+    if (this.lost || !this.terrainBuffer || count === 0) return
+    const gl = this.gl
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, count * VERTEX_STRIDE), gl.STATIC_DRAW)
+  }
+
+  // 主程序（aPos+aColor）单独画地形：夹在云与动态批之间（云被山体遮挡的遮挡契约不变）
+  drawTerrain(count: number, viewL: number, viewT: number, viewR: number, viewB: number) {
+    if (this.lost || !this.program || !this.terrainBuffer || count === 0) return
+    const gl = this.gl
+    gl.useProgram(this.program)
+    gl.uniform4f(this.uView, viewL, viewT, viewR - viewL, viewB - viewT)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffer)
+    gl.enableVertexAttribArray(this.aPos)
+    gl.enableVertexAttribArray(this.aColor)
+    gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, VERTEX_STRIDE * 4, 0)
+    gl.vertexAttribPointer(this.aColor, 4, gl.FLOAT, false, VERTEX_STRIDE * 4, 8)
+    gl.drawArrays(gl.TRIANGLES, 0, count)
   }
 
   // 两趟：不透明背景先画（平铺 GPU 全屏混合开销大）；blend 每帧幂等重设——resize 会重置上下文状态

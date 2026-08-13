@@ -158,9 +158,9 @@ test('顶点批 golden：图元/地形/示踪三场景', () => {
       }
     }
     ex.bReset()
-    ex.bTerrainDraw(0, 0, nx - 1, ny - 1)
-    expect(ex.bCount()).toBe(1302)
-    expect(f32Hash(h, ex.bData(), ex.bCount() * 6), '地形顶点').toBe('3450fc3b')
+    const terrainCount = ex.bTerrainDraw(0, 0, nx - 1, ny - 1)
+    expect(terrainCount).toBe(1302)
+    expect(f32Hash(h, ex.bTerrainData(), terrainCount * 6), '地形顶点').toBe('3450fc3b')
   }
   // 示踪批量 tessellate
   {

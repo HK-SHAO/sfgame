@@ -1,5 +1,5 @@
 import { css, unsafeCSS } from 'lit'
-import bgArtUrl from '/bg-title.webp?url'
+import bgArtUrl from '../../src/assets/bg-title.webp?url'
 
 // 页面屏外壳共享样式（存储管理/开发者页两屏复用）：滚动页 + sticky 玻璃标题栏 + 图标钮。
 // 单独模块而非全局：各屏 shadow DOM 不继承全局样式（见 pitfalls A2）

@@ -2,6 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement } from 'lit/decorators.js'
 import { author, description, version } from '../../package.json'
 import { boxReset, brandIn, card, pillLink } from './shared-styles.ts'
+import logoUrl from '../../src/assets/logo-title.webp?url'
 
 // 关于卡片：dev 页与独立关于页共用（信息单源，避免双处漂移）；品牌组合图小号展示
 @customElement('sf-about-card')
@@ -11,7 +12,7 @@ export class SfAboutCard extends LitElement {
       <section class="card about">
         <img
           class="brand"
-          src="./logo-title.webp"
+          src=${logoUrl}
           alt="烧风 · 太阳精灵 · 用温度创造风"
         />
         <p class="wip"><b>WIP: Game Feel and Level Tuning.</b></p>

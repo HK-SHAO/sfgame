@@ -7,6 +7,7 @@ import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
 import { artBg, boxReset, brandIn, buttonReset, pillLink, reduceMotion } from './shared-styles.ts'
 import { iconChevron, iconGear, iconInfo, iconLock, iconPlay } from './icons.ts'
+import logoUrl from '../../src/assets/logo-title.webp?url'
 
 // 耗时评级阈值单源（≤30 绿 / ≤60 黄 / >60 红）：emoji 直观表意（🏆 纪录 / 🙂 尚可 / 🐌 缓慢）
 export function bestGrade(total: number): { cls: 'good' | 'fair' | 'poor'; emoji: string } {
@@ -66,7 +67,7 @@ export class SfTitleScreen extends LitElement {
       <main class="title">
         <section class="title-card">
           <h1 class="brand">
-            <img src="./logo-title.webp" alt="烧风 · 太阳精灵 · 用温度创造风" />
+            <img src=${logoUrl} alt="烧风 · 太阳精灵 · 用温度创造风" />
           </h1>
 
           ${this.renderGroups()}

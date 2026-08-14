@@ -4,6 +4,7 @@ import { bilinearSample } from '../sim/fluid.ts'
 import type { EngineHandle } from '../wasm/engine.ts'
 import type { Tracers } from '../sim/particles.ts'
 import { CLOUD_COUNT, type Clouds } from '../sim/clouds.ts'
+import { fillCloudVerts } from './cloud-batch.ts'
 import { fadeRetention, TRAIL_FADE_T, type Trail } from '../sim/trail.ts'
 import { PLANE_LOCAL } from '../sim/bodies.ts'
 import type { Vec2 } from '../sim/types.ts'
@@ -285,29 +286,8 @@ export class Renderer {
     b.disc(SUN_POS[0], SUN_POS[1], r, r, 0, 48, ...SUN, 1)
   }
 
-  // 每朵云一个四边形（两三角形）：uv 纵轴与世界 y 同向（向下），片元底边压平即积云下沿
   private fillClouds(clouds: Clouds): number {
-    const d = this.cloudBuf
-    let n = 0
-    for (let i = 0; i < clouds.count && n < CLOUD_COUNT; i++) {
-      const a = clouds.alpha[i]
-      if (a <= VISIBLE_ALPHA) continue
-      // 四边形 = 可见云体（片元基椭圆约 0.68/0.61 占空）的反算包围盒
-      const hw = clouds.radius[i] * 1.5
-      const hh = clouds.radius[i] * 1.1
-      const x0 = clouds.x[i] - hw
-      const y0 = clouds.y[i] - hh
-      const x1 = clouds.x[i] + hw
-      const y1 = clouds.y[i] + hh
-      const s = clouds.seed[i]
-      d[n++] = x0; d[n++] = y0; d[n++] = 0; d[n++] = 0; d[n++] = a; d[n++] = s
-      d[n++] = x1; d[n++] = y0; d[n++] = 1; d[n++] = 0; d[n++] = a; d[n++] = s
-      d[n++] = x0; d[n++] = y1; d[n++] = 0; d[n++] = 1; d[n++] = a; d[n++] = s
-      d[n++] = x1; d[n++] = y0; d[n++] = 1; d[n++] = 0; d[n++] = a; d[n++] = s
-      d[n++] = x1; d[n++] = y1; d[n++] = 1; d[n++] = 1; d[n++] = a; d[n++] = s
-      d[n++] = x0; d[n++] = y1; d[n++] = 0; d[n++] = 1; d[n++] = a; d[n++] = s
-    }
-    return n / 6
+    return fillCloudVerts(clouds, this.cloudBuf)
   }
 
   private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {

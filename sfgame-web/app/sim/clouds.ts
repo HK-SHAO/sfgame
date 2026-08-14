@@ -13,8 +13,13 @@ const ALT_SPAN_F = 0.28
 const DESPAWN_MARGIN = 12
 // 距地表（SDF）最小距离：云不钻山，接近山体提前淡出
 const FADE_ALT = 3
+// 恢复迟滞（P2）：进入消散立即、恢复须越过余量——山边/边缘颠簸不再逐 tick 翻转 alpha 目标（呼吸闪烁）
+const FADE_ALT_HYST = 1.5
+const EDGE_HYST = 2
 const ALPHA_RATE = 1.2
-const ALPHA_DEAD = 0.02
+// 渲染可见阈值（云顶点批同源消费）：死亡阈值取其 1/4——先隐形后重生，永不"可见着瞬移"（P5）
+export const CLOUD_VISIBLE_ALPHA = 0.02
+const ALPHA_DEAD = CLOUD_VISIBLE_ALPHA * 0.25
 // 累积下降消散：下沉空气绝热增温、云滴蒸发——云的自然寿命，无需人工年龄
 const DESCEND_MAX = 7
 // 生成间距拒绝采样：免云贴生合并成一团
@@ -45,6 +50,8 @@ export class Clouds {
   seed: Float32Array
 
   private desc: Float32Array
+  // 生命周期态（P2 迟滞）：0 = 存活、1 = 消散中；进入立即、恢复须越过余量
+  private fade: Uint8Array
   private world: WorldBounds
   private terrain: TerrainLike
   private rng: () => number
@@ -62,6 +69,7 @@ export class Clouds {
     this.alpha = new Float32Array(count)
     this.seed = new Float32Array(count)
     this.desc = new Float32Array(count)
+    this.fade = new Uint8Array(count)
     for (let i = 0; i < count; i++) this.respawn(i)
   }
 
@@ -79,7 +87,8 @@ export class Clouds {
       let ok = true
       let near = Infinity
       for (let j = 0; j < this.count; j++) {
-        if (j === i) continue
+        // 跳过自身与未生成邻居（构造期 j>i 的 radius 为 0，参与间距判定会误拒左上角候选，P4）
+        if (j === i || this.radius[j] === 0) continue
         const gap = (r + this.radius[j]) * SPAWN_GAP_K
         const d2 = (this.x[j] - cx) ** 2 + (this.y[j] - cy) ** 2
         near = Math.min(near, d2)
@@ -103,6 +112,7 @@ export class Clouds {
     this.seed[i] = rng() * 64
     this.alpha[i] = 0
     this.desc[i] = rng() * DESCEND_MAX * 0.5
+    this.fade[i] = 0
   }
 
   step(dt: number, fluid: FluidLike) {
@@ -125,17 +135,30 @@ export class Clouds {
       this.x[i] = x + air.x * dt
       this.y[i] = y + dy
       if (dy > 0) this.desc[i] += dy
-      // 存活 = 未出销毁边界（四向）+ 距地表足够远 + 累积下降未超限
-      const live =
+      const inBox =
         x > -DESPAWN_MARGIN &&
         x < w + DESPAWN_MARGIN &&
         y > -DESPAWN_MARGIN &&
-        y < h + DESPAWN_MARGIN &&
-        this.terrain.sample(x, y) > FADE_ALT &&
-        this.desc[i] < DESCEND_MAX
-      const a = this.alpha[i] + ((live ? 1 : 0) - this.alpha[i]) * (1 - Math.exp(-dt * ALPHA_RATE))
+        y < h + DESPAWN_MARGIN
+      const dist = this.terrain.sample(x, y)
+      const alive = inBox && dist > FADE_ALT && this.desc[i] < DESCEND_MAX
+      // 迟滞：进入消散立即；恢复须同时满足全部余量（desc 单调只增，天然无迟滞需求）
+      if (this.fade[i] === 0 && !alive) this.fade[i] = 1
+      else if (this.fade[i] === 1) {
+        const relaxed =
+          x > EDGE_HYST - DESPAWN_MARGIN &&
+          x < w + DESPAWN_MARGIN - EDGE_HYST &&
+          y > EDGE_HYST - DESPAWN_MARGIN &&
+          y < h + DESPAWN_MARGIN - EDGE_HYST &&
+          dist > FADE_ALT + FADE_ALT_HYST &&
+          this.desc[i] < DESCEND_MAX
+        if (relaxed) this.fade[i] = 0
+      }
+      const target = this.fade[i] === 1 ? 0 : 1
+      const a = this.alpha[i] + (target - this.alpha[i]) * (1 - Math.exp(-dt * ALPHA_RATE))
       this.alpha[i] = a
-      if (a <= ALPHA_DEAD && !live) this.respawn(i)
+      // 重生条件看生命周期态而非瞬时 live：迟滞期云仍隐形，不会卡在"永不复生"
+      if (a <= ALPHA_DEAD && this.fade[i] === 1) this.respawn(i)
     }
   }
 }

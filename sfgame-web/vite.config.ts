@@ -1,11 +1,12 @@
 import { defineConfig } from 'vitest/config'
+import { copyLevelDesignSkill } from './scripts/plugins/copy-level-design-skill.ts'
 import { copyLevelSchema } from './scripts/plugins/copy-level-schema.ts'
 import { wasmRebuild } from './scripts/plugins/wasm-rebuild.ts'
 
 export default defineConfig({
   // 相对路径部署（itch.io 等子路径托管）：HTML/CSS/JS 资源引用全部相对化
   base: './',
-  plugins: [wasmRebuild(), copyLevelSchema()],
+  plugins: [wasmRebuild(), copyLevelSchema(), copyLevelDesignSkill()],
   build: {
     minify: true,
     // Safari 不消费 modulepreload 缓存并误报 "preloaded but not used"，禁用注入

@@ -10,7 +10,7 @@
 
 ## 仓库布局
 
-- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡搭建指南）与仓库同仓
+- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡创作指南 + `level-design/ENGINEERING.md` 工程补充）与仓库同仓；`level-design/` 经 `scripts/plugins/copy-level-design-skill.ts` 随构建发布到 `dist/skills/level-design/`（线上站点直接分发）
 - web 版本 app 源代码在 `sfgame-web/`，路径常需加上这个前缀
 
 ## 命令（以 package.json 为准）
@@ -24,7 +24,7 @@
 - `bun run test:moon` = moon 模块单元/白盒测试（wasm 引擎包，含 ffi 寻址约定与内核不变量）
 - `bun run bench:moon` = 内核性能基线（moon bench；满网格流体步 ≈4.6ms @ 256×160，GS f64x2 双格 SIMD + MacCormack 平流；SIMD 在 bun/JSC 的"无地形全 bulk"路径误编译——生产恒有地形不触发，无地形测试路径是 JSC 例外，见 pitfalls I8）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
-- 关卡工具：`bun run scripts/run-level.ts levels/level-N.json --verify … --solve … --sim N`（物理内核恒为 WASM·Moonbit 内核；详见 `skills/level-design/SKILL.md` §5-6）
+- 关卡工具：`bun run scripts/run-level.ts levels/level-N.json --verify … --solve … --sim N`（物理内核恒为 WASM·Moonbit 内核；设计口径见 `skills/level-design/SKILL.md`，工具链见 `skills/level-design/ENGINEERING.md`）
 - `bun run test` 不编译 wasm：vitest 的 tests/setup.ts 预热 WASM 引擎，缺产物即抛错（产物 gitignore）——先 `bun run build:wasm`，或跑过一次 build/dev/check 产物即恒在；直跑 `vitest run`（不经脚本）同理
 
 ## 类型配置
@@ -65,7 +65,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 ## 玩法不变量（回归测试守护，别破坏）
 
 - 零操作挂机不能通关：抵达圆（虚线圆 = 检测圆）内滑行与飞行同等计数，故各关卡挂机轨迹必须不穿过任何抵达圆（设计红线，新关卡须用 `run-level.ts --sim` 自查；#18 起不再设自动回归）。**解法不随关卡文件发布**（免翻代码作弊）：只记最佳过关耗时（progress.ts：单条最佳、与关卡内容 FNV hash 绑定、localStorage 持久化），不记录解摆法、进关不预置
-- 求解器偏好（`run-level.ts --solve` 离线工具，产物不入库）：只比**总耗时**（通关时间 + 源罚 4s/个 + 贴地罚 1s/s，罚时与游戏同源见 `app/game/timer.ts`；贴地罚时是软成本，爬行解自动吃亏，无硬性飞行门槛），坐标 1 位小数（URL 可放置），鲁棒性 ≥75%（见 `skills/level-design/SKILL.md` §6）
+- 求解器偏好（`run-level.ts --solve` 离线工具，产物不入库）：只比**总耗时**（通关时间 + 源罚 4s/个 + 贴地罚 1s/s，罚时与游戏同源见 `app/game/timer.ts`；贴地罚时是软成本，爬行解自动吃亏，无硬性飞行门槛），坐标 1 位小数（URL 可放置），鲁棒性 ≥75%（求解口径见 `skills/level-design/ENGINEERING.md`）
 - 右键 = 放冷源：`input.ts` 的 `onDown` 只处理 `e.button === 0`，右键走 contextmenu
 
 ## 验证策略

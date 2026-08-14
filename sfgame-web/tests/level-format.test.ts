@@ -107,7 +107,7 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
       }),
     ),
   ).toThrow(/goals/)
-  // 固/气共存校验：无实体（永不着地）与全实体（无处可飞）皆被拒
+  // 固/气约束：无实体（纯空域）允许；全实体（无处可飞）拒绝
   expect(() =>
     parseLevelText(
       json({
@@ -116,7 +116,7 @@ test('JSON 解析 + 校验：非法关卡被可读错误拒绝', () => {
         budget: { hot: 1, cold: 0 }, spawn: { x: 0 }, goals: [{ x: 40, r: 5 }],
       }),
     ),
-  ).toThrow(/无实体/)
+  ).not.toThrow()
   expect(() =>
     parseLevelText(
       json({

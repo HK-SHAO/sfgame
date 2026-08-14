@@ -2,7 +2,7 @@
 // 由 tests/level-schema.test.ts 守护；world 依赖的动态边界（x≤w 等）与 SDF 语义仅此处可表达。
 // 错误逐字段 JSON 路径 + 实值；world 非法（结构/网格越界）时动态边界与烘焙自动失效（null），只查结构不级联误报
 import { bakeSdf, compileSdf, SdfError } from './sdf.ts'
-import { terrainDims, terrainFromField, FLUID_MARGIN } from '../sim/terrain.ts'
+import { terrainDims, FLUID_MARGIN } from '../sim/terrain.ts'
 import { GRID_MIN, GRID_MAX_NX, GRID_MAX_NY, CELL_MIN, CELL_MAX } from './grid-limits.ts'
 
 // 关卡 id = 小写 slug（URL 直传零转义、语义化命名）；URL 内联判别（state.ts）依赖此字符集
@@ -157,11 +157,8 @@ function checkTerrain(ctx: Ctx, j: Record<string, unknown>, world: { w: number; 
     ctx.errs.push(`${ctx.id} terrain.sdf 求值错误：${e instanceof Error ? e.message : String(e)}`)
     return
   }
-  // 固/气必须共存（判定限世界内，否则永不着地或无处可飞）：
-  // 格心计数 + 世界底缘同源采样兜底（地表可能落在末层格心与世界底之间的薄条带，如 h=4 时地表 3.5）
-  const ter = terrainFromField(field, dims, world.cell)
+  // 世界内必须有气（全实体 = 无处可飞）；无实体（纯空域）允许——飞机可全靠风场飞行，不着地也成立
   const { nx, ny, origin } = dims
-  let solid = 0
   let air = 0
   for (let j = 0; j < ny; j++) {
     const wy = (j - origin + 0.5) * world.cell
@@ -170,14 +167,9 @@ function checkTerrain(ctx: Ctx, j: Record<string, unknown>, world: { w: number; 
     for (let i = 0; i < nx; i++) {
       const wx = (i - origin + 0.5) * world.cell
       if (wx < 0 || wx > world.w) continue
-      if (field[i + row] <= 0) solid++
-      else air++
+      if (field[i + row] > 0) air++
     }
   }
-  for (let x = 0; solid === 0 && x <= world.w; x += 1) {
-    if (ter.sample(x, world.h) <= 0) solid = 1
-  }
-  if (solid === 0) ctx.errs.push(`${ctx.id} terrain.sdf 世界内无实体（飞机永不着地）`)
   if (air === 0) ctx.errs.push(`${ctx.id} terrain.sdf 世界内全为实体（无处可飞）`)
 }
 

@@ -10,7 +10,7 @@
 
 ## 仓库布局
 
-- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡创作指南 + `level-design/ENGINEERING.md` 工程补充）与仓库同仓；`level-design/` 实体在 `sfgame-web/public/skills/level-design/`（仓库根 `skills/level-design` 与关卡 `levels/level.schema-1.json` 均为符号链接），随 Vite publicDir 原样发布到 `dist/skills/level-design/` 与 `dist/level.schema-1.json`（线上站点直接分发，无需构建插件）
+- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡创作指南 + `level-design/ENGINEERING.md` 工程补充）与仓库同仓；`level-design/` 实体在 `sfgame-web/public/skills/level-design/`（仓库根 `skills/level-design` 与关卡 `levels/level.schema-1.json` 均为符号链接），随 Vite publicDir 原样发布到 `dist/skills/level-design/` 与 `dist/level.schema-1.json`（线上站点直接分发，无需构建插件）；分发的 .md 文档须带 charset 否则中文乱码（dev/preview 由 `scripts/vite-plugins/md-utf8.ts` 插件补、生产由 `public/_headers` 声明，见 pitfalls I11）
 - web 版本 app 源代码在 `sfgame-web/`，路径常需加上这个前缀
 
 ## 命令（以 package.json 为准）
@@ -18,7 +18,7 @@
 - 包管理器和后台一律用 bun（`bun run` / `bunx`）；bun 文档在 `node_modules/bun-types/docs`。脚本/插件运行时入口一律 bun（`bun run scripts/…`）；vite 经 `scripts/vite.mjs` 门面以 bun 运行时执行（`bun vite` 会尊重 bin 的 node shebang 而落到 node，config 内 Bun 全局失效；门面直接 import 入口绕过 shebang——wasm-rebuild 插件依赖 Bun）
 - 依赖经根 `package.json` workspaces（sfgame-web + cloudflare）统一管理：根目录一次 `bun install` 装齐，单一根 `bun.lock`；新依赖加到对应子包 package.json 后根目录重装
 - `bun run check` = typecheck → build → test（fail-fast 一键验证，顺序与语义以 package.json 为准；build 前置 build:wasm，故 test 恒有产物）；`bun run test` = test:moon + vitest；根目录亦有同名透传脚本（--cwd sfgame-web），可在仓库根直接跑
-- `bun run dev` = vite（`scripts/plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `moon/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
+- `bun run dev` = vite（`scripts/vite-plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `moon/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
 - `bun run build:wasm` = Moonbit 数值内核编译（moon 工具链需先装），wasm 单目标出单产物（dev/build/check 已内置，改 moon/ 后无需手动跑）：
   - wasm 目标 → `app/wasm/sfengine.wasm`（流体+顶点批+示踪三内核单模块单内存；SDF 表达式求值器为纯 TS `app/game/sdf.ts`，不经 moon）
 - `bun run test:moon` = moon 模块单元/白盒测试（wasm 引擎包，含 ffi 寻址约定与内核不变量）

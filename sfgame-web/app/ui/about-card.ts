@@ -163,6 +163,7 @@ export class SfAboutCard extends LitElement {
         border: 1px solid rgba(61, 52, 39, 0.12);
         border-bottom-width: 2px;
         border-radius: var(--r-sm);
+        corner-shape: squircle;
         white-space: nowrap;
       }
 

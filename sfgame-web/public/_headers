@@ -4,3 +4,9 @@
 /sw.js
   Cache-Control: no-cache
 
+/SKILL.md
+  Content-Type: text/markdown; charset=utf-8
+
+/skills/*
+  Content-Type: text/markdown; charset=utf-8
+

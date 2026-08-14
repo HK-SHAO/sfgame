@@ -88,7 +88,7 @@ export class SfLevelEditor extends LitElement {
       gap: var(--sp-2);
     }
 
-    .row button {
+    .row :is(button, a) {
       flex: 1;
       padding: var(--sp-1) var(--sp-2);
       border: none;
@@ -98,6 +98,16 @@ export class SfLevelEditor extends LitElement {
       cursor: pointer;
       -webkit-user-select: none;
       user-select: none;
+      transition: background-color 140ms ease-out, transform 160ms ease-out;
+    }
+
+    .row a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: inherit;
+      text-decoration: none;
+      background: var(--dev-hover);
     }
 
     .apply {
@@ -108,6 +118,23 @@ export class SfLevelEditor extends LitElement {
     .cancel {
       color: inherit;
       background: var(--dev-hover);
+    }
+
+    .row :is(button, a):hover {
+      background: rgba(255, 233, 201, 0.16);
+    }
+
+    .row :is(button, a):active {
+      transform: scale(0.97);
+      transition-duration: 0s;
+    }
+
+    .row .apply:hover {
+      background: rgba(255, 233, 201, 0.8);
+    }
+
+    .row .apply:active {
+      background: rgba(255, 233, 201, 0.68);
     }
 
     .error {
@@ -157,6 +184,7 @@ export class SfLevelEditor extends LitElement {
             <div class="row">
               <button class="apply" @click=${this.confirm}>确认生效</button>
               <button class="cancel" @click=${this.collapse}>取消</button>
+              <a class="guide" href="./skills/level-design/SKILL.md" target="_blank" rel="noopener">创作指南</a>
             </div>
           `
         : nothing}

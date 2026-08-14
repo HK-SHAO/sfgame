@@ -65,6 +65,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - 改内核数值后通关记录不可复现/逐位对照失败 → I10（golden hash 基线；Moonbit 移植的位级一致方法论）
 - vite dev 自动化访问 127.0.0.1 失败（000）→ I2
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
+- 站点分发的 .md 文档中文乱码（浏览器按 Latin-1 解码）→ I11
 
 ## A. Lit + Shadow DOM
 
@@ -506,3 +507,9 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 
 ### H3 Lit 3 样式在 `shadowRoot.adoptedStyleSheets`
 无 `<style>` 标签，查生效规则读 `cssRules` 的 `cssText`。
+
+### I11 站点分发的 .md 文档中文乱码（text/markdown 无 charset）
+**症状**：Cloudflare 部署或 vite dev/preview 直接打开 /SKILL.md、/skills/level-design/*.md，中文显示为 çƒ§é£ŽæŠ€èƒ½æŒ‡å¼• 式乱码；文件字节本身是正确 UTF-8。
+**根因**：sirv 与 Cloudflare 静态服务对 .md 均发 `text/markdown` 且不带 `charset`；浏览器对 text/* 无 charset 时默认按 Latin-1（windows-1252）解码，UTF-8 中文即乱码。JSON 默认 UTF-8 不受影响，只有 text/* 家族踩坑。
+**修法**：dev/preview 由 vite.config.ts 的 md-utf8 插件在静态中间件前为 .md 补 `Content-Type: text/markdown; charset=utf-8`（sirv 尊重已设 Content-Type，不覆盖）；生产由 `public/_headers` 对 `/SKILL.md` 与 `/skills/*` 声明同一头。
+**信号**：新增任何随 public/ 分发的 .md/.txt 文档后，先在 dev server 直接打开确认中文正常；云上验证 curl -sI 看响应头 charset。

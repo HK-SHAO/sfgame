@@ -404,6 +404,7 @@ export class SfTitleScreen extends LitElement {
         font-weight: 600;
         font-variant-numeric: tabular-nums;
         border-radius: var(--r-pill);
+        corner-shape: squircle;
       }
 
       .level .best.good {

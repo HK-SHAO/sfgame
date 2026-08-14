@@ -6,7 +6,7 @@ import { progress } from '../game/progress.ts'
 import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
 import { artBg, boxReset, brandIn, buttonReset, pillLink, reduceMotion } from './shared-styles.ts'
-import { iconChevron, iconGear, iconInfo, iconLock, iconPlay } from './icons.ts'
+import { iconChevron, iconGear, iconInfo, iconLock, iconPlay, iconSparkle } from './icons.ts'
 import logoUrl from '../../src/assets/logo-title.webp?url'
 
 export function bestGrade(total: number): { cls: 'good' | 'fair' | 'poor'; emoji: string } {
@@ -56,6 +56,8 @@ export class SfTitleScreen extends LitElement {
   }
 
   private onDevPage = () => this.dispatchEvent(new Event('dev-page'))
+
+  private onCreate = () => this.dispatchEvent(new Event('create'))
 
   protected override render() {
     return html`
@@ -157,6 +159,9 @@ export class SfTitleScreen extends LitElement {
         >
           ${iconPlay}<span>观看视频</span>
         </a>
+        <button class="link-btn" @click=${this.onCreate} aria-label="关卡创作">
+          ${iconSparkle}<span>关卡创作</span>
+        </button>
         ${!this.dev
           ? html`<button
               class="link-btn"

@@ -157,6 +157,15 @@ export class SfApp extends LitElement {
     this.startGame(e.detail)
   }
 
+  private onCreate() {
+    fb.uiEnter()
+    this.dev = true
+    urlState.set('lv', { id: FIRST_LEVEL.id })
+    urlState.clear('s')
+    urlState.set('dev', true)
+    this.applyScreen(screenFromUrl())
+  }
+
   private playNext() {
     const next = nextLevel(this.activeLevel.id)
     if (next === undefined) return
@@ -337,6 +346,7 @@ export class SfApp extends LitElement {
       .activeGroup=${this.activeGroup}
       @group=${this.onGroup}
       @start=${this.onStart}
+      @create=${this.onCreate}
       @dev-page=${this.openDev}
       @about=${this.openAbout}
     ></sf-title-screen>`

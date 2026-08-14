@@ -102,6 +102,10 @@ export const iconChevron = outlineIcon(2, svg`
   <polyline points="9 5.5 15.5 12 9 18.5" />
 `)
 
+export const iconSparkle = outlineIcon(2, svg`
+  <path d="M12 4.5Q11.07 12.93 19.5 12Q11.07 11.07 12 19.5Q12.93 11.07 4.5 12Q12.93 12.93 12 4.5z" />
+`)
+
 export const iconPause = fillIcon(svg`
   <rect x="5.5" y="4.5" width="4.5" height="15" rx="1.5" />
   <rect x="14" y="4.5" width="4.5" height="15" rx="1.5" />

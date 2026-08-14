@@ -1,5 +1,5 @@
 import { css, unsafeCSS } from 'lit'
-import bgArtUrl from '../../src/assets/bg-title.webp?url'
+import bgArtUrl from '../../assets/bg-title.webp?url'
 
 export const boxReset = css`
   *,

@@ -96,8 +96,9 @@ export const BATCH_GOLDEN: BatchGolden = {
 export const TRACER_GOLDEN = {
   init: { x: 'c352a93c', y: 'c0b2db93', life: '7e1a20a0' },
   after240: {
-    x: '10d33e1a', y: 'c5f6b699', life: '62690711', maxLife: '9005fc3c',
-    trailX: '44aa74c9', trailY: 'a0e104aa', trailT: '9b0eda03', trailN: '85d6e97b',
+    // 2026-08-14 重基线：触地/出界死亡路径归一（就地淡出替代即时重生）——行为有意变更
+    x: '80dd3721', y: 'fb2e147f', life: '22ae2c31', maxLife: '61f04489',
+    trailX: '9011b718', trailY: 'f9680000', trailT: 'b10403f5', trailN: '74db9626',
   },
   time: '56db1d74',
 }

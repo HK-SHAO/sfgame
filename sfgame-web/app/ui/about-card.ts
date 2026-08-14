@@ -2,7 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement } from 'lit/decorators.js'
 import { author, description, version } from '../../package.json'
 import { boxReset, brandIn, card, pillLink } from './shared-styles.ts'
-import logoUrl from '../../src/assets/logo-title.webp?url'
+import logoUrl from '../../assets/logo-title.webp?url'
 
 @customElement('sf-about-card')
 export class SfAboutCard extends LitElement {

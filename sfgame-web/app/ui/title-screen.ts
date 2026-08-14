@@ -7,7 +7,7 @@ import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
 import { artBg, boxReset, brandIn, buttonReset, pillLink, reduceMotion } from './shared-styles.ts'
 import { iconChevron, iconGear, iconInfo, iconLock, iconPlay, iconSparkle } from './icons.ts'
-import logoUrl from '../../src/assets/logo-title.webp?url'
+import logoUrl from '../../assets/logo-title.webp?url'
 
 export function bestGrade(total: number): { cls: 'good' | 'fair' | 'poor'; emoji: string } {
   if (total > 60) return { cls: 'poor', emoji: '🐌' }

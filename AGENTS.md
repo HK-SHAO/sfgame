@@ -10,7 +10,7 @@
 
 ## 仓库布局
 
-- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡创作指南 + `level-design/ENGINEERING.md` 工程补充）与仓库同仓；`level-design/` 经 `scripts/plugins/copy-level-design-skill.ts` 随构建发布到 `dist/skills/level-design/`（线上站点直接分发）
+- `skills/`（含 `pitfalls/SKILL.md` 避坑手册、`level-design/SKILL.md` 关卡创作指南 + `level-design/ENGINEERING.md` 工程补充）与仓库同仓；`level-design/` 实体在 `sfgame-web/public/skills/level-design/`（仓库根 `skills/level-design` 与关卡 `levels/level.schema-1.json` 均为符号链接），随 Vite publicDir 原样发布到 `dist/skills/level-design/` 与 `dist/level.schema-1.json`（线上站点直接分发，无需构建插件）
 - web 版本 app 源代码在 `sfgame-web/`，路径常需加上这个前缀
 
 ## 命令（以 package.json 为准）

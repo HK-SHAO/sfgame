@@ -30,3 +30,28 @@ test "mulberry32 同种子序列确定" {
   // 值域 [0, 1)
   guard a1 >= 0.0 && a1 < 1.0 else { fail("rnd 应落在 [0,1)") }
 }
+
+///|
+test "触地 = 就地淡出而非即时重生（死亡路径归一，2026-08-14）" {
+  let st = tracers_init(400, 24, 72.0, 54.0, 0.0, 48, 36, 1.5, 0.0, 0.0, 1U)
+  @test.assert_eq(st, 0)
+  let fs = fluid_init(48, 36, 1.5, 2.0, 9.0, 3.4, 0.997, 0.99, 12, 6)
+  @test.assert_eq(fs, 0)
+  for k in 0..<(48 * 36) {
+    t_sdf[k] = if k / 48 >= 30 { -1.0 } else { 1.0 }
+  }
+  tx[0] = 36.0
+  ty[0] = 45.0
+  t_life[0] = 5.0
+  t_max_life[0] = 5.0
+  reset_trail(0)
+  tracers_step(1.0 / 60.0, 0)
+  @test.assert_eq(t_life[0], Float::from_double(0.7))
+  @test.assert_eq(tx[0], 36.0)
+  @test.assert_eq(ty[0], 45.0)
+  @test.assert_eq(t_max_life[0], 5.0)
+  for _ in 0..<60 {
+    tracers_step(1.0 / 60.0, 0)
+  }
+  guard ty[0].to_double() < 44.0 else { fail("淡出后应重生到空气区") }
+}

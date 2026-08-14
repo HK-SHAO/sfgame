@@ -29,7 +29,12 @@ let t_plume_chance : Double = 0.7
 
 ///|
 let t_plume_tries : Int = 4
+// 触地淡出时长：与宿主包络 FADE_OUT 同源（app/sim/particles.ts envelope）——
+// 尾迹可见度被 env 调制，同一常数保证粒子与尾迹同步溶散
 // 地形场容量 = 流体网格上限（grid.mbt 单点），超限 init 拒绝
+
+///|
+let t_fade_out : Double = 0.7
 
 ///|
 let sdf_capacity : Int = grid_max_cells
@@ -270,6 +275,17 @@ pub fn tracers_step(dt : Double, src_count : Int) -> Unit {
     sample_velocity(tx[i].to_double(), ty[i].to_double())
     let nx = tx[i].to_double() + (out_x() + (rnd() - 0.5) * 0.5) * dt
     let ny = ty[i].to_double() + (out_y() + (rnd() - 0.5) * 0.5) * dt
+    // 触地/出界 = 死亡路径归一：不提交本次位移（就地停驻），把剩余寿命压到淡出时长——
+    // 粒子与尾迹随宿主 env 包络同步溶散后走自然死亡，杜绝"全亮粒子+整条尾迹一帧瞬灭"
+    if sdf_at(nx, ny) < 0.4 ||
+      ny < 1.0 - m ||
+      nx < 1.0 - m ||
+      nx > ts.world_w + m - 1.0 {
+      if t_life[i].to_double() > t_fade_out {
+        t_life[i] = Float::from_double(t_fade_out)
+      }
+      continue
+    }
     let dx = nx - tx[i].to_double()
     let dy = ny - ty[i].to_double()
     t_odo[i] = Float::from_double(
@@ -279,13 +295,6 @@ pub fn tracers_step(dt : Double, src_count : Int) -> Unit {
     ty[i] = Float::from_double(ny)
     if t_odo[i].to_double() - t_last_odo[i].to_double() >= t_trail_sample {
       record_trail(i)
-    }
-    // 允许飞出地图：边距内继续随风流动，接近末端才清理；进地即重生
-    if sdf_at(nx, ny) < 0.4 ||
-      ny < 1.0 - m ||
-      nx < 1.0 - m ||
-      nx > ts.world_w + m - 1.0 {
-      respawn(i, false)
     }
   }
 }

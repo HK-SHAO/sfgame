@@ -1,8 +1,10 @@
-import { CLOUD_COUNT, CLOUD_VISIBLE_ALPHA, type Clouds } from '../sim/clouds.ts'
+import { CLOUD_COUNT, CLOUD_VISIBLE_ALPHA } from '../sim/clouds.ts'
+import type { CloudsView } from '../sim/worker-protocol.ts'
 
 // 云顶点批纯计算（可无头测试）：每朵云一个四边形（两三角形，6 顶点 × 6 浮点 pos2+uv2+alpha+seed），
 // 形状全在片元，宿主只发包围盒。返回顶点数；out 容量 = CLOUD_COUNT×36 浮点。
-export function fillCloudVerts(clouds: Clouds, out: Float32Array): number {
+// 入参 CloudsView：Clouds 实例与 worker 帧快照同构（同名字段），两者皆可消费
+export function fillCloudVerts(clouds: CloudsView, out: Float32Array): number {
   const d = out
   let n = 0
   // 容量钳按浮点数算（每朵云 36 浮点）：n 数浮点，阈值必须同单位（P1 守卫修正——曾错写成 n < CLOUD_COUNT，

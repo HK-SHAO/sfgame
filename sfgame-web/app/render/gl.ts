@@ -386,7 +386,7 @@ export class GlRenderer {
 
   // 两趟：不透明背景先画（平铺 GPU 全屏混合开销大）；blend 每帧幂等重设——resize 会重置上下文状态
   draw(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number) {
-    if (this.lost || !this.program || !this.buffer || batch.count === 0) return
+    if (this.lost || !this.program || !this.buffer) return
     const gl = this.gl
     gl.viewport(0, 0, this.canvas.width, this.canvas.height)
 
@@ -415,9 +415,11 @@ export class GlRenderer {
       this.clearScreen()
     }
 
-    gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-    this.drawBatch(batch, viewL, viewT, viewR, viewB)
+    if (batch.count > 0) {
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+      this.drawBatch(batch, viewL, viewT, viewR, viewB)
+    }
   }
 
   // 云趟：夹在主批两半之间（遮挡契约：云遮粒子/日芒、被地形遮）；data = pos2+uv2+alpha+seed ×6 顶点/云

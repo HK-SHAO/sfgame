@@ -1,29 +1,18 @@
-import { GameLoop } from '../core/loop.ts'
+import { GameLoop, SIM_DT } from '../core/loop.ts'
 import { sfx } from '../core/sfx.ts'
 import { bgm } from '../core/bgm.ts'
 import { fb } from '../core/feedback.ts'
 import { governor } from '../core/governor.ts'
-import { buildWindProbes, isLanding, sampleWind } from '../core/wind.ts'
-import { Tracers, TRAIL_LEN } from '../sim/particles.ts'
-import { Clouds } from '../sim/clouds.ts'
-import { PLANE_TRAIL_FADE, Trail } from '../sim/trail.ts'
-import { type PressVisual, type SourceKind } from '../sim/types.ts'
-import { LevelSimulation } from '../game/simulation.ts'
-import { FLUID_MARGIN } from '../sim/terrain.ts'
-import { levelSeed } from '../game/levels.ts'
-import type { HudState, LevelDef, SourcePlacement } from '../game/types.ts'
+import { terrainFromField } from '../sim/terrain.ts'
+import type { PressVisual, SourceKind } from '../sim/types.ts'
+import type { HudState, LevelDef, Source, SourcePlacement } from '../game/types.ts'
 import { GestureInput } from './input.ts'
-import { Renderer } from '../render/render.ts'
-import { createEngine, type EngineHandle } from '../wasm/engine.ts'
-import { totalPenaltySeconds } from '../game/timer.ts'
+import { Renderer, type RenderView } from '../render/render.ts'
+import { createEngine } from '../wasm/engine.ts'
 import type { PerfRecorder } from '../dev/devtools.ts'
-import type { SceneState } from '../render/render.ts'
+import type { FrameSnapshot, SimEvent, SimRequest } from '../sim/worker-protocol.ts'
+import { SOURCE_HIT_RADIUS } from '../sim/worker-protocol.ts'
 
-const PLANE_TRAIL_MAX_SPEED = 30
-const PLANE_TRAIL_SAMPLE = 0.3
-const PLANE_TRAIL_MAX_POINTS = Math.ceil((PLANE_TRAIL_MAX_SPEED * PLANE_TRAIL_FADE) / PLANE_TRAIL_SAMPLE)
-const LAND_SOUND_MIN_INTERVAL = 150
-const TRACER_COUNT = 400
 export interface ControllerEvents {
   onHud(state: HudState): void
   onDeny(kind: SourceKind, clientX: number, clientY: number): void
@@ -32,30 +21,31 @@ export interface ControllerEvents {
 }
 
 export class GameController {
-  private sim: LevelSimulation
-  private engine: EngineHandle
-  private tracers: Tracers
-  private clouds: Clouds
-  private planeTrail: Trail
   private renderer: Renderer
+  private worker: Worker
   private loop: GameLoop
   private input: GestureInput
   private events: ControllerEvents
   private host: HTMLElement
   private ro: ResizeObserver | null = null
   private press: PressVisual | null = null
-  private lastPhase: 'playing' | 'won' = 'playing'
-  private windProbes: { x: number; y: number }[]
-  private tmpAir = { x: 0, y: 0 }
-  private windSample = { field: 0, rel: 0 }
+  private devTools: PerfRecorder | null = null
   private tickMs = 0
-  private lastLand = -Infinity
   private rate = 1
   private fitW = 0
   private fitH = 0
+  private ready = false
+  private snapshot: FrameSnapshot | null = null
+  private staticView: {
+    world: { w: number; h: number }
+    terrain: ReturnType<typeof terrainFromField>
+    goals: RenderView['goals']
+    fixedSources: RenderView['fixedSources']
+    fans: RenderView['fans']
+  } | null = null
+  private paused = false
+  private suppressSources = false
   private world: { w: number; h: number }
-  private devTools: PerfRecorder | null = null
-  private scene: SceneState
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -67,23 +57,18 @@ export class GameController {
     this.events = events
     this.host = host ?? canvas.parentElement ?? canvas
     this.world = level.world
-    this.engine = createEngine()
     this.devTools = devTools ?? null
-    this.sim = new LevelSimulation(level, this.engine, { unlimited: this.devTools !== null })
-    this.tracers = new Tracers(
-      this.engine, TRACER_COUNT, this.world, this.sim.terrain, TRAIL_LEN, FLUID_MARGIN,
-      levelSeed(level.id, 0x85ebca6b),
-    )
-    this.clouds = new Clouds(levelSeed(level.id), this.world, this.sim.terrain)
-    this.planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
-    this.scene = { sim: this.sim, tracers: this.tracers, clouds: this.clouds, planeTrail: this.planeTrail, press: null, now: 0 }
-    const { w, h } = level.world
-    this.windProbes = buildWindProbes(w, h)
-    this.renderer = new Renderer(canvas, this.engine)
+    this.renderer = new Renderer(canvas, createEngine())
+    this.worker = new Worker(new URL('../sim/sim-worker.ts', import.meta.url), { type: 'module' })
+    this.worker.onmessage = this.onWorkerMessage
+    this.worker.onerror = (e) => {
+      console.error('模拟 worker 启动失败：', e.message)
+      this.loop.stop()
+    }
     this.loop = new GameLoop({ tick: this.tick, render: this.render })
     this.input = new GestureInput(canvas, {
       toWorld: (cx, cy) => this.renderer.toWorld(cx, cy),
-      hitSource: (w) => this.sim.hitSource(w.x, w.y),
+      hitSource: (w) => this.hitSource(w.x, w.y),
       sourceGrabbed: (s) => {
         fb.grab()
         this.press = {
@@ -96,11 +81,7 @@ export class GameController {
       },
       sourceReleased: (s) => {
         this.press = null
-        if (this.sim.removeSource(s.id)) {
-          fb.remove()
-          this.pushHud()
-          this.emitSources()
-        }
+        this.send({ t: 'remove', id: s.id })
       },
       pressStarted: (w) => {
         this.press = { kind: 'place', x: w.x, y: w.y, start: performance.now() }
@@ -113,6 +94,7 @@ export class GameController {
       secondaryTap: (w, cx, cy) => this.tryPlace(w.x, w.y, 'cold', cx, cy),
       denyAt: (kind, cx, cy) => this.deny(kind, cx, cy),
     })
+    this.send({ t: 'load', levelId: level.id, json: level.json, unlimited: this.devTools !== null })
   }
 
   start() {
@@ -122,7 +104,6 @@ export class GameController {
     }
     this.fit()
     this.loop.start()
-    this.pushHud()
   }
 
   get renderable(): boolean {
@@ -136,6 +117,9 @@ export class GameController {
 
   destroy() {
     this.loop.stop()
+    this.worker.terminate()
+    this.worker.onmessage = null
+    this.worker.onerror = null
     this.input.destroy()
     this.ro?.disconnect()
     this.ro = null
@@ -145,24 +129,22 @@ export class GameController {
   }
 
   restart() {
-    this.sim.restart()
+    this.send({ t: 'restart' })
     bgm.setPaused(false)
-    this.planeTrail.clear()
     this.press = null
-    this.lastPhase = 'playing'
-    this.pushHud()
   }
 
   togglePause() {
-    this.sim.setPaused(!this.sim.paused)
-    if (this.sim.paused) sfx.fadeOutWind()
-    bgm.setPaused(this.sim.paused)
-    fb.pause(this.sim.paused)
-    this.pushHud()
+    this.send({ t: 'pause', v: !this.paused })
   }
 
-  private pushHud() {
-    this.events.onHud(this.sim.hudState())
+  applySources(list: SourcePlacement[], silent = false) {
+    this.suppressSources = silent
+    this.send({ t: 'applySources', list })
+  }
+
+  private send(msg: SimRequest) {
+    this.worker.postMessage(msg)
   }
 
   private pixelRatio(): number {
@@ -188,95 +170,131 @@ export class GameController {
 
   private tryPlace(x: number, y: number, kind: SourceKind, clientX: number, clientY: number) {
     this.press = null
-    const source = this.sim.placeSource(x, y, kind)
-    if (source) {
-      if (kind === 'hot') fb.placeHot()
-      else fb.placeCold()
-      this.pushHud()
-      this.emitSources()
-    } else {
-      this.deny(kind, clientX, clientY)
-    }
+    this.send({ t: 'place', x, y, kind, clientX, clientY })
   }
 
-  applySources(list: SourcePlacement[], silent = false) {
-    if (this.sim.phase === 'won') {
-      this.sim.phase = 'playing'
-      this.sim.visited.fill(false)
-      this.sim.visitedCount = 0
-      this.sim.setPaused(false)
-      bgm.setPaused(false)
+  private hitSource(x: number, y: number): Source | null {
+    const sources = this.snapshot?.sources
+    if (!sources) return null
+    let best: Source | null = null
+    let bestDist = SOURCE_HIT_RADIUS
+    for (const s of sources) {
+      const dx = s.x - x
+      const dy = s.y - y
+      const d = Math.sqrt(dx * dx + dy * dy)
+      if (d < bestDist) {
+        bestDist = d
+        best = s
+      }
     }
-    this.sim.applySources(list)
-    this.pushHud()
-    if (!silent) this.emitSources()
-  }
-
-  private emitSources() {
-    this.events.onSources(this.sim.sources.map((s) => ({ x: s.x, y: s.y, kind: s.kind })))
+    return best
   }
 
   private tick = (dt: number) => {
-    const t0 = performance.now()
-    const frozen = this.sim.paused || this.sim.phase === 'won'
-    const visitedBefore = this.sim.visitedCount
-
-    if (!frozen) {
-      const p = this.sim.plane
-      const altBefore = this.sim.terrain.sample(p.x, p.y)
-      const vyBefore = p.vy
-
-      this.sim.step(dt)
-      this.tracers.step(dt, this.sim.sources)
-      this.clouds.step(dt, this.sim.fluid)
-      this.planeTrail.push(p.x, p.y, this.sim.time)
-
-      sampleWind(this.sim.fluid, this.windProbes, p, this.tmpAir, this.windSample)
-      sfx.updateWind(this.windSample.field, this.windSample.rel, dt)
-      sfx.setPlanePan(p.x, this.world.w)
-      const altAfter = this.sim.terrain.sample(p.x, p.y)
-      if (isLanding(altBefore, altAfter, vyBefore)) {
-        const now = performance.now()
-        if (now - this.lastLand > LAND_SOUND_MIN_INTERVAL) {
-          this.lastLand = now
-          fb.land(Math.abs(vyBefore))
-        }
-      }
-    }
-
-    if (this.sim.visitedCount > visitedBefore) {
-      if (this.sim.phase === 'won') fb.win()
-      else fb.reward()
-    }
-
-    if (this.sim.phase !== this.lastPhase) {
-      this.lastPhase = this.sim.phase
-      if (this.sim.phase === 'won') {
-        sfx.fadeOutWind()
-      }
-      this.pushHud()
-    }
-
-    this.tickMs += performance.now() - t0
+    if (!this.ready) return
+    this.send({ t: 'tick', dt })
   }
 
   private render = () => {
     const t0 = performance.now()
-    const s = this.scene
-    s.press = this.press
-    s.now = performance.now()
-    this.renderer.draw(s)
-    this.events.onStatus(this.sim.time, totalPenaltySeconds(this.sim.sources.length, this.sim.groundedTime))
+    const snap = this.snapshot
+    const st = this.staticView
+    if (!snap || !st) {
+      this.renderer.drawBoot(this.world)
+      return
+    }
+    const view: RenderView = {
+      ...st,
+      time: snap.time,
+      plane: snap.plane,
+      sources: snap.sources,
+      visited: snap.visited,
+      tracers: snap.tracers,
+      clouds: snap.clouds,
+      planeTrail: snap.planeTrail,
+      goalWind: snap.goalWind,
+    }
+    this.renderer.draw({ view, press: this.press, now: performance.now() })
+    this.events.onStatus(snap.time, snap.extra)
     this.devTools?.record({
       tickMs: this.tickMs,
       batchMs: performance.now() - t0,
       vertices: this.renderer.lastVertexCount,
       uploadBytes: this.renderer.lastUploadBytes,
-      tracers: this.tracers.count,
+      tracers: snap.tracers.count,
       dpr: this.pixelRatio(),
     })
     const cost = performance.now() - t0 + this.tickMs
     this.tickMs = 0
     if (governor.record(cost, this.rate)) this.fit(true)
+  }
+
+  private onWorkerMessage = (e: MessageEvent<SimEvent>) => {
+    const m = e.data
+    switch (m.t) {
+      case 'ready':
+        this.onReady(m)
+        break
+      case 'frame':
+        this.tickMs += m.snapshot.tickMs
+        this.snapshot = m.snapshot
+        break
+      case 'hud':
+        this.onHud(m.state)
+        break
+      case 'phase':
+        if (m.phase === 'won') sfx.fadeOutWind()
+        break
+      case 'visited':
+        if (m.won) fb.win()
+        else fb.reward()
+        break
+      case 'placed':
+        if (m.kind === 'hot') fb.placeHot()
+        else fb.placeCold()
+        break
+      case 'removed':
+        fb.remove()
+        break
+      case 'deny':
+        this.deny(m.kind, m.clientX, m.clientY)
+        break
+      case 'wind':
+        sfx.updateWind(m.field, m.rel, SIM_DT)
+        sfx.setPlanePan(m.px, this.world.w)
+        break
+      case 'land':
+        fb.land(m.intensity)
+        break
+      case 'sources':
+        if (this.suppressSources) {
+          this.suppressSources = false
+          break
+        }
+        this.events.onSources(m.list)
+        break
+    }
+  }
+
+  private onReady(m: Extract<SimEvent, { t: 'ready' }>) {
+    const { nx, ny, cell, originX, field } = m.terrain
+    this.staticView = {
+      world: m.world,
+      terrain: terrainFromField(field, { nx, ny, origin: originX }, cell),
+      goals: m.goals,
+      fixedSources: m.fixedSources,
+      fans: m.fans,
+    }
+    this.ready = true
+  }
+
+  private onHud(state: HudState) {
+    if (state.paused !== this.paused) {
+      this.paused = state.paused
+      if (this.paused) sfx.fadeOutWind()
+      bgm.setPaused(this.paused)
+      fb.pause(this.paused)
+    }
+    this.events.onHud(state)
   }
 }

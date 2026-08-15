@@ -1,24 +1,41 @@
 import { MeshBatch, VERTEX_STRIDE } from './batch.ts'
 import { GlRenderer } from './gl.ts'
-import { bilinearSample } from '../sim/fluid.ts'
 import type { EngineHandle } from '../wasm/engine.ts'
-import type { Tracers } from '../sim/particles.ts'
-import { CLOUD_COUNT, type Clouds } from '../sim/clouds.ts'
+import { CLOUD_COUNT } from '../sim/clouds.ts'
 import { fillCloudVerts } from './cloud-batch.ts'
-import { fadeRetention, TRAIL_FADE_T, type Trail } from '../sim/trail.ts'
+import { fadeRetention, TRAIL_FADE_T, PLANE_TRAIL_FADE } from '../sim/trail.ts'
 import { PLANE_LOCAL } from '../sim/bodies.ts'
 import type { Vec2 } from '../sim/types.ts'
-import type { LevelSimulation } from '../game/simulation.ts'
 import { fanDirection } from '../game/simulation.ts'
 import { gridAnchor, type Terrain } from '../sim/terrain.ts'
 import { worldToGrid } from '../sim/grid.ts'
 import { GOAL_LIFT, LONG_PRESS_MS, type PressVisual } from '../sim/types.ts'
+import type { FanDef } from '../game/types.ts'
+import {
+  POLE_HEIGHT, TRACER_TAIL_SEGS, VISIBLE_ALPHA,
+  HOT, COLD,
+  type TracerView, type CloudsView, type PlaneTrailView, type GoalView, type SourceView,
+} from '../sim/worker-protocol.ts'
+
+// 渲染消费的静态场景 + 每帧快照动态字段：来源单一（worker 帧快照），字段名与旧 sim 消费一致
+export interface RenderView {
+  world: { w: number; h: number }
+  terrain: Terrain
+  time: number
+  plane: { x: number; y: number; angle: number }
+  sources: SourceView[]
+  visited: boolean[]
+  goals: GoalView[]
+  fixedSources: SourceView[]
+  fans: FanDef[]
+  tracers: TracerView
+  clouds: CloudsView
+  planeTrail: PlaneTrailView
+  goalWind: Float32Array
+}
 
 export interface SceneState {
-  sim: LevelSimulation
-  tracers: Tracers
-  clouds: Clouds
-  planeTrail: Trail
+  view: RenderView
   press: PressVisual | null
   now: number
 }
@@ -28,16 +45,11 @@ type RGB = readonly [number, number, number]
 // 轨迹尾段渐变：靠近起点的采样点线性减淡（头实尾虚）
 const tailFade = (k: number, segs: number) => (k < segs ? k / segs : 1)
 
-// 颜色插值（5 处共用）：模块级无闭包，每帧零开销
-const mix = (a: number, b: number, t: number) => a + (b - a) * t
-
 // 飞机轮廓遍历序（每帧复用，避免数组分配）
 const PLANE_OUTLINE = [0, 1, 2, 3, 0] as const
 
 const rgb = (r: number, g: number, b: number): RGB => [r / 255, g / 255, b / 255]
 
-const HOT = rgb(255, 90, 60)
-const COLD = rgb(61, 139, 255)
 const FLAME_OUTER = rgb(255, 138, 62)
 const FLAME_INNER = rgb(255, 215, 130)
 const TRAIL_INK = rgb(64, 74, 106)
@@ -59,22 +71,10 @@ const SUN_RADIUS = 4
 const SUN_BREATH_AMP = 0.12
 const SUN_BREATH_PERIOD = 700
 
-const AIR_AMBIENT = rgb(200, 197, 183)
-const AIR_SOFT = 0.35
-const HEAD_ALPHA_AMBIENT = 0.45
-const HEAD_ALPHA_STRONG = 0.85
-const LINE_ALPHA_AMBIENT = 0.18
-const LINE_ALPHA_COLORED = 0.42
 const TRACER_LINE_WIDTH = 0.3
 const TRACER_HEAD_RADIUS = 0.3
-// 拖尾尾端空间淡出段数（采样距 × 段数 = 淡出长度）：保证最旧端 alpha 恒为 0，避免线段末端可见切口
-const TRACER_TAIL_SEGS = 5
 const PLANE_TRAIL_TAIL_SEGS = 8
 const PLANE_TRAIL_WIDTH = 0.36
-const GUST_BASE = 0.7
-const GUST_BOOST = 0.6
-const GUST_FULL_SPEED = 4
-const VISIBLE_ALPHA = 0.02
 const SOURCE_POP_RATE = 9
 const SOURCE_GLOW_RADIUS = 4.8
 const SOURCE_CORE_RADIUS = 1.15
@@ -90,8 +90,6 @@ const FLAG_RESPONSE_WIND = 3
 // 旗面方向满幅风速：u 以下方向向量线性衰减到 0（连续过零），
 // 取代单位方向+硬阈值——阈值处宽约 1 跳变到 0，风向反转时旗面会「啪」地消失再弹出
 const FLAG_DIR_FULL = 0.3
-// 旗杆高：原 5.7 的约 2/3（目标区压低，避免遮挡视线；旗面仍从杆顶垂挂）
-const POLE_HEIGHT = 3.8
 const POLE_W = 0.34
 const POLE_FABRIC_LEN = 1.8
 const SLEEVE_W = 0.4
@@ -101,10 +99,7 @@ const SLEEVE_LEN = POLE_FABRIC_LEN + POLE_W / 2 - SLEEVE_W / 2
 export class Renderer {
   readonly canvas: HTMLCanvasElement
   private gl: GlRenderer | null
-  private engine: EngineHandle
   private batch: MeshBatch
-  // 零拷贝流体场视图（共享引擎内存）：按关卡网格尺寸建一次，视图恒定
-  private fields: { u: Float32Array; v: Float32Array; t: Float32Array; fxU: Float32Array; fxV: Float32Array; nx: number; ny: number; cell: number } | null = null
   private cssW = 0
   private cssH = 0
   private scale = 1
@@ -126,7 +121,6 @@ export class Renderer {
 
   constructor(canvas: HTMLCanvasElement, engine: EngineHandle) {
     this.canvas = canvas
-    this.engine = engine
     this.batch = new MeshBatch(engine)
     this.gl = GlRenderer.create(canvas)
     if (!this.gl) console.warn('WebGL 不可用，画布将保持空白')
@@ -166,14 +160,31 @@ export class Renderer {
 
   private world: { w: number; h: number } | null = null
 
+  // 引导帧：worker 就绪前只画天空+太阳光晕（仅依赖世界尺寸的静态层），
+  // 消除"进关黑屏一闪"——背景烘焙与正式帧共用同程序同混合，ready 后无缝衔接
+  drawBoot(world: { w: number; h: number }) {
+    const gl = this.gl
+    if (!gl || this.cssW === 0 || this.cssH === 0) return
+    const { w, h } = world
+    this.world = world
+    this.scale = Math.min(this.cssW / w, this.cssH / h)
+    this.ox = (this.cssW - w * this.scale) / 2
+    this.oy = (this.cssH - h * this.scale) / 2
+    const viewL = -this.ox / this.scale
+    const viewT = -this.oy / this.scale
+    const viewR = viewL + this.cssW / this.scale
+    const viewB = viewT + this.cssH / this.scale
+    this.drawBackground(gl, viewL, viewT, viewR, viewB, h)
+    this.batch.reset()
+    gl.draw(this.batch, viewL, viewT, viewR, viewB)
+  }
+
   draw(scene: SceneState) {
     const gl = this.gl
     if (!gl || this.cssW === 0 || this.cssH === 0) return
-    const { sim, tracers, planeTrail, press, now } = scene
-    const { w, h } = sim.level.world
-    this.world = sim.level.world
-    // 场视图尺寸以流体为准（流体域 = 地图外扩边距，大于关卡世界）
-    this.ensureFields(sim.fluid.nx, sim.fluid.ny, sim.fluid.cell)
+    const { view, press, now } = scene
+    const { w, h } = view.world
+    this.world = view.world
 
     this.scale = Math.min(this.cssW / w, this.cssH / h)
     this.ox = (this.cssW - w * this.scale) / 2
@@ -189,26 +200,26 @@ export class Renderer {
     const b = this.batch
     // 当前无相机（恒全图适配）：烘焙窗口恒等于整图，ti0..tj1 比较只在换关/resize 后成立一次——
     // 四分量比较是"未来加相机"的挂点，非每帧视域剔除
-    this.drawTerrainPass(gl, b, sim.terrain, viewL, viewT, viewR, viewB)
+    this.drawTerrainPass(gl, b, view.terrain, viewL, viewT, viewR, viewB)
 
     b.reset()
     // 遮挡契约（远→近）：天空+太阳光晕烘焙进背景纹理（一次不透明 blit 最底）→ 气流粒子与轨迹 →
     // 太阳盘面 → 云（独立 GLSL 趟：遮粒子与日芒）→ 地形固体填充（云被山体精确遮挡）→ 旗杆 →
     // 旗面/套筒/抵达圆 → 固定源/源/风扇 → 飞机拖尾与飞机（画面顶层，不被地形遮挡）→ 按压指示
-    this.drawTracers(b, tracers)
+    this.drawTracers(b, view.tracers)
     this.drawSun(b, now)
     const pass1 = b.count
     gl.draw(b, viewL, viewT, viewR, viewB)
-    gl.drawClouds(this.cloudBuf, this.fillClouds(scene.clouds), viewL, viewT, viewR, viewB, sim.time)
+    gl.drawClouds(this.cloudBuf, this.fillClouds(view.clouds), viewL, viewT, viewR, viewB, view.time)
     gl.drawTerrain(this.terrainCount, viewL, viewT, viewR, viewB)
     b.reset()
-    this.drawGoalPoles(b, sim)
-    this.drawGoal(b, sim)
-    this.drawFixedSources(b, sim)
-    this.drawSources(b, sim, press, now)
-    this.drawFans(b, sim)
-    this.drawPlaneTrail(b, sim, planeTrail)
-    this.drawPlane(b, sim)
+    this.drawGoalPoles(b, view)
+    this.drawGoal(b, view)
+    this.drawFixedSources(b, view)
+    this.drawSources(b, view, press, now)
+    this.drawFans(b, view)
+    this.drawPlaneTrail(b, view)
+    this.drawPlane(b, view)
     if (press && press.kind === 'place') this.drawPress(b, press, now)
     this.lastVertexCount = pass1 + b.count + this.terrainCount
     this.lastUploadBytes = (pass1 + b.count) * VERTEX_STRIDE * 4
@@ -286,35 +297,37 @@ export class Renderer {
     b.disc(SUN_POS[0], SUN_POS[1], r, r, 0, 48, ...SUN, 1)
   }
 
-  private fillClouds(clouds: Clouds): number {
+  private fillClouds(clouds: CloudsView): number {
     return fillCloudVerts(clouds, this.cloudBuf)
   }
 
-  private drawGoalPoles(b: MeshBatch, sim: LevelSimulation) {
-    const goals = sim.level.goals
+  private drawGoalPoles(b: MeshBatch, view: RenderView) {
+    const goals = view.goals
     for (let i = 0; i < goals.length; i++) {
-      const gy = sim.goalAnchorY[i]
+      const gy = goals[i].anchorY
       // 底端从 gy - POLE_W/2 起画：圆头帽尖正好落在地面线上（地形填充画在其后，杆身不埋地）
       b.stroke(goals[i].x, gy - POLE_W / 2, goals[i].x, gy - POLE_HEIGHT, POLE_W, ...FLAG_POLE, 1, true)
     }
   }
 
-  private drawGoal(b: MeshBatch, sim: LevelSimulation) {
-    const goals = sim.level.goals
+  private drawGoal(b: MeshBatch, view: RenderView) {
+    const goals = view.goals
     this.ensureFlagState(goals.length)
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]
-      if (sim.visited[i]) continue
-      const gy = sim.goalAnchorY[i]
+      if (view.visited[i]) continue
+      const gy = g.anchorY
       const flagTop = gy - POLE_HEIGHT
 
       b.dashRing(g.x, gy - GOAL_LIFT, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
       const air = Renderer.tmpAir
-      sim.fluid.sampleVelocity(g.x + 1.6, flagTop + 1.4, air)
-      // 一阶滞后趋近当地风；restart 使 sim.time 回退，负 dt 会让 k 变负巨值、
+      // 采样点风由 worker 每 tick 预采随快照送达（同点同语义），此处只做滞后动画
+      air.x = view.goalWind[i * 2]
+      air.y = view.goalWind[i * 2 + 1]
+      // 一阶滞后趋近当地风；restart 使 view.time 回退，负 dt 会让 k 变负巨值、
       // 状态逐帧炸到 Inf/NaN 后旗面永久消失（Renderer 跨重置持久）——夹到 0
-      const dt = Math.max(0, sim.time - this.flagT[i])
-      this.flagT[i] = sim.time
+      const dt = Math.max(0, view.time - this.flagT[i])
+      this.flagT[i] = view.time
       const k = 1 - Math.exp(-dt * (FLAG_RESPONSE_BASE + Math.hypot(air.x, air.y) * FLAG_RESPONSE_WIND))
       this.flagX[i] += (air.x - this.flagX[i]) * k
       this.flagY[i] += (air.y - this.flagY[i]) * k
@@ -329,7 +342,7 @@ export class Renderer {
       const dx = sx * inv
       const dy = sy * inv
       const droop = 0.85 * Math.exp(-uN * 1.6)
-      const wave = (0.1 + uN * 0.45) * Math.sin(sim.time * (5 + uN * 4) + i * 1.7)
+      const wave = (0.1 + uN * 0.45) * Math.sin(view.time * (5 + uN * 4) + i * 1.7)
       const tipX = g.x + dx * len - dy * wave
       const tipY = flagTop + dy * len * 0.55 + droop * len + dx * wave
       b.tri(g.x, flagTop, tipX, tipY, g.x, flagTop + POLE_FABRIC_LEN, ...GOAL, 1)
@@ -354,20 +367,20 @@ export class Renderer {
   }
 
   // 固定源形象化（#29）：热源 = 篝火（圆润泪滴火苗 + 底座），冷源 = 空调（圆角机身 + 圆环出风口）——封闭圆润、简约优雅，不复用玩家源圆盘样式
-  private drawFixedSources(b: MeshBatch, sim: LevelSimulation) {
-    for (const s of sim.fixedSources) {
-      if (s.kind === 'hot') this.drawCampfire(b, sim, s.x, s.y)
+  private drawFixedSources(b: MeshBatch, view: RenderView) {
+    for (const s of view.fixedSources) {
+      if (s.kind === 'hot') this.drawCampfire(b, view, s.x, s.y)
       else this.drawAC(b, s.x, s.y)
     }
   }
 
   // 尺寸/形象/动画与功率无关（power 只影响注入热量），避免"改个功率道具忽大忽小"
-  private drawCampfire(b: MeshBatch, sim: LevelSimulation, x: number, y: number) {
+  private drawCampfire(b: MeshBatch, view: RenderView, x: number, y: number) {
     b.discGrad(x, y, 2.2, 16, ...HOT, 0.16, ...HOT, 0)
     // 底座：一块圆润坐垫
     b.disc(x, y + 0.1, 1.3, 0.45, 0, 16, ...INK_DARK, 0.28)
     // 火苗：圆头圆尾的泪滴（外橙内黄），摇曳轻微缩放
-    const flicker = 1 + 0.12 * Math.sin(sim.time * 9) + 0.06 * Math.sin(sim.time * 15.7 + 1.3)
+    const flicker = 1 + 0.12 * Math.sin(view.time * 9) + 0.06 * Math.sin(view.time * 15.7 + 1.3)
     b.stroke(x, y - 0.2 * flicker, x, y - 1.2 * flicker, 0.9 * flicker, ...FLAME_OUTER, 0.95, true)
     b.stroke(x, y - 0.2 * flicker, x, y - 0.85 * flicker, 0.5 * flicker, ...FLAME_INNER, 1, true)
   }
@@ -389,12 +402,12 @@ export class Renderer {
     b.disc(x, y, 0.2, 0.2, 0, 10, ...COLD, 0.9)
   }
 
-  private drawSources(b: MeshBatch, sim: LevelSimulation, press: PressVisual | null, now: number) {
-    for (const s of sim.sources) {
+  private drawSources(b: MeshBatch, view: RenderView, press: PressVisual | null, now: number) {
+    for (const s of view.sources) {
       const grabbed = press?.kind === 'remove' && press.sourceId === s.id
       // 生长动画按墙钟推进：暂停/冻结时 sim 时钟不走，born 差值恒 0 会隐形
       const pop = Math.max(0, 1 - Math.exp(-(now - s.wallBorn) * SOURCE_POP_RATE))
-      const pulse = 1 + 0.05 * Math.sin(sim.time * 4 + s.id * 1.7)
+      const pulse = 1 + 0.05 * Math.sin(view.time * 4 + s.id * 1.7)
       const c = s.kind === 'hot' ? HOT : COLD
 
       if (pop > VISIBLE_ALPHA) {
@@ -410,9 +423,9 @@ export class Renderer {
     }
   }
 
-  private drawFans(b: MeshBatch, sim: LevelSimulation) {
-    for (const f of sim.fans) {
-      const dir = fanDirection(f, sim.time)
+  private drawFans(b: MeshBatch, view: RenderView) {
+    for (const f of view.fans) {
+      const dir = fanDirection(f, view.time)
       const cd = Math.cos(dir)
       const sd = Math.sin(dir)
       // 叶盘 3D 圆投影为椭圆：长轴 ⊥ dir、短轴沿 dir（短/长 = FAN_ELLIPSE_K）。
@@ -424,7 +437,7 @@ export class Renderer {
       const ax = -sd
       const ay = cd
       for (let k = 0; k < 3; k++) {
-        const a = sim.time * FAN_SPIN_RATE + (k * Math.PI * 2) / 3
+        const a = view.time * FAN_SPIN_RATE + (k * Math.PI * 2) / 3
         const ca = Math.cos(a)
         const sa = Math.sin(a)
         const tx = f.x + FAN_BLADE_LEN * (ca * ax - FAN_ELLIPSE_K * sa * cd)
@@ -446,78 +459,41 @@ export class Renderer {
 
   private static tmpAir = { x: 0, y: 0 }
 
-  private ensureFields(nx: number, ny: number, cell: number) {
-    const f = this.fields
-    if (f && f.nx === nx && f.ny === ny && f.cell === cell) return
-    const buf = this.engine.memory.buffer
-    const n = nx * ny
-    this.fields = {
-      u: new Float32Array(buf, this.engine.ex.fieldU(), n),
-      v: new Float32Array(buf, this.engine.ex.fieldV(), n),
-      t: new Float32Array(buf, this.engine.ex.fieldT(), n),
-      fxU: new Float32Array(buf, this.engine.ex.fieldFxU(), n),
-      fxV: new Float32Array(buf, this.engine.ex.fieldFxV(), n),
-      nx,
-      ny,
-      cell,
-    }
-  }
-
-  private drawTracers(b: MeshBatch, tracers: Tracers) {
-    const { trailX, trailY, trailT, trailN, count } = tracers
-    const trailLen = tracers.trailLen
-    const air = Renderer.tmpAir
-    const f = this.fields!
-    const amb = this.engine.ambient
-    const org = this.engine.origin
+  private drawTracers(b: MeshBatch, t: TracerView) {
+    const { pxy, headA, cr, cg, cb, lineA, gust, trailX, trailY, trailT, trailN, count, trailLen, time } = t
     // 可见粒子直写内核批量缓冲（定长记录），末尾单调用 tessellate：每帧跨界从 ~800 次降到 1 次
     const buf = b.tracerData
     const stride = b.tracerStride
     const cap = b.tracerCap
     // 定长记录点数上限（头点占末位）：写入钳制，防越界写跨记录串扰（内核侧另有镜像钳制）
     const maxPts = (stride - 5) / 3
-    const now = tracers.time
     let m = 0
     for (let i = 0; i < count && m < cap; i++) {
-      const env = tracers.envelope(i)
-      if (env <= VISIBLE_ALPHA) continue
-      // 零拷贝采样：直读共享内存流体场（环境风 = 基场×强度，与 wasm 采样同构）；
-      // 着色用总温度 = 场温 + 环境偏置（与内核 sampleTemp/浮力同一事实源）
-      const temp = bilinearSample(f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell, org.x, org.y, amb.x, amb.y, tracers.x[i], tracers.y[i], air) + amb.t
-      const sp2 = air.x * air.x + air.y * air.y
-      const u = Math.tanh(Math.abs(temp) / AIR_SOFT)
-      const to = temp >= 0 ? HOT : COLD
-      const cr = mix(AIR_AMBIENT[0], to[0], u)
-      const cg = mix(AIR_AMBIENT[1], to[1], u)
-      const cb = mix(AIR_AMBIENT[2], to[2], u)
-      const headAlpha = mix(HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, u) * env
-      const lineAlpha = mix(LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED, u)
-
+      // headA 为 0 即 worker 的 env≤VISIBLE_ALPHA 标记：整条记录跳过（免上传近零 alpha 顶点）
+      if (headA[i] === 0) continue
       const off = m * stride
-      buf[off] = cr
-      buf[off + 1] = cg
-      buf[off + 2] = cb
-      buf[off + 4] = headAlpha
+      buf[off] = cr[i]
+      buf[off + 1] = cg[i]
+      buf[off + 2] = cb[i]
+      buf[off + 4] = headA[i]
       let np = 0
       // 头点占末位：拖尾点最多 maxPts−1（写入钳制，与内核 b_tracers 的读取钳制成对）
       const n = Math.min(trailN[i], maxPts - 1)
       if (n > 0) {
-        const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
         const base = i * trailLen
         for (let k = 0; k < n; k++) {
           const po = off + 5 + np * 3
           buf[po] = trailX[base + k]
           buf[po + 1] = trailY[base + k]
-          // trailT 以 tracers.time（sim 时间）写入，淡出用同钟读，避免倍速下与 wall clock 漂移
-          const a = fadeRetention(now, trailT[base + k], TRAIL_FADE_T) * env * gust
-          const tail = tailFade(k, TRACER_TAIL_SEGS)
-          buf[po + 2] = a > 0 ? Math.min(1, a) * lineAlpha * tail : 0
+          // trailT 以 sim 时间写入，淡出用同钟读，避免倍速下与 wall clock 漂移
+          const a = fadeRetention(time, trailT[base + k], TRAIL_FADE_T) * tailFade(k, TRACER_TAIL_SEGS) * lineA[i] * gust[i]
+          buf[po + 2] = a > 0 ? Math.min(1, a) : 0
           np++
         }
       }
       const po = off + 5 + np * 3
-      buf[po] = tracers.x[i]
-      buf[po + 1] = tracers.y[i]
+      buf[po] = pxy[i * 2]
+      buf[po + 1] = pxy[i * 2 + 1]
       // 头部顶点 alpha=0：线带恰在头心淡尽，头部圆盘独享混合——避免线带与圆盘重叠区双混发深
       buf[po + 2] = 0
       np++
@@ -533,7 +509,8 @@ export class Renderer {
 
   // 单条折线带（miter 接头）+ 逐点线性 alpha：无逐段恒定 alpha 的阶梯突变、无平头接头缺口；
   // 尾端空间淡出与时间淡出取小，最旧端 alpha 恒为 0，消失如融化而非切断
-  private drawPlaneTrail(b: MeshBatch, sim: LevelSimulation, trail: Trail) {
+  private drawPlaneTrail(b: MeshBatch, view: RenderView) {
+    const trail = view.planeTrail
     const n = trail.count
     if (n === 0) return
     const m = n + 1
@@ -544,16 +521,16 @@ export class Renderer {
     const pts = this.trailPts
     const fade = this.trailFade
     let any = false
-    // 批量遍历：for k 循环内每点一次回绕换算（indexOf 单次），免 xAt/yAt/tAt 三次取模
-    trail.forEachPoint((x, y, t, k) => {
-      pts[k * 2] = x
-      pts[k * 2 + 1] = y
-      const f = Math.min(fadeRetention(trail.time, t, trail.fadeTime), tailFade(k, PLANE_TRAIL_TAIL_SEGS))
+    // 批量遍历：快照数组即 Trail 迭代序（worker 已按回绕序导出），免 xAt/yAt/tAt 取模
+    for (let k = 0; k < n; k++) {
+      pts[k * 2] = trail.tx[k]
+      pts[k * 2 + 1] = trail.ty[k]
+      const f = Math.min(fadeRetention(trail.time, trail.tt[k], PLANE_TRAIL_FADE), tailFade(k, PLANE_TRAIL_TAIL_SEGS))
       fade[k] = 0.5 * f
       if (f > VISIBLE_ALPHA) any = true
-    })
+    }
     if (!any) return
-    const p = sim.plane
+    const p = view.plane
     pts[n * 2] = p.x
     pts[n * 2 + 1] = p.y
     fade[n] = fade[n - 1]
@@ -562,8 +539,8 @@ export class Renderer {
 
   private planeWorld = new Float32Array(8)
 
-  private drawPlane(b: MeshBatch, sim: LevelSimulation) {
-    const p = sim.plane
+  private drawPlane(b: MeshBatch, view: RenderView) {
+    const p = view.plane
     const cos = Math.cos(p.angle)
     const sin = Math.sin(p.angle)
     const w = this.planeWorld

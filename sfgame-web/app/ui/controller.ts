@@ -36,6 +36,7 @@ export class GameController {
   private rate = 1
   private fitW = 0
   private fitH = 0
+  private fitDpr = 0
   private ready = false
   private snapshot: FrameSnapshot | null = null
   private staticView: {
@@ -155,15 +156,17 @@ export class GameController {
     return governor.pixelRatio(window.devicePixelRatio || 1)
   }
 
-  private fit = (force = false) => {
+  private fit = () => {
     const rect = this.host.getBoundingClientRect()
     const w = Math.round(rect.width)
     const h = Math.round(rect.height)
     if (w === 0 || h === 0) return
-    if (!force && w === this.fitW && h === this.fitH) return
+    const dpr = this.pixelRatio()
+    if (w === this.fitW && h === this.fitH && dpr === this.fitDpr) return
     this.fitW = w
     this.fitH = h
-    this.renderer.resize(w, h, this.pixelRatio())
+    this.fitDpr = dpr
+    this.renderer.resize(w, h, dpr)
     this.render()
   }
 
@@ -227,9 +230,9 @@ export class GameController {
       tracers: TRACER_COUNT,
       dpr: this.pixelRatio(),
     })
-    const cost = performance.now() - t0 + this.tickMs
+    const cost = performance.now() - t0
     this.tickMs = 0
-    if (governor.record(cost, this.rate)) this.fit(true)
+    if (governor.record(cost, this.rate)) this.fit()
   }
 
   private onWorkerMessage = (e: MessageEvent<SimEvent>) => {

@@ -42,3 +42,32 @@ fn gs_pair(a : Int) -> Unit {
   v128_store1_f32_lane0(p, off, f)
   v128_store1_f32_lane1(p, off + 8, f)
 }
+
+///|
+fn buoyancy2(k : Double, a_t : Double) -> Unit {
+  let nx = pm.nx
+  let ny = pm.ny
+  let kv = @v128.f64x2_splat(k)
+  let av = @v128.f64x2_splat(a_t)
+  let last = nx - 2
+  for j in 1..<(ny - 1) {
+    let row = j * nx
+    let mut i = 1
+    while i + 1 <= last {
+      let idx = i + row
+      let vp = @v128.f64x2_promote_low_f32x4(v128_load4_f32(v, idx * 4))
+      let tp = @v128.f64x2_promote_low_f32x4(v128_load4_f32(t, idx * 4))
+      let s = @v128.f64x2_sub(vp, @v128.f64x2_mul(kv, @v128.f64x2_add(tp, av)))
+      let f = @v128.f32x4_demote_f64x2_zero(s)
+      v128_store1_f32_lane0(v, idx * 4, f)
+      v128_store1_f32_lane1(v, (idx + 1) * 4, f)
+      i = i + 2
+    }
+    if i <= last {
+      let idx = i + row
+      v[idx] = Float::from_double(
+        v[idx].to_double() - k * (t[idx].to_double() + a_t),
+      )
+    }
+  }
+}

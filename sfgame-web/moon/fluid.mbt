@@ -740,19 +740,7 @@ fn advect_maccormack(
 
 ///|
 fn apply_buoyancy(dt : Double) -> Unit {
-  let k = pm.buoyancy * dt
-  let a_t = pm.ambient_t
-  let nx = pm.nx
-  let ny = pm.ny
-  for j in 1..<(ny - 1) {
-    let row = j * nx
-    for i in 1..<(nx - 1) {
-      let idx = i + row
-      v[idx] = Float::from_double(
-        v[idx].to_double() - k * (t[idx].to_double() + a_t),
-      )
-    }
-  }
+  buoyancy2(pm.buoyancy * dt, pm.ambient_t)
 }
 
 // 边距吸收层：仅扫左/右/上三条边距带，系数随深入边距线性增强——开放大气的替身，

@@ -52,6 +52,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 
 - 根字号在 `app/styles.css` 随视口缩放（`calc(12.5px + min(0.7vw, 0.38vh))`，**无 clamp 硬限制**——字体/组件随显示尺寸等比缩放，配合密度降级保证"不可能溢出"，禁止用滚动条兜底横向溢出；px 仅限特殊情形（发丝线、动画位移、胶囊、媒体查询断点、env(safe-area)、阴影）
 - 间距/圆角/控件尺寸一律用 `:root` 尺寸 token（`--sp-1..6`、`--r-sm/md/lg/xl/pill`、`--ctl-h`、`--maxw-card/dialog`、`--card-pad`、`--page-pad-x/y`、`--hud-h`、`--scroll-thumb`），**禁止新散点值**；物理计算值例外（如 hud 阴影留白）
+- 圆角形状语义（Apple 语系，同类同形）：**胶囊**（`--r-pill`）= 徽章/状态 chip、短标签按钮、分段页签、开关轨道——只写 `border-radius`，不写 `corner-shape`；**正圆**（50%）= 旋钮/点状反馈——同样不写 `corner-shape`；**连续曲率**（`corner-shape: squircle`）只用于大表面与横幅（卡片/弹层/提示条，`--r-lg/xl`）且仅 Chromium 渲染、Safari 自动回落普通圆角——语义不得依赖它；`--r-sm/md` 小控件两种写法视觉等价，保留 squircle 统一写法
 - **每个 Lit 组件须自声明 `box-sizing: border-box`**（全局样式不穿透 shadow DOM，缺了会右溢）
 - 居中 + 溢出兜底用子项 `margin: auto`，禁用 `place-items: center`（溢出双向裁切）
 - **暖色背景渐变单源**：token `--bg-warm`（左上光斑）/`--bg-warm-r`（右上）定义在 `styles.css` `:root`，`html,body` 兜底携带渐变（浏览器工具栏/overscroll 露白延续渐变而非纯色带），组件内引用走 `var()`（shadow DOM 继承自定义属性），禁止内联复制渐变值

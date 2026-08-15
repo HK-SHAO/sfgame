@@ -173,7 +173,6 @@ export const pillLink = css`
     background: rgba(255, 253, 248, 0.6);
     border: 1px solid var(--glass-line);
     border-radius: var(--r-pill);
-    corner-shape: squircle;
     transition: color 120ms ease-out, box-shadow 120ms ease-out;
   }
 

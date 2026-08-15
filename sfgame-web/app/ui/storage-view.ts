@@ -219,7 +219,6 @@ export class SfStorage extends LitElement {
         font-size: 0.75rem;
         font-weight: 600;
         border-radius: var(--r-pill);
-        corner-shape: squircle;
         cursor: pointer;
         transition: transform 100ms ease-out, background 120ms ease-out;
       }

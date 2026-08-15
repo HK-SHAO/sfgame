@@ -148,7 +148,6 @@ export class SfGame extends LitElement {
         width: 2.75rem;
         height: 2.75rem;
         border-radius: 50%;
-        corner-shape: squircle;
         border: 2px solid var(--hot);
         pointer-events: none;
         visibility: hidden;

@@ -265,8 +265,7 @@ export class SfTitleScreen extends LitElement {
         align-items: center;
         gap: 1px;
         padding: var(--sp-1-5) var(--sp-5);
-        border-radius: var(--r-lg);
-        corner-shape: squircle;
+        border-radius: var(--r-pill);
         background: rgba(255, 255, 255, 0.4);
         border: 1px solid rgba(255, 255, 255, 0.7);
         color: var(--ink-soft);
@@ -404,7 +403,6 @@ export class SfTitleScreen extends LitElement {
         font-weight: 600;
         font-variant-numeric: tabular-nums;
         border-radius: var(--r-pill);
-        corner-shape: squircle;
       }
 
       .level .best.good {

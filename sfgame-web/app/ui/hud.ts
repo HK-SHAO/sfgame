@@ -193,8 +193,7 @@ export class SfHud extends LitElement {
         gap: var(--sp-1);
         height: var(--ctl-h);
         padding: 0 var(--sp-3);
-        border-radius: var(--r-md);
-        corner-shape: squircle;
+        border-radius: var(--r-pill);
         font-size: 0.875rem;
       }
 

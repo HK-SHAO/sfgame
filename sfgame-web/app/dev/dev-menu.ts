@@ -134,8 +134,7 @@ export class SfDevMenu extends LitElement {
         position: relative;
         width: 2.625rem;
         height: 1.5rem;
-        border-radius: 999px;
-        corner-shape: squircle;
+        border-radius: var(--r-pill);
         background: rgba(61, 52, 39, 0.14);
         transition: background 160ms ease-out;
       }
@@ -147,7 +146,6 @@ export class SfDevMenu extends LitElement {
         width: 1.12rem;
         height: 1.12rem;
         border-radius: 50%;
-        corner-shape: squircle;
         background: #fff;
         box-shadow: 0 0.0625rem 0.25rem rgba(61, 52, 39, 0.25);
         transition: transform 160ms ease-out;

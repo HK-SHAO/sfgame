@@ -22,7 +22,7 @@
 - `bun run build:wasm` = Moonbit 数值内核编译（moon 工具链需先装），wasm 单目标出单产物（dev/build/check 已内置，改 moon/ 后无需手动跑）：
   - wasm 目标 → `app/wasm/sfengine.wasm`（流体+顶点批+示踪三内核单模块单内存；SDF 表达式求值器为纯 TS `app/game/sdf.ts`，不经 moon）
 - `bun run test:moon` = moon 模块单元/白盒测试（wasm 引擎包，含 ffi 寻址约定与内核不变量）
-- `bun run bench:moon` = 内核性能基线（moon bench；满网格流体步 ≈4.6ms @ 256×160，GS f64x2 双格 SIMD + MacCormack 平流；无地形纯空域路径由内核门控自动转标量——JSC 对该路径的 gs_pair 误编译已被语义层隔离，见 pitfalls I8）
+- `bun run bench:moon` = 内核性能基线（moon bench；分阶段基准见 `moon/bench_wbtest.mbt`：满网格流体步 ≈3.7ms @ 256×160 = 平流 MacCormack 58% + GS 28% + 其余 14%；GS f64x2 双格 SIMD + buoyancy 双格 SIMD；无地形纯空域路径由内核门控自动转标量——JSC 对该路径的 gs_pair 误编译已被语义层隔离，见 pitfalls I8）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）
 - 关卡工具：`bun run scripts/run-level.ts levels/level-N.json --verify … --solve … --sim N`（物理内核恒为 WASM·Moonbit 内核；设计口径见 `skills/level-design/SKILL.md`，工具链见 `skills/level-design/ENGINEERING.md`）
 - `bun run test` 不编译 wasm：vitest 的 tests/setup.ts 预热 WASM 引擎，缺产物即抛错（产物 gitignore）——先 `bun run build:wasm`，或跑过一次 build/dev/check 产物即恒在；直跑 `vitest run`（不经脚本）同理

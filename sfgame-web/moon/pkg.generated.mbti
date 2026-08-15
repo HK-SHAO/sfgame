@@ -1,0 +1,145 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "sfgame/sfengine"
+
+// Values
+pub fn add_force(Double, Double, Double, Double, Double, Double) -> Unit
+
+pub fn add_heat(Double, Double, Double) -> Unit
+
+pub fn b_arc(Double, Double, Double, Double, Double, Int, Double, Double, Double, Double, Double) -> Unit
+
+pub fn b_capacity() -> Int
+
+pub fn b_count() -> Int
+
+pub fn b_dash_ring(Double, Double, Double, Double, Double, Double, Double, Double, Double, Double) -> Unit
+
+pub fn b_data() -> Int
+
+pub fn b_disc(Double, Double, Double, Double, Double, Int, Double, Double, Double, Double) -> Unit
+
+pub fn b_disc_grad(Double, Double, Double, Int, Double, Double, Double, Double, Double, Double, Double, Double) -> Unit
+
+pub fn b_fade_buf() -> Int
+
+pub fn b_fade_cap() -> Int
+
+pub fn b_polyline_fade(Int, Double, Double, Double, Double) -> Unit
+
+pub fn b_pts_buf() -> Int
+
+pub fn b_pts_cap() -> Int
+
+pub fn b_rect(Double, Double, Double, Double, Double, Double, Double, Double) -> Unit
+
+pub fn b_rect_vgrad(Double, Double, Double, Double, Double, Double, Double, Double, Double, Double, Double, Double) -> Unit
+
+pub fn b_reset() -> Unit
+
+pub fn b_ring(Double, Double, Double, Double, Double, Int, Double, Double, Double, Double, Double) -> Unit
+
+pub fn b_stroke(Double, Double, Double, Double, Double, Double, Double, Double, Double, Bool) -> Unit
+
+pub fn b_terrain_cap() -> Int
+
+pub fn b_terrain_data() -> Int
+
+pub fn b_terrain_draw(Int, Int, Int, Int) -> Int
+
+pub fn b_terrain_field(Int, Int, Double, Double, Double, Double, Double, Double, Double, Double, Double, Double) -> Int
+
+pub fn b_terrain_field_buf() -> Int
+
+pub fn b_terrain_field_cap() -> Int
+
+pub fn b_tracer_buf() -> Int
+
+pub fn b_tracer_cap() -> Int
+
+pub fn b_tracer_stride() -> Int
+
+pub fn b_tracers(Int, Double, Double) -> Unit
+
+pub fn b_tri(Double, Double, Double, Double, Double, Double, Double, Double, Double, Double) -> Unit
+
+pub fn b_vertex_stride() -> Int
+
+pub fn canary_buf() -> Int
+
+pub fn canary_get(Int) -> Int
+
+pub fn canary_len() -> Int
+
+pub fn canary_set(Int, Int) -> Unit
+
+pub fn clear() -> Unit
+
+pub fn f_max_nx() -> Int
+
+pub fn f_max_ny() -> Int
+
+pub fn field_fx_u() -> Int
+
+pub fn field_fx_v() -> Int
+
+pub fn field_t() -> Int
+
+pub fn field_u() -> Int
+
+pub fn field_v() -> Int
+
+pub fn fluid_init(Int, Int, Double, Double, Double, Double, Double, Double, Int, Int) -> Int
+
+pub fn out_x() -> Double
+
+pub fn out_y() -> Double
+
+pub fn rebuild_solid() -> Unit
+
+pub fn sample_temp(Double, Double) -> Double
+
+pub fn sample_velocity(Double, Double) -> Unit
+
+pub fn set_ambient(Double, Double, Double) -> Unit
+
+pub fn solid_buf() -> Int
+
+pub fn step(Double) -> Unit
+
+pub fn t_life_buf() -> Int
+
+pub fn t_max_life_buf() -> Int
+
+pub fn t_sdf_buf() -> Int
+
+pub fn t_sdf_cap() -> Int
+
+pub fn t_src_buf() -> Int
+
+pub fn t_src_cap() -> Int
+
+pub fn t_time() -> Double
+
+pub fn t_trail_n_buf() -> Int
+
+pub fn t_trail_t_buf() -> Int
+
+pub fn t_trail_x_buf() -> Int
+
+pub fn t_trail_y_buf() -> Int
+
+pub fn t_x_buf() -> Int
+
+pub fn t_y_buf() -> Int
+
+pub fn tracers_init(Int, Int, Double, Double, Double, Int, Int, Double, Double, Double, UInt) -> Int
+
+pub fn tracers_step(Double, Int) -> Unit
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

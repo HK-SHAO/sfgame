@@ -224,6 +224,9 @@ fn bake_ambient_basis() -> Unit {
   }
   let omega = 1.85
   for _ in 0..<200 {
+    // 收敛早停：最大更新量低于阈值即停——基场存 f32，后续迭代的残差变化经 demote 后逐位不变
+    // （阈值经 fx 场逐位对拍选定，见 tests 与 golden 零漂移约束）
+    let mut maxd = 0.0
     for j in 1..<(ny - 1) {
       let row = j * nx
       for i in 1..<(nx - 1) {
@@ -259,11 +262,17 @@ fn bake_ambient_basis() -> Unit {
         } else {
           p[idx + nx].to_double()
         }
-        p[idx] = Float::from_double(
-          p[idx].to_double() +
-          omega * ((p_l + p_r + p_u + p_d) * 0.25 - p[idx].to_double()),
-        )
+        let np = p[idx].to_double() +
+          omega * ((p_l + p_r + p_u + p_d) * 0.25 - p[idx].to_double())
+        let d = (np - p[idx].to_double()).abs()
+        if d > maxd {
+          maxd = d
+        }
+        p[idx] = Float::from_double(np)
       }
+    }
+    if maxd < 1.0e-6 {
+      break
     }
   }
   let bytes = nx * ny * 4

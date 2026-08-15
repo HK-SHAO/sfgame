@@ -48,3 +48,43 @@ test (b : @bench.T) {
   }
   b.bench(name="sponge-边距7格", fn() { apply_sponge() })
 }
+
+///|
+test (b : @bench.T) {
+  guard fluid_init(256, 160, 1.5, 2.0, 9.0, 3.4, 0.996, 0.99, 12, 0) == 0 else {
+    fail("fluid_init 失败")
+  }
+  // 柱群地形（仿 L16-20 多原语）：底部 20 格地板 + 6 根宽 4、顶至 y=80 的石柱——
+  // 量化边界格（贴固体格）标量 GS 占比与平流 gather 在复杂地形下的成本
+  for i in 0..<(256 * 160) {
+    let x = i % 256
+    let y = i / 256
+    let mut s = 0
+    if y >= 140 {
+      s = 1
+    }
+    if (
+        (x >= 20 && x < 24) ||
+        (x >= 60 && x < 64) ||
+        (x >= 100 && x < 104) ||
+        (x >= 140 && x < 144) ||
+        (x >= 180 && x < 184) ||
+        (x >= 220 && x < 224)
+      ) &&
+      y >= 80 {
+      s = 1
+    }
+    solid[i] = if s == 1 { b'\x01' } else { b'\x00' }
+  }
+  rebuild_solid()
+  set_ambient(0.3, 0.0, 0.0)
+  for _ in 0..<30 {
+    add_heat(120.0, 100.0, 0.27)
+    step(1.0 / 60.0)
+  }
+  b.bench(name="step-柱群地形", fn() {
+    add_heat(120.0, 100.0, 0.27)
+    step(1.0 / 60.0)
+  })
+  b.bench(name="gs-柱群地形", fn() { project_gs() })
+}

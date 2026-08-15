@@ -465,16 +465,14 @@ headless Chrome 自动化现直接用 chrome-devtools-mcp 工具连接（页面�
 ### I5 真机基准页的"帧预算"解读
 iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是量化底噪，不代表真实抖动；看 mean 与整帧构成（倍速帧项）判断瓶颈。iOS Safari 的 fluid JS 比桌面还快（0.49ms）——**"移动端更慢"要逐平台实测，别想当然**。
 
-### I8 bun 运行时误执行 WASM·SIMD 内核（2026-08，bun 1.4.0-canary）
-**症状**：`bun run scripts/run-level.ts --verify` 对注册解输出「通关 0.0-0.1s · 路程 NaN」，`--sim` 正常；同一关卡 vitest（node 运行时）通关时间与记录一致。偶发 `abort 167:45 / 1304:64`（advectPass 的 Float32Array 越界检查在字段全零、数学上不可能越界时触发）。
-**根因**：bun（JSC）对含 SIMD 指令的 wasm 模块存在误编译，advectPass/平流路径产出越界或发散值（实测同一二进制 node/V8 与浏览器逐位正确）。`evalCandidate` 已加 NaN 守卫——发散即抛错，绝不输出假通关。
-**修法**：脚本验证改用 node 运行时（vitest 侧测试）或浏览器实测；`run-level.ts --verify` 在 bun 下不可靠（#27 起注册解求解与验证本就交给玩家实测，run-level 仅作参考）。等 bun 修复后恢复 run-level 工作流。JS 回退后端已随 #21 移除，无备用后端。
-
-**补充（2026-08 SOR 实验实踩）**：具体触发条件之一 = **SIMD 读同格写入目标**（GS 的 SOR 需读 p_old=p[idx] 再写回 p[idx]，打包 f64x2 后 bun 误编译，负常数 splat / 松弛形式 p+ω·(gs−p) 均复现；node/V8 逐位正确）。原 plain GS SIMD 只读邻居不读自身，不受影响。**Safari 同为 JSC，有同源风险**——改物理加"读自身"类 SIMD 前必须 bun/node 双运行时对拍 golden。
-
-**补充（2026-08 第二触发：全空气全 bulk 路径）**：即使 plain GS 也会误编译——**无地形（solid 空）时**每个内域格都是 bulk、全部走 gs_pair 双格 SIMD，bun/JSC 下速度场产出全零（`tests/fluid.test.ts` 首条「热源上升风」实测 v≈0.28 而 node/V8 得 v≈6）。有地形时 bulk/边界标量混合、或 node/V8，均正常；golden 四场景都带地形，故 `bun node_modules/vitest/vitest.mjs run`（bun 运行时）只挂这一条而 golden 全绿。**结论：vitest 必须经 `bun vitest run`（bin shebang → node/V8）运行，禁止改成 `bun node_modules/vitest/vitest.mjs run`（bun/JSC）**；改 gs_pair 后如需 bun 下验证，务必含无地形场景对拍。
-
-**终局（2026-08 跨引擎位级一致决策）**：f32x4 四格 SIMD 复现同一触发（无地形全 bulk 下 bun/JSC 全零，node/V8 正确），**f32x4 已移除；GS 保留 f64x2 双格 SIMD**——f64x2 在有地形路径位精确加速，仅"无地形全 bulk"路径在 JSC 误编译（生产恒有地形不触发，无地形测试路径是 JSC 例外，见上条补充；AGENTS.md 现状描述为准）。副产品：JS 物理路径的 `Math.hypot`（飞机摩擦/地形法线/源间距）在 V8/JSC 末位不一致（实测长时程轨迹发散），已全改 `sqrt(a²+b²)`（IEEE 精确运算，跨引擎逐位确定）——`Math.atan2` 只作用于机头朝向（纯表现层，不进物理）。教训：**跨引擎一致性优先级高于 SIMD 微优化**；新增读自身型 SIMD（如 SOR）前必须先 bun/node 双运行时对拍再合入。
+### I8 JSC 对 wasm SIMD 的误编译与双运行时纪律（2026-08 实测定案，bun 1.4.0 / JSC）
+**症状（历史）**：`run-level --verify` 输出「通关 0.0s · 路程 NaN」、偶发越界 abort；`tests/fluid.test.ts` 无地形「热源上升风」在 bun 运行时 v≈0.28 而 node/V8 得 v≈6。
+**根因（2026-08-14 计数器插桩定案）**：JSC 的 wasm SIMD lowering 对 **gs_pair（f64x2 双格打包）的无地形全 bulk 路径**生成错误机器码——gs_pair 调用计数为 0（纯标量）时两引擎逐位相同，>0 时 bun 发散；node/V8 恒位正确。**地形路径（含 7200 步长时程、含 SIMD）两引擎逐位一致**——"run-level 在 bun 下不可靠"的旧结论已被证伪（官方工具 bun 结果与 node 逐位相同）。同类 JSC 回归存在外部先例（WebKit bug 314024）。
+**修法（已落地）**：
+1. **语义层门控**：`build_air_lists` 末尾 `solid_count == 0` 时清空 bulk 表——无实体纯空域关卡自动走标量 GS；有地形关卡 SIMD 照常（V8 性能零牺牲）。
+2. **双运行时常设通道**：`bun run test` = test:moon + vitest（node/V8 权威基线）+ `bun node_modules/vitest/vitest.mjs run`（bun/JSC = Safari 代理检测器）——**bun 直跑从"禁止"反转为"必跑"**，Safari 引擎家族的回归当场现形。
+**红线**：SIMD「读同格写入目标」（SOR 类）曾在 JSC 复现另一触发（已回退 plain GS）；新增任何 SIMD/FFI 数值路径前必须 node/bun 双运行时对拍 + 位级等价白盒测试。
+**信号**：无地形/纯空域场景下 bun 与 node 数值不一致、或 bun 运行套件变红——先查 SIMD 路径是否被门控绕过。
 
 ### I6 iOS Safari WebGL（ANGLE→Metal）性能要点（2026-08 实测 + WebKit bug 255987）
 **根因**：iOS 15.4 起 WebGL 默认走 Metal 后端，同内容 GPU 负载显著更高（"内容本质是 GPU 受限"），另有帧呈现依赖（254912，可致有效 30fps）等系统问题；Chrome/Android/macOS Safari 无此问题。

@@ -20,6 +20,11 @@ extern "wasm" fn addr_of_u8(a : FixedArray[Byte]) -> Int =
   #|(func (param i32) (result i32) local.get 0)
 
 ///|
+#borrow(a)
+extern "wasm" fn addr_of_f64(a : FixedArray[Double]) -> Int =
+  #|(func (param i32) (result i32) local.get 0)
+
+///|
 extern "wasm" fn mem_fill(dst : Int, c : Int, n : Int) -> Unit =
   #|(func (param i32 i32 i32)
   #|  local.get 0

@@ -2,8 +2,8 @@
 // 混沌流场（李雅普诺夫放大）下任何降 f32 都会指数放大差异，全链路严禁；
 // 逐位一致由 tests/engine-golden.test.ts golden hash 钉死。红黑 GS 相位内单元格
 // 独立（von Neumann 邻域全异奇偶）→ 空气索引表 + f64x2 SIMD 与标量逐位等价。
-// SIMD 在 bun/JSC 的"无地形全 bulk"路径误编译（速度场全零，Safari 同源风险）；
-// 生产恒有地形（solid 非空），bulk/边界标量混合，不触发——见 pitfalls I8
+// SIMD 在 bun/JSC 的"无地形全 bulk"路径误编译（Safari 同源风险）；
+// 该路径已由 build_air_lists 按 solid_count 门控转标量，有地形关卡 SIMD 照常——见 pitfalls I8
 
 ///| 上限统一在 grid.mbt（流体/示踪/顶点批共用），改容量只动那一处
 
@@ -172,8 +172,19 @@ pub fn fluid_init(
   pm.ambient_x = 0.0
   pm.ambient_y = 0.0
   pm.ambient_t = 0.0
+  // 全量状态复位（P6 根因）：init = 与全新实例等价——q1/q2 只在空气格写、回推采样会读固体格，
+  // 跨关卡复用引擎时旧关残留会污染新关近壁修正项（实测轨迹发散）；solid 清零使 init 期
+  // build_air_lists 与 bake_ambient_basis 见全空气基线（与全新实例一致），真实地形随后经 rebuildSolid 重建
   clear()
-  // 全空气域基线表（solid 初始全 0）；真实地形经 rebuildSolid 重建
+  let fbytes = nx_ * ny_ * 4
+  mem_fill(addr_of_f32(u0), 0, fbytes)
+  mem_fill(addr_of_f32(v0), 0, fbytes)
+  mem_fill(addr_of_f32(t0), 0, fbytes)
+  mem_fill(addr_of_f32(q1), 0, fbytes)
+  mem_fill(addr_of_f32(q2), 0, fbytes)
+  mem_fill(addr_of_f64(div_h2), 0, nx_ * ny_ * 8)
+  mem_fill(addr_of_u8(solid), 0, nx_ * ny_)
+  pm.solid_count = 0
   build_air_lists()
   bake_ambient_basis()
   0
@@ -338,6 +349,11 @@ fn build_air_lists() -> Unit {
   pm.air_count = c
   pm.air_even_count = ce
   pm.air_odd_count = co
+  // 无实体（纯空域）关卡：禁用双格 SIMD 快路径（JSC 对无地形全 bulk 的 gs_pair 误编译，
+  // 实测 bun/JSC 速度场错误而 node/V8 位正确；有地形路径两引擎均位一致）——语义层门控，不牺牲 V8 性能
+  if pm.solid_count == 0 {
+    mem_fill(addr_of_u8(bulk), 0, nx * ny)
+  }
 }
 
 ///|
@@ -825,48 +841,6 @@ fn project_div() -> Unit {
 // bulk 主体格四邻全空气，免固体邻居检查直读；边界格走含固体替换的完整路径。
 // 注：曾试 SOR 加速（ω=1.85、迭代 12→8），但其 SIMD 读同格写入目标（p_old）触发
 // bun/JSC 误编译（Safari 同源风险），已回退 plain GS（见 pitfalls I8）
-
-// GS 双格 SIMD 快路径：相邻同奇偶格（b=a+2）打包 f64x2 双车道，每车道独立格
-
-// f32x4 抽 lane0/lane2 → f64x2：相距 2 格的元素对（横/竖邻居均非连续 f32，不能 load32x2）
-
-///|
-fn lanes02(v : V128) -> V128 {
-  @v128.f64x2_promote_low_f32x4(
-    @v128.i8x16_shuffle(
-      v, v, 0, 1, 2, 3, 8, 9, 10, 11, 4, 5, 6, 7, 12, 13, 14, 15,
-    ),
-  )
-}
-
-///|
-fn gs_pair(a : Int) -> Unit {
-  let nx = pm.nx
-  let off = a * 4
-  // 车道 = 格 a / 格 b（a+2）的邻居对；横邻居跨两个相邻 f32x4（p[a-1..a+2]、p[a+1..a+4]）
-  let v1 = v128_load4_f32(p, off - 4)
-  let v2 = v128_load4_f32(p, off + 4)
-  let ha = lanes02(v1)
-  let hb = @v128.f64x2_promote_low_f32x4(
-    @v128.i8x16_shuffle(
-      v1, v2, 8, 9, 10, 11, 24, 25, 26, 27, 4, 5, 6, 7, 12, 13, 14, 15,
-    ),
-  )
-  let h = @v128.f64x2_add(ha, hb)
-  let vu = lanes02(v128_load4_f32(p, off - nx * 4))
-  let vd = lanes02(v128_load4_f32(p, off + nx * 4))
-  let t = @v128.f64x2_add(h, vu)
-  let s = @v128.f64x2_add(t, vd)
-  let d = v128_load1_f64_lane1(
-    div_h2,
-    (a + 2) * 8,
-    v128_load1_f64(div_h2, a * 8),
-  )
-  let s = @v128.f64x2_mul(@v128.f64x2_sub(s, d), @v128.f64x2_splat(0.25))
-  let f = @v128.f32x4_demote_f64x2_zero(s)
-  v128_store1_f32_lane0(p, off, f)
-  v128_store1_f32_lane1(p, off + 8, f)
-}
 
 // GS 单格路径：bulk 快表达式 / 边界格固体替换
 

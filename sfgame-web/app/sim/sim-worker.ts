@@ -1,5 +1,6 @@
 // 模拟 worker：LevelSimulation + 示踪 + 云 + 拖尾 + 风采样 + 落地判定整体迁入。
-// 主线程只发消息、收帧快照渲染；渲染所需着色/采样全部在此预计算（协议见 worker-protocol.ts）。
+// 主线程只发消息、收帧快照渲染；引擎内存为共享内存（SAB，见 scripts/patch-shared.ts 注入）——
+// 示踪粒子/流体场的零拷贝视图经 ready 的 sab 转移给主线程直读，快照不再搬运大数组。
 // 引擎实例跨关卡复用：fluid_init 全量复位已保证安全（engine-reuse.test 钉死），load 只重建模拟对象。
 // 消息处理在 wasm 引导完成前即可注册：load 恒为第一条消息，await 引擎就绪后按序消费（队列 FIFO 不丢消息）
 import engineUrl from '../wasm/sfengine.wasm?url'
@@ -12,25 +13,16 @@ import { Clouds } from './clouds.ts'
 import { PLANE_TRAIL_FADE, Trail } from './trail.ts'
 import { buildWindProbes, isLanding, sampleWind } from '../core/wind.ts'
 import { FLUID_MARGIN } from './terrain.ts'
-import { bilinearSample } from './fluid.ts'
 import { totalPenaltySeconds } from '../game/timer.ts'
 import type { Source } from '../game/types.ts'
-import type { SimRequest, SimEvent, FrameSnapshot, TracerView, PlaneTrailView } from './worker-protocol.ts'
-import {
-  POLE_HEIGHT, FLAG_SAMPLE_DX, FLAG_SAMPLE_DY,
-  VISIBLE_ALPHA, AIR_AMBIENT, HOT, COLD, AIR_SOFT,
-  HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED,
-  GUST_BASE, GUST_BOOST, GUST_FULL_SPEED,
-} from './worker-protocol.ts'
+import type { SimRequest, SimEvent, FrameSnapshot, PlaneTrailView } from './worker-protocol.ts'
+import { TRACER_COUNT } from './worker-protocol.ts'
 
-const TRACER_COUNT = 400
 const PLANE_TRAIL_MAX_SPEED = 30
 const PLANE_TRAIL_SAMPLE = 0.3
 const PLANE_TRAIL_MAX_POINTS = Math.ceil((PLANE_TRAIL_MAX_SPEED * PLANE_TRAIL_FADE) / PLANE_TRAIL_SAMPLE)
 // 落地音节流（墙钟）：连续落地不叠音（同原 controller 逻辑）
 const LAND_SOUND_MIN_INTERVAL = 150
-
-const mix = (a: number, b: number, t: number) => a + (b - a) * t
 
 // worker 全局 postMessage：DOM lib 把 self 按 Window 键入（签名带 targetOrigin），窄化为专用口
 const post = (msg: SimEvent, transfer?: Transferable[]) =>
@@ -42,23 +34,11 @@ let tracers: Tracers
 let clouds: Clouds
 let planeTrail: Trail
 let windProbes: { x: number; y: number }[]
-let goalWind = new Float32Array(0)
 let lastPhase: 'playing' | 'won' = 'playing'
 let lastHudKey = ''
 let lastLand = -Infinity
 const tmpAir = { x: 0, y: 0 }
 const windSample = { field: 0, rel: 0 }
-// 场视图（bilinearSample 直读零拷贝）：随关卡网格尺寸重建一次，内存静态定型视图恒定
-let fields: {
-  u: Float32Array
-  v: Float32Array
-  t: Float32Array
-  fxU: Float32Array
-  fxV: Float32Array
-  nx: number
-  ny: number
-  cell: number
-} | null = null
 
 const enginePromise = bootEngine(async () => {
   const res = await fetch(engineUrl)
@@ -117,23 +97,13 @@ function loadLevel(m: Extract<SimRequest, { t: 'load' }>) {
   clouds = new Clouds(levelSeed(level.id), world, sim.terrain)
   planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
   windProbes = buildWindProbes(world.w, world.h)
-  goalWind = new Float32Array(level.goals.length * 2)
-  const buf = engine.memory.buffer
-  const n = sim.fluid.nx * sim.fluid.ny
-  fields = {
-    u: new Float32Array(buf, engine.ex.fieldU(), n),
-    v: new Float32Array(buf, engine.ex.fieldV(), n),
-    t: new Float32Array(buf, engine.ex.fieldT(), n),
-    fxU: new Float32Array(buf, engine.ex.fieldFxU(), n),
-    fxV: new Float32Array(buf, engine.ex.fieldFxV(), n),
-    nx: sim.fluid.nx,
-    ny: sim.fluid.ny,
-    cell: sim.fluid.cell,
-  }
   lastPhase = 'playing'
   lastHudKey = ''
   lastLand = -Infinity
-  // 地形场独立副本可转移：sim 物理仍持有原场（转移会 detach 视图）
+  // 地形场独立副本可转移：sim 物理仍持有原场（转移会 detach 视图）。
+  // sab 是 engine.memory.buffer 的一次性视图（该访问每次返回新对象）：转移它不影响
+  // 实例与 Tracers 内部已建的视图（同一 SAB 底层，共享语义）；主线程用 batch 实例
+  // 的导出地址在同一块内存上自建零拷贝视图
   const field = new Float32Array(sim.terrain.field)
   post({
     t: 'ready',
@@ -149,6 +119,11 @@ function loadLevel(m: Extract<SimRequest, { t: 'load' }>) {
     goals: level.goals.map((g, i) => ({ x: g.x, r: g.r, anchorY: sim.goalAnchorY[i] })),
     fixedSources: sim.fixedSources.map(toSourceView),
     fans: sim.fans,
+    // 引擎内存已注入 shared 位（scripts/patch-shared.ts），运行时必为 SAB；TS 类型面仍按
+    // WebAssembly.Memory.buffer 报 ArrayBuffer，窄化仅作类型断言。
+    // SAB 不能进 transfer list（DataCloneError）：结构化克隆对共享内存走共享引用分支，
+    // 作为消息字段直接传递即零拷贝——transfer 只负责地形场的独立副本
+    sab: engine.memory.buffer as unknown as SharedArrayBuffer,
   }, [field.buffer])
   maybeHud()
 }
@@ -178,19 +153,6 @@ function tick(dt: number) {
         lastLand = now
         post({ t: 'land', intensity: Math.abs(vyBefore) })
       }
-    }
-    // 旗面采样点风（渲染侧滞后动画输入）：与 render.drawGoal 同点同语义
-    const f = fields!
-    for (let i = 0; i < sim.level.goals.length; i++) {
-      const g = sim.level.goals[i]
-      bilinearSample(
-        f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell,
-        engine.origin.x, engine.origin.y, engine.ambient.x, engine.ambient.y,
-        g.x + FLAG_SAMPLE_DX, sim.goalAnchorY[i] - POLE_HEIGHT + FLAG_SAMPLE_DY,
-        tmpAir,
-      )
-      goalWind[i * 2] = tmpAir.x
-      goalWind[i * 2 + 1] = tmpAir.y
     }
   }
   if (sim.visitedCount > visitedBefore) {
@@ -267,9 +229,9 @@ function postSources() {
   post({ t: 'sources', list: sim.sources.map((s) => ({ x: s.x, y: s.y, kind: s.kind })) })
 }
 
+// 快照瘦身：流体场/示踪大数组经 SAB 由主线程直读，此处只发每帧动态标量与 JS 侧状态
 function buildSnapshot(): FrameSnapshot {
   return {
-    tracers: buildTracersView(),
     clouds: {
       count: clouds.count,
       x: Float32Array.from(clouds.x),
@@ -285,54 +247,9 @@ function buildSnapshot(): FrameSnapshot {
     time: sim.time,
     extra: totalPenaltySeconds(sim.sources.length, sim.groundedTime),
     phase: sim.phase,
-    goalWind: goalWind.slice(),
+    ambient: { x: engine.ambient.x, y: engine.ambient.y, t: engine.ambient.t },
     tickMs: 0,
   }
-}
-
-// 着色公式逐行搬自 render.ts drawTracers（值语义一致）；env 并入 lineA/headA，渲染侧只做乘法
-function buildTracersView(): TracerView {
-  const t = tracers
-  const v: TracerView = {
-    count: t.count,
-    trailLen: t.trailLen,
-    time: t.time,
-    pxy: new Float32Array(t.count * 2),
-    headA: new Float32Array(t.count),
-    cr: new Float32Array(t.count),
-    cg: new Float32Array(t.count),
-    cb: new Float32Array(t.count),
-    lineA: new Float32Array(t.count),
-    gust: new Float32Array(t.count),
-    trailX: new Float32Array(t.trailX),
-    trailY: new Float32Array(t.trailY),
-    trailT: new Float32Array(t.trailT),
-    trailN: new Uint8Array(t.trailN),
-  }
-  const f = fields!
-  for (let i = 0; i < t.count; i++) {
-    const env = t.envelope(i)
-    if (env <= VISIBLE_ALPHA) continue // headA 保持 0 = 渲染侧跳过整条记录
-    // 零拷贝采样（与 wasm 采样同构）；着色用总温度 = 场温 + 环境偏置（与内核浮力同源）
-    const temp =
-      bilinearSample(
-        f.u, f.v, f.t, f.fxU, f.fxV, f.nx, f.ny, f.cell,
-        engine.origin.x, engine.origin.y, engine.ambient.x, engine.ambient.y,
-        t.x[i], t.y[i], tmpAir,
-      ) + engine.ambient.t
-    const sp2 = tmpAir.x * tmpAir.x + tmpAir.y * tmpAir.y
-    const u = Math.tanh(Math.abs(temp) / AIR_SOFT)
-    const to = temp >= 0 ? HOT : COLD
-    v.pxy[i * 2] = t.x[i]
-    v.pxy[i * 2 + 1] = t.y[i]
-    v.cr[i] = mix(AIR_AMBIENT[0], to[0], u)
-    v.cg[i] = mix(AIR_AMBIENT[1], to[1], u)
-    v.cb[i] = mix(AIR_AMBIENT[2], to[2], u)
-    v.headA[i] = mix(HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, u) * env
-    v.lineA[i] = mix(LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED, u) * env
-    v.gust[i] = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
-  }
-  return v
 }
 
 function buildPlaneTrailView(): PlaneTrailView {

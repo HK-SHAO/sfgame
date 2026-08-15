@@ -4,14 +4,15 @@ import { bgm } from '../core/bgm.ts'
 import { fb } from '../core/feedback.ts'
 import { governor } from '../core/governor.ts'
 import { terrainFromField } from '../sim/terrain.ts'
+import { TRAIL_LEN } from '../sim/particles.ts'
 import type { PressVisual, SourceKind } from '../sim/types.ts'
 import type { HudState, LevelDef, Source, SourcePlacement } from '../game/types.ts'
 import { GestureInput } from './input.ts'
 import { Renderer, type RenderView } from '../render/render.ts'
-import { createEngine } from '../wasm/engine.ts'
+import { createEngine, type EngineHandle } from '../wasm/engine.ts'
 import type { PerfRecorder } from '../dev/devtools.ts'
-import type { FrameSnapshot, SimEvent, SimRequest } from '../sim/worker-protocol.ts'
-import { SOURCE_HIT_RADIUS } from '../sim/worker-protocol.ts'
+import type { FrameSnapshot, SimEvent, SimRequest, SimViews } from '../sim/worker-protocol.ts'
+import { SOURCE_HIT_RADIUS, TRACER_COUNT } from '../sim/worker-protocol.ts'
 
 export interface ControllerEvents {
   onHud(state: HudState): void
@@ -22,6 +23,7 @@ export interface ControllerEvents {
 
 export class GameController {
   private renderer: Renderer
+  private engine: EngineHandle
   private worker: Worker
   private loop: GameLoop
   private input: GestureInput
@@ -42,6 +44,7 @@ export class GameController {
     goals: RenderView['goals']
     fixedSources: RenderView['fixedSources']
     fans: RenderView['fans']
+    views: SimViews | null
   } | null = null
   private paused = false
   private suppressSources = false
@@ -58,7 +61,8 @@ export class GameController {
     this.host = host ?? canvas.parentElement ?? canvas
     this.world = level.world
     this.devTools = devTools ?? null
-    this.renderer = new Renderer(canvas, createEngine())
+    this.engine = createEngine()
+    this.renderer = new Renderer(canvas, this.engine)
     this.worker = new Worker(new URL('../sim/sim-worker.ts', import.meta.url), { type: 'module' })
     this.worker.onmessage = this.onWorkerMessage
     this.worker.onerror = (e) => {
@@ -209,10 +213,9 @@ export class GameController {
       plane: snap.plane,
       sources: snap.sources,
       visited: snap.visited,
-      tracers: snap.tracers,
       clouds: snap.clouds,
       planeTrail: snap.planeTrail,
-      goalWind: snap.goalWind,
+      ambient: snap.ambient,
     }
     this.renderer.draw({ view, press: this.press, now: performance.now() })
     this.events.onStatus(snap.time, snap.extra)
@@ -221,7 +224,7 @@ export class GameController {
       batchMs: performance.now() - t0,
       vertices: this.renderer.lastVertexCount,
       uploadBytes: this.renderer.lastUploadBytes,
-      tracers: snap.tracers.count,
+      tracers: TRACER_COUNT,
       dpr: this.pixelRatio(),
     })
     const cost = performance.now() - t0 + this.tickMs
@@ -284,8 +287,31 @@ export class GameController {
       goals: m.goals,
       fixedSources: m.fixedSources,
       fans: m.fans,
+      views: this.buildViews(m.sab, nx, ny),
     }
     this.ready = true
+  }
+
+  private buildViews(sab: ArrayBufferLike, nx: number, ny: number): SimViews | null {
+    if (!(sab instanceof SharedArrayBuffer)) return null
+    const ex = this.engine.ex
+    const n = nx * ny
+    const l = TRAIL_LEN
+    return {
+      u: new Float32Array(sab, ex.fieldU(), n),
+      v: new Float32Array(sab, ex.fieldV(), n),
+      t: new Float32Array(sab, ex.fieldT(), n),
+      fxU: new Float32Array(sab, ex.fieldFxU(), n),
+      fxV: new Float32Array(sab, ex.fieldFxV(), n),
+      tracerX: new Float32Array(sab, ex.tXBuf(), TRACER_COUNT),
+      tracerY: new Float32Array(sab, ex.tYBuf(), TRACER_COUNT),
+      life: new Float32Array(sab, ex.tLifeBuf(), TRACER_COUNT),
+      maxLife: new Float32Array(sab, ex.tMaxLifeBuf(), TRACER_COUNT),
+      trailX: new Float32Array(sab, ex.tTrailXBuf(), TRACER_COUNT * l),
+      trailY: new Float32Array(sab, ex.tTrailYBuf(), TRACER_COUNT * l),
+      trailT: new Float32Array(sab, ex.tTrailTBuf(), TRACER_COUNT * l),
+      trailN: new Uint8Array(sab, ex.tTrailNBuf(), TRACER_COUNT),
+    }
   }
 
   private onHud(state: HudState) {

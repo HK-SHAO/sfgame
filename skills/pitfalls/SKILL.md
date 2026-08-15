@@ -67,6 +67,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
 - 站点分发的 .md 文档中文乱码（浏览器按 Latin-1 解码）→ I11
 - MCP 自动化布尔断言恒真/深链检查形同虚设 → I12（'false' 字符串 truthy；关卡 URL 用 slug 非序号）
+- wasm 共享内存实例化失败 / SAB 拿不到 / GA 被拦 → I13（二进制注入 shared 位 + COI 头 + gtag/COEP 权衡）
 
 ## A. Lit + Shadow DOM
 
@@ -518,3 +519,12 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **根因**：MCP evaluate_script 返回文本，仿 .local/offline-verify.ts 的 `evalVal` 只把含 `{...}` 的文本解析成对象，裸 `true`/`false` 原样返回字符串——`if (!gameReady)` 对 `'false'` 判真，断言失效。
 **修法**：断言前显式归一（`gameReady === 'true'` 或 `JSON.parse` 后再判）；离线/在线深链等关键路径用真实关卡 slug（如 `?lv=luo-yu`）——`?lv=1` 不是合法关卡 id（level id 是 slug），解析失败落标题屏。
 **信号**：MCP 脚本对布尔型 evaluate 结果做 `!x` 判断的地方逐一核对返回类型；关卡深链 URL 先确认 resolveLevel 能命中。
+
+### I13 wasm 共享内存注入 + COI/gtag 陷阱（2026-08 实测）
+**背景**：moonc 产出的 wasm 是普通 Memory；SAB 跨线程零拷贝要求 Memory 带 shared 位。二进制注入（`scripts/patch-shared.ts`）：memory 段 limits flags 0x01(has_max)→0x03(has_max|shared) + 段尾追加 custom 段 `target_features`（内容 `2b 01 02 04` = '+' threads bulk-memory simd，WebAssembly tool-conventions 规范）。已实证 node 实例化成功、`memory.buffer instanceof SharedArrayBuffer === true`、tracer golden 逐位一致。
+**症状 A**：worker 内共享 Memory 实例化失败（`RangeError: WebAssembly.Instance: ...`）或主线程拿到非 SAB。
+**根因**：COOP/COEP 缺失——浏览器只在跨域隔离上下文允许共享 Memory；COEP require-corp 还会阻塞所有无 CORP/ACAO 的跨源子资源。
+**修法**：`public/_headers` 全站 `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`；vite dev/preview 必须同值（server.headers/preview.headers），否则本地调试与线上行为不一致。
+**症状 B（COI 后，可能）**：googletagmanager.com/gtag.js 被 COEP 拦（`ERR_BLOCKED_BY_RESPONSE`），GA 上报全断。
+**实测（2026-08）**：本仓库 COI 下 gtag.js 与 GA collect 均未被拦（200）——Google 静态分发响应带跨源许可头（CORP/CORS），COEP require-corp 放行；无需 credentialless 备选。若换用无跨源头的第三方资源被拦，备选 `Cross-Origin-Embedder-Policy: credentialless`（放行无 CORP 跨源资源但不带凭据；Safari 需 15.2+），或改服务端代理；第三方响应头不受控，CORP 方案不可行。
+**信号**：改 COI 后在 devtools Network 看 gtag 请求状态；SAB 断言用 `memory.buffer instanceof SharedArrayBuffer`（node/bun 无 COI 限制，可直接验证注入生效）。

@@ -66,6 +66,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - vite dev 自动化访问 127.0.0.1 失败（000）→ I2
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
 - 站点分发的 .md 文档中文乱码（浏览器按 Latin-1 解码）→ I11
+- MCP 自动化布尔断言恒真/深链检查形同虚设 → I12（'false' 字符串 truthy；关卡 URL 用 slug 非序号）
 
 ## A. Lit + Shadow DOM
 
@@ -511,3 +512,9 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **根因**：sirv 与 Cloudflare 静态服务对 .md 均发 `text/markdown` 且不带 `charset`；浏览器对 text/* 无 charset 时默认按 Latin-1（windows-1252）解码，UTF-8 中文即乱码。JSON 默认 UTF-8 不受影响，只有 text/* 家族踩坑。
 **修法**：dev/preview 由 vite.config.ts 的 md-utf8 插件在静态中间件前为 .md 补 `Content-Type: text/markdown; charset=utf-8`（sirv 尊重已设 Content-Type，不覆盖）；生产由 `public/_headers` 对 `/SKILL.md` 与 `/skills/*` 声明同一头。
 **信号**：新增任何随 public/ 分发的 .md/.txt 文档后，先在 dev server 直接打开确认中文正常；云上验证 curl -sI 看响应头 charset。
+
+### I12 MCP 布尔断言必须解析类型：`'false'` 字符串是 truthy
+**症状**：chrome-devtools-mcp 自动化里 `evalVal` 断言"应为 true"实际恒真，脚本全绿但被测功能根本没发生（如 offline-verify 的 `?lv=1` 深链检查从未验证过游戏屏）。
+**根因**：MCP evaluate_script 返回文本，仿 .local/offline-verify.ts 的 `evalVal` 只把含 `{...}` 的文本解析成对象，裸 `true`/`false` 原样返回字符串——`if (!gameReady)` 对 `'false'` 判真，断言失效。
+**修法**：断言前显式归一（`gameReady === 'true'` 或 `JSON.parse` 后再判）；离线/在线深链等关键路径用真实关卡 slug（如 `?lv=luo-yu`）——`?lv=1` 不是合法关卡 id（level id 是 slug），解析失败落标题屏。
+**信号**：MCP 脚本对布尔型 evaluate 结果做 `!x` 判断的地方逐一核对返回类型；关卡深链 URL 先确认 resolveLevel 能命中。

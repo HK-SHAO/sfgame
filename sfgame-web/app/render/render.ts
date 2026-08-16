@@ -93,6 +93,8 @@ const FAN_BLADE_WIDTH = 0.3
 const FAN_SPIN_RATE = 8
 // 叶盘 3D 圆投影的短轴/长轴比（长轴 ⊥ dir）：玩家视角 ≈ 进气侧，圆盘投影为椭圆
 const FAN_ELLIPSE_K = 0.5
+// 场景揭示：换关首帧起内容层（地形/云/粒子/旗/源/飞机）整体淡入，天空恒定不参与（boot 帧已烘焙）
+const REVEAL_MS = 160
 const FLAG_RESPONSE_BASE = 1.2
 const FLAG_RESPONSE_WIND = 3
 // 旗面方向满幅风速：u 以下方向向量线性衰减到 0（连续过零），
@@ -122,16 +124,28 @@ export class Renderer {
   private tj1 = NaN
   private terrainCount = 0
   private bgDirty = true
+  private revealMs: number
+  private revealStart = -Infinity
   // 云顶点批（pos2+uv2+alpha+seed × 6 顶点/云）：形状全在片元，宿主只发四边形；容量随 CLOUD_COUNT 单源
   private cloudBuf = new Float32Array(CLOUD_COUNT * 6 * 6)
   lastVertexCount = 0
   lastUploadBytes = 0
 
-  constructor(canvas: HTMLCanvasElement, engine: EngineHandle) {
+  constructor(canvas: HTMLCanvasElement, engine: EngineHandle, revealMs = REVEAL_MS) {
     this.canvas = canvas
     this.batch = new MeshBatch(engine)
+    this.revealMs = revealMs
     this.gl = GlRenderer.create(canvas)
     if (!this.gl) console.warn('WebGL 不可用，画布将保持空白')
+  }
+
+  // 场景揭示因子：墙钟驱动（与 sim 时钟/暂停/掉帧无关）；换关时 setupTerrain 重置起点
+  private reveal(now: number): number {
+    if (this.revealMs === 0) return 1
+    const t = (now - this.revealStart) / this.revealMs
+    if (t <= 0) return 0
+    if (t >= 1) return 1
+    return t * t * (3 - 2 * t)
   }
 
   // 渲染可用性：gl 创建失败时由 ui 层告知玩家（画布会保持空白）
@@ -184,7 +198,7 @@ export class Renderer {
     const viewB = viewT + this.cssH / this.scale
     this.drawBackground(gl, viewL, viewT, viewR, viewB, h)
     this.batch.reset()
-    gl.draw(this.batch, viewL, viewT, viewR, viewB)
+    gl.draw(this.batch, viewL, viewT, viewR, viewB, 1)
   }
 
   draw(scene: SceneState) {
@@ -208,7 +222,8 @@ export class Renderer {
     const b = this.batch
     // 当前无相机（恒全图适配）：烘焙窗口恒等于整图，ti0..tj1 比较只在换关/resize 后成立一次——
     // 四分量比较是"未来加相机"的挂点，非每帧视域剔除
-    this.drawTerrainPass(gl, b, view.terrain, viewL, viewT, viewR, viewB)
+    this.drawTerrainPass(gl, b, view.terrain, viewL, viewT, viewR, viewB, now)
+    const reveal = this.reveal(now)
 
     b.reset()
     // 遮挡契约（远→近）：天空+太阳光晕烘焙进背景纹理（一次不透明 blit 最底）→ 气流粒子与轨迹 →
@@ -217,9 +232,9 @@ export class Renderer {
     this.drawTracers(b, view)
     this.drawSun(b, now)
     const pass1 = b.count
-    gl.draw(b, viewL, viewT, viewR, viewB)
-    gl.drawClouds(this.cloudBuf, this.fillClouds(view.clouds), viewL, viewT, viewR, viewB, view.time)
-    gl.drawTerrain(this.terrainCount, viewL, viewT, viewR, viewB)
+    gl.draw(b, viewL, viewT, viewR, viewB, reveal)
+    gl.drawClouds(this.cloudBuf, this.fillClouds(view.clouds), viewL, viewT, viewR, viewB, view.time, reveal)
+    gl.drawTerrain(this.terrainCount, viewL, viewT, viewR, viewB, reveal)
     b.reset()
     this.drawGoalPoles(b, view)
     this.drawGoal(b, view)
@@ -231,7 +246,7 @@ export class Renderer {
     if (press && press.kind === 'place') this.drawPress(b, press, now)
     this.lastVertexCount = pass1 + b.count + this.terrainCount
     this.lastUploadBytes = (pass1 + b.count) * VERTEX_STRIDE * 4
-    gl.drawBatch(b, viewL, viewT, viewR, viewB)
+    gl.drawBatch(b, viewL, viewT, viewR, viewB, reveal)
   }
 
   // 背景（天空+太阳光晕）烘焙：光晕完全静态（无 sim.time 依赖）却是动态趟屏占比最大的单项，
@@ -250,8 +265,12 @@ export class Renderer {
   }
 
   // 地形静态几何：setup（每关）+ bake（场/视域变化才重烘）+ 上传（每次 bake 后）——每帧仅 drawArrays
-  private drawTerrainPass(gl: GlRenderer, b: MeshBatch, t: Terrain, viewL: number, viewT: number, viewR: number, viewB: number) {
-    if (t !== this.terrainKey) this.setupTerrain(b, t)
+  private drawTerrainPass(gl: GlRenderer, b: MeshBatch, t: Terrain, viewL: number, viewT: number, viewR: number, viewB: number, now: number) {
+    if (t !== this.terrainKey) {
+      this.setupTerrain(b, t)
+      // 换关：内容层揭示从这里起表（首帧因子 0，内容自天空浮现）
+      this.revealStart = now
+    }
     const tc = t.cell
     // 格索引映射 = worldToGrid 单源（与 terrain.sample 同式）：烘焙锚点在格心，格 (i,j) 即场采样点
     const ti0 = Math.floor(worldToGrid(viewL, tc, t.originX)) - 1

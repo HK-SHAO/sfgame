@@ -64,7 +64,11 @@ export class GameController {
     this.world = level.world
     this.devTools = devTools ?? null
     this.engine = createEngine()
-    this.renderer = new Renderer(canvas, this.engine)
+    this.renderer = new Renderer(
+      canvas,
+      this.engine,
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : undefined,
+    )
     this.worker = new Worker(new URL('../sim/sim-worker.ts', import.meta.url), { type: 'module' })
     this.worker.onmessage = this.onWorkerMessage
     this.worker.onerror = (e) => {

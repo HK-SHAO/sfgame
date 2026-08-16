@@ -15,8 +15,9 @@ void main() {
 const FS = `
 precision mediump float;
 varying vec4 vColor;
+uniform float uReveal;
 void main() {
-  gl_FragColor = vColor;
+  gl_FragColor = vec4(vColor.rgb, vColor.a * uReveal);
 }
 `
 
@@ -59,6 +60,7 @@ const CLOUD_FS = `
 precision mediump float;
 varying vec4 vData;
 uniform float uTime;
+uniform float uReveal;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) {
   vec2 i = floor(p);
@@ -77,7 +79,7 @@ void main() {
   float d = length(q * vec2(1.35, 1.5)) + (n - 0.5) * 0.8 + max(0.0, q.y - 0.15) * 0.9;
   float a = smoothstep(0.92, 0.45, d) * vData.z;
   if (a < 0.01) discard;
-  gl_FragColor = vec4(1.0, 1.0, 0.996, a);
+  gl_FragColor = vec4(1.0, 1.0, 0.996, a * uReveal);
 }
 `
 
@@ -95,6 +97,7 @@ interface CloudProgram {
   aData: number
   uView: WebGLUniformLocation | null
   uTime: WebGLUniformLocation | null
+  uReveal: WebGLUniformLocation | null
 }
 
 export class GlRenderer {
@@ -105,6 +108,7 @@ export class GlRenderer {
   private aPos = 0
   private aColor = 0
   private uView: WebGLUniformLocation | null = null
+  private uReveal: WebGLUniformLocation | null = null
   private tex: TexProgram | null = null
   private texBuffer: WebGLBuffer | null = null
   private cloud: CloudProgram | null = null
@@ -222,6 +226,7 @@ export class GlRenderer {
     this.aPos = gl.getAttribLocation(program, 'aPos')
     this.aColor = gl.getAttribLocation(program, 'aColor')
     this.uView = gl.getUniformLocation(program, 'uView')
+    this.uReveal = gl.getUniformLocation(program, 'uReveal')
     this.buffer = gl.createBuffer()
     this.uploadedBytes = 0
 
@@ -240,6 +245,7 @@ export class GlRenderer {
       aData: gl.getAttribLocation(cprogram, 'aData'),
       uView: gl.getUniformLocation(cprogram, 'uView'),
       uTime: gl.getUniformLocation(cprogram, 'uTime'),
+      uReveal: gl.getUniformLocation(cprogram, 'uReveal'),
     }
     this.cloudBuffer = gl.createBuffer()
     this.terrainBuffer = gl.createBuffer()
@@ -317,7 +323,7 @@ export class GlRenderer {
   }
 
   // 顶点批上传→绘制尾段（bakeBg 与 draw 共用；成员方法零闭包，每帧调用 JIT 内联）
-  drawBatch(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number) {
+  drawBatch(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number, reveal: number) {
     // 与其余 GL 入口同款守卫：restore 重建失败（lost 复位但 program/buffer 为 null）时不碰失效对象，
     // 避免每帧向 null program 发 drawArrays（D9 恢复失败纪律）
     if (this.lost || !this.program || !this.buffer || batch.count === 0) return
@@ -333,6 +339,7 @@ export class GlRenderer {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, batch.data.subarray(0, batch.count * VERTEX_STRIDE))
     gl.useProgram(this.program)
     gl.uniform4f(this.uView, viewL, viewT, viewR - viewL, viewB - viewT)
+    gl.uniform1f(this.uReveal, reveal)
     gl.enableVertexAttribArray(this.aPos)
     gl.enableVertexAttribArray(this.aColor)
     gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, VERTEX_STRIDE * 4, 0)
@@ -357,7 +364,7 @@ export class GlRenderer {
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
     this.clearScreen()
-    this.drawBatch(batch, viewL, viewT, viewR, viewB)
+    this.drawBatch(batch, viewL, viewT, viewR, viewB, 1)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     return true
   }
@@ -371,11 +378,12 @@ export class GlRenderer {
   }
 
   // 主程序（aPos+aColor）单独画地形：夹在云与动态批之间（云被山体遮挡的遮挡契约不变）
-  drawTerrain(count: number, viewL: number, viewT: number, viewR: number, viewB: number) {
+  drawTerrain(count: number, viewL: number, viewT: number, viewR: number, viewB: number, reveal: number) {
     if (this.lost || !this.program || !this.terrainBuffer || count === 0) return
     const gl = this.gl
     gl.useProgram(this.program)
     gl.uniform4f(this.uView, viewL, viewT, viewR - viewL, viewB - viewT)
+    gl.uniform1f(this.uReveal, reveal)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffer)
     gl.enableVertexAttribArray(this.aPos)
     gl.enableVertexAttribArray(this.aColor)
@@ -385,7 +393,7 @@ export class GlRenderer {
   }
 
   // 两趟：不透明背景先画（平铺 GPU 全屏混合开销大）；blend 每帧幂等重设——resize 会重置上下文状态
-  draw(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number) {
+  draw(batch: MeshBatch, viewL: number, viewT: number, viewR: number, viewB: number, reveal: number) {
     if (this.lost || !this.program || !this.buffer) return
     const gl = this.gl
     gl.viewport(0, 0, this.canvas.width, this.canvas.height)
@@ -418,7 +426,7 @@ export class GlRenderer {
     if (batch.count > 0) {
       gl.enable(gl.BLEND)
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-      this.drawBatch(batch, viewL, viewT, viewR, viewB)
+      this.drawBatch(batch, viewL, viewT, viewR, viewB, reveal)
     }
   }
 
@@ -426,7 +434,7 @@ export class GlRenderer {
   drawClouds(
     data: Float32Array, verts: number,
     viewL: number, viewT: number, viewR: number, viewB: number,
-    time: number,
+    time: number, reveal: number,
   ) {
     if (this.lost || !this.cloud || !this.cloudBuffer || verts === 0) return
     const gl = this.gl
@@ -435,6 +443,7 @@ export class GlRenderer {
     gl.useProgram(this.cloud.program)
     gl.uniform4f(this.cloud.uView, viewL, viewT, viewR - viewL, viewB - viewT)
     gl.uniform1f(this.cloud.uTime, time)
+    gl.uniform1f(this.cloud.uReveal, reveal)
     gl.enableVertexAttribArray(this.cloud.aPos)
     gl.enableVertexAttribArray(this.cloud.aData)
     gl.vertexAttribPointer(this.cloud.aPos, 2, gl.FLOAT, false, 24, 0)

@@ -224,8 +224,9 @@ fn bake_ambient_basis() -> Unit {
   }
   let omega = 1.85
   for _ in 0..<200 {
-    // 收敛早停：最大更新量低于阈值即停——基场存 f32，后续迭代的残差变化经 demote 后逐位不变
-    // （阈值经 fx 场逐位对拍选定，见 tests 与 golden 零漂移约束）
+    // 收敛早停对当前生产负载是死代码（实测：地形烘焙 200 迭代跑满，maxd 停在 1e-3..1e-1 量级；
+    // 全空气基线 bake 首轮 maxd=0 即达不动点）——与固定 200 迭代逐位一致，golden 四场景钉死。
+    // 阈值本身不保证"残差 <1e-6 则 demote 后逐位不变"，若未来 ω/网格变化使早停在地形上触发，需重新对拍
     let mut maxd = 0.0
     for j in 1..<(ny - 1) {
       let row = j * nx

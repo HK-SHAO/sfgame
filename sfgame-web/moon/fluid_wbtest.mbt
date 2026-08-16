@@ -128,22 +128,22 @@ test "gs_pair SIMD 与标量逐位一致" {
 
 ///|
 test "buoyancy SIMD 与标量逐位一致（双格打包，含奇数尾格）" {
-  let st = fluid_init(8, 6, 1.5, 2.0, 9.0, 3.4, 0.996, 0.99, 12, 0)
+  let st = fluid_init(9, 6, 1.5, 2.0, 9.0, 3.4, 0.996, 0.99, 12, 0)
   @test.assert_eq(st, 0)
-  for i in 0..<(8 * 6) {
+  for i in 0..<(9 * 6) {
     solid[i] = b'\x00'
     v[i] = Float::from_double((i * 5 % 11 - 5).to_double())
     t[i] = Float::from_double((i * 3 % 7 - 3).to_double())
   }
   for j in 0..<6 {
-    solid[4 + j * 8] = b'\x01'
+    solid[4 + j * 9] = b'\x01'
   }
   rebuild_solid()
   let k = 2.0 * (1.0 / 60.0)
-  let exp_v : FixedArray[Float] = FixedArray::make(8 * 6, 0.0)
+  let exp_v : FixedArray[Float] = FixedArray::make(9 * 6, 0.0)
   for j in 1..<5 {
-    for i in 1..<7 {
-      let idx = i + j * 8
+    for i in 1..<8 {
+      let idx = i + j * 9
       exp_v[idx] = Float::from_double(
         v[idx].to_double() - k * t[idx].to_double(),
       )
@@ -151,8 +151,8 @@ test "buoyancy SIMD 与标量逐位一致（双格打包，含奇数尾格）" {
   }
   buoyancy2(k, 0.0)
   for j in 1..<5 {
-    for i in 1..<7 {
-      let idx = i + j * 8
+    for i in 1..<8 {
+      let idx = i + j * 9
       @test.assert_eq(v[idx], exp_v[idx])
     }
   }

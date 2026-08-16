@@ -8,16 +8,26 @@ const fetchBytes = async (url: string) => {
   return new Uint8Array(await res.arrayBuffer())
 }
 
-const ready = await bootEngine(() => fetchBytes(engineUrl))
-
-if (ready) {
-  mountGtagAnalytics()
-  await import('./ui/app.ts')
-  document.body.replaceChildren(document.createElement('sf-app'))
-  if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {})
-  }
-} else {
+const showUnsupported = async (reason: 'wasm' | 'webgl' | 'coi' | 'fatal') => {
   await import('./ui/unsupported.ts')
-  document.body.replaceChildren(document.createElement('sf-unsupported'))
+  const el = document.createElement('sf-unsupported') as HTMLElement & { reason: string }
+  el.reason = reason
+  document.body.replaceChildren(el)
+}
+
+if (!crossOriginIsolated) {
+  await showUnsupported('coi')
+} else {
+  const ready = await bootEngine(() => fetchBytes(engineUrl))
+
+  if (ready) {
+    mountGtagAnalytics()
+    await import('./ui/app.ts')
+    document.body.replaceChildren(document.createElement('sf-app'))
+    if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {})
+    }
+  } else {
+    await showUnsupported('wasm')
+  }
 }

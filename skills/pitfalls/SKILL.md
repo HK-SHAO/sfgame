@@ -476,6 +476,7 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 1. **语义层门控**：`build_air_lists` 末尾 `solid_count == 0` 时清空 bulk 表——无实体纯空域关卡自动走标量 GS；有地形关卡 SIMD 照常（V8 性能零牺牲）。
 2. **双运行时常设通道**：`bun run test` = test:moon + vitest（node/V8 权威基线）+ `bun node_modules/vitest/vitest.mjs run`（bun/JSC = Safari 代理检测器）——**bun 直跑从"禁止"反转为"必跑"**，Safari 引擎家族的回归当场现形。
 **红线**：SIMD「读同格写入目标」（SOR 类）曾在 JSC 复现另一触发（已回退 plain GS）；新增任何 SIMD/FFI 数值路径前必须 node/bun 双运行时对拍 + 位级等价白盒测试。
+**现状（2026-08-16 复核）**：门控只挡 gs_pair——**buoyancy2 是无条件 SIMD（无地形路径也跑）**，实测 bun/JSC 下无地形+buoyancy2 全量执行结果正确（tests/fluid.test.ts「热源上升风」bun 通过），但它是 JSC bug 触发面扩大时的唯一裸露点；bun 升级后跑 `bun run test` 复核。另：moon 的 v128 API 标注 alert_experimental（工具链升级可能破坏 SIMD 代码），由 canary+golden 兜底。
 **信号**：无地形/纯空域场景下 bun 与 node 数值不一致、或 bun 运行套件变红——先查 SIMD 路径是否被门控绕过。
 
 ### I6 iOS Safari WebGL（ANGLE→Metal）性能要点（2026-08 实测 + WebKit bug 255987）
@@ -503,7 +504,7 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **背景**：数值内核自 AssemblyScript 迁移至 Moonbit（moon/ 模块，wasm 目标）。混沌流场（李雅普诺夫放大）下任何舍入漂移都会指数放大、改变通关可复现性，故迁移验证必须逐位。
 **方法**：双引擎同输入对拍——同场景驱动新旧两实现，比对场字节（Uint32 视角）；PRNG（mulberry32）用 UInt 回绕 + 逻辑右移对齐 JS imul+>>>。迁移完成、旧实现删除后，把基线固化为 tests/engine-golden.test.ts 的 golden hash（FNV-1a），永久守护位稳定性。
 **±0 豁免**：AS 自身在零符号位上不一致（SIMD 路径 f64x2.min/max 走 wasm 语义 min(−0,+0)=−0，标量尾列比较链忽略零符号），"含零符号逐位一致"本就不是良定义不变量；对拍时零值只比数值不比符号，golden hash 钉死的是迁移后实现的输出。
-**附带**：Moonbit 内核为纯 wasm MVP 标量实现（无 SIMD 指令），I8 的 bun SIMD 误编译问题不再可能；SIMD 引导门槛随之移除（旧浏览器兼容面扩大）。FixedArray 经内联 WAT 取数据区首地址交宿主零拷贝 view，该 ABI 非文档化，由 canary 握手测试（tests/engine-wasm.test.ts）守护。
+**附带**：SIMD 已于 2026-08-16 回归（gs_pair/buoyancy2 v128 快路径，见 I8/G20），模块声明 simd 特性——I8 的 bun SIMD 误编译纪律重新适用。FixedArray 经内联 WAT 取数据区首地址交宿主零拷贝 view，该 ABI 非文档化，由 canary 握手测试（tests/engine-wasm.test.ts）守护。
 **信号**：改 moon/ 数值代码后 engine-golden 失败——先确认是否有意改物理；有意则人工确认后更新基线，无意即回归。
 **附注（Math.* 跨引擎末位分歧）**：Math.hypot 在 V8 与 JSC 末位实现不一致（实测 hypot(2.5, 7.1) 差 1 ulp）——golden 捕获运行时与 vitest 运行时不同即误报。sdf 内核距离一律 sqrt(a²+b²)（IEEE 精确运算，跨引擎逐位确定）；min/max/abs 经 extern "js" 直通 Math.*（语义含 NaN 传播需逐位同源，且这三者跨引擎一致）。
 
@@ -519,7 +520,7 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 ### I12 MCP 布尔断言必须解析类型：`'false'` 字符串是 truthy
 **症状**：chrome-devtools-mcp 自动化里 `evalVal` 断言"应为 true"实际恒真，脚本全绿但被测功能根本没发生（如 offline-verify 的 `?lv=1` 深链检查从未验证过游戏屏）。
 **根因**：MCP evaluate_script 返回文本，仿 .local/offline-verify.ts 的 `evalVal` 只把含 `{...}` 的文本解析成对象，裸 `true`/`false` 原样返回字符串——`if (!gameReady)` 对 `'false'` 判真，断言失效。
-**修法**：断言前显式归一（`gameReady === 'true'` 或 `JSON.parse` 后再判）；离线/在线深链等关键路径用真实关卡 slug（如 `?lv=luo-yu`）——`?lv=1` 不是合法关卡 id（level id 是 slug），解析失败落标题屏。
+**修法**：断言前显式归一（`gameReady === 'true'` 或 `JSON.parse` 后再判）；归一须覆盖脚本内**所有**布尔断言（offline-verify 的标题屏、在线/离线深链检查的布尔门全部失效，不只深链一处）；离线/在线深链等关键路径用真实关卡 slug（如 `?lv=luo-yu`）——`?lv=1` 不是合法关卡 id（level id 是 slug），解析失败落标题屏。
 **信号**：MCP 脚本对布尔型 evaluate 结果做 `!x` 判断的地方逐一核对返回类型；关卡深链 URL 先确认 resolveLevel 能命中。
 
 ### I13 wasm 共享内存注入 + COI/gtag 陷阱（2026-08 实测）
@@ -530,3 +531,6 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **症状 B（COI 后，可能）**：googletagmanager.com/gtag.js 被 COEP 拦（`ERR_BLOCKED_BY_RESPONSE`），GA 上报全断。
 **实测（2026-08）**：本仓库 COI 下 gtag.js 与 GA collect 均未被拦（200）——Google 静态分发响应带跨源许可头（CORP/CORS），COEP require-corp 放行；无需 credentialless 备选。若换用无跨源头的第三方资源被拦，备选 `Cross-Origin-Embedder-Policy: credentialless`（放行无 CORP 跨源资源但不带凭据；Safari 需 15.2+），或改服务端代理；第三方响应头不受控，CORP 方案不可行。
 **信号**：改 COI 后在 devtools Network 看 gtag 请求状态；SAB 断言用 `memory.buffer instanceof SharedArrayBuffer`（node/bun 无 COI 限制，可直接验证注入生效）。
+**症状 C（非 COI 托管，2026-08 实测）**：部署到不能自定义响应头的静态托管（itch.io 等）→ `crossOriginIsolated=false` → worker 的 ready 消息携带 SAB postMessage 抛 `DataCloneError: SharedArrayBuffer transfer requires self.crossOriginIsolated` → 游戏画面冻结、仅 console 报错（wasm 实例化本身不抛，坑在于**失败点不在实例化而在 SAB 传输**）。
+**修法（已落地）**：main.ts 预检 `crossOriginIsolated`，缺失即显示「当前站点无法运行此游戏」明示屏（sf-unsupported reason=coi）；worker 运行期崩溃经 controller onFatal → sf-game UNSUPPORTED(reason=fatal) 同样走明示屏，杜绝静默冻结。**部署目标必须是能自定义响应头的托管（Cloudflare Pages 的 _headers）**。
+**接受的设计取舍**：主线程直读 SAB 与 worker 写入并发——单粒子可能读撕裂（单帧毛刺），视觉可忽略；零拷贝收益（worker −0.4ms/tick、主线程 −0.15ms/帧、堆减半，2026-08 实测）大于撕裂风险。

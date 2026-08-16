@@ -6,7 +6,7 @@ import { bgm } from '../core/bgm.ts'
 import { analytics } from '../core/analytics.ts'
 import { LEVELS, LEVEL_GROUPS, nextLevel, levelHash } from '../game/levels.ts'
 import { progress } from '../game/progress.ts'
-import { SfGame, type DenyDetail } from './sf-game.ts'
+import { SfGame, type DenyDetail, type UnsupportedDetail } from './sf-game.ts'
 import type { SfHud } from './hud.ts'
 import { DevTools } from '../dev/devtools.ts'
 import './unsupported'
@@ -263,9 +263,9 @@ export class SfApp extends LitElement {
     else urlState.set('s', e.detail)
   }
 
-  private onUnsupported() {
+  private onUnsupported(e: CustomEvent<UnsupportedDetail>) {
     const el = document.createElement('sf-unsupported') as HTMLElement & { reason: string }
-    el.reason = 'webgl'
+    el.reason = e.detail?.reason ?? 'webgl'
     document.body.replaceChildren(el)
   }
 

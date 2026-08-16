@@ -69,6 +69,9 @@ export class SfHud extends LitElement {
           >
             ${iconSnow}<b>${this.hud.coldLeft === Infinity ? '∞' : this.hud.coldLeft}</b>
           </span>
+          <button class="icon-btn speed" @click=${this.onSpeed} aria-label="游戏速率 ${this.speedLabel()}">
+            <span class="lbl">速率</span><b>${this.speedLabel()}</b>
+          </button>
           <button
             class="icon-btn pause"
             @click=${this.onPause}
@@ -77,9 +80,6 @@ export class SfHud extends LitElement {
             title=${this.hud.paused ? '恢复' : '暂停'}
           >
             ${this.hud.paused ? iconPlay : iconPause}<span class="lbl">${this.hud.paused ? '恢复' : '暂停'}</span>
-          </button>
-          <button class="icon-btn speed" @click=${this.onSpeed} aria-label="游戏速率 ${this.speedLabel()}">
-            <span class="lbl">速率</span><b>${this.speedLabel()}</b>
           </button>
           <button class="icon-btn" @click=${this.onRestart} aria-label="重置关卡">
             ${iconReset}<span class="lbl">重置</span>
@@ -173,9 +173,16 @@ export class SfHud extends LitElement {
         gap: var(--sp-1-5);
         padding: 0 var(--sp-3);
         border-radius: var(--r-md);
-        corner-shape: squircle;
         color: var(--ink);
         transition: transform 100ms ease-out, background 120ms ease-out;
+      }
+
+      .icon-btn:not(.speed) {
+        corner-shape: squircle;
+      }
+
+      .icon-btn.speed {
+        border-radius: var(--r-pill);
       }
 
       .icon-btn svg {

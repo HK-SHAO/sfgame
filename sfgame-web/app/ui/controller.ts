@@ -19,6 +19,7 @@ export interface ControllerEvents {
   onDeny(kind: SourceKind, clientX: number, clientY: number): void
   onSources(sources: SourcePlacement[]): void
   onStatus(time: number, extra: number): void
+  onFatal(): void
 }
 
 export class GameController {
@@ -69,6 +70,7 @@ export class GameController {
     this.worker.onerror = (e) => {
       console.error('模拟 worker 启动失败：', e.message)
       this.loop.stop()
+      this.events.onFatal()
     }
     this.loop = new GameLoop({ tick: this.tick, render: this.render })
     this.input = new GestureInput(canvas, {

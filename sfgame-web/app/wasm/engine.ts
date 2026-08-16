@@ -146,7 +146,7 @@ export function initEngine(bytes: ArrayBuffer | Uint8Array): boolean {
 }
 
 // 平台无关引导：调用方按运行环境提供取字节实现（浏览器 fetch 资源 / node-bun 读文件）；
-// 加载失败一律返回 false，绝不抛。内核为纯 wasm MVP 标量实现（Moonbit 编译），无 SIMD 门槛
+// 加载失败一律返回 false，绝不抛。内核为 Moonbit 编译 wasm（流体含 v128 SIMD 快路径，模块声明 simd 特性）
 export async function bootEngine(load: () => Promise<ArrayBuffer | Uint8Array>): Promise<boolean> {
   if (typeof WebAssembly === 'undefined') return false
   try {

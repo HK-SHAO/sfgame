@@ -12,6 +12,9 @@ export const HUD_CHANGE = 'hudchange'
 export const DENY = 'deny'
 export const SRC_CHANGE = 'sourceschange'
 export const UNSUPPORTED = 'unsupported'
+export interface UnsupportedDetail {
+  reason: 'webgl' | 'fatal'
+}
 export interface DenyDetail {
   kind: SourceKind
   clientX: number
@@ -66,9 +69,11 @@ export class SfGame extends LitElement {
         this.statusTime = time
         this.statusPenalty = extra
       },
+      onFatal: () =>
+        this.dispatchEvent(new CustomEvent<UnsupportedDetail>(UNSUPPORTED, { detail: { reason: 'fatal' } })),
     }, this, this.devTools)
     if (!this.controller.renderable) {
-      this.dispatchEvent(new Event(UNSUPPORTED))
+      this.dispatchEvent(new CustomEvent<UnsupportedDetail>(UNSUPPORTED, { detail: { reason: 'webgl' } }))
       return
     }
     void this.updateComplete.then(() => {

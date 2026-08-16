@@ -17,6 +17,7 @@ import './title-screen'
 import './about-screen'
 import './hud.ts'
 import { urlState, type AppView } from '../game/state.ts'
+import { loadDev, saveDev } from '../game/dev-mode.ts'
 import { screenFromUrl, type Screen, type ScreenState } from '../game/screen.ts'
 import type { HudState, LevelDef, SourcePlacement } from '../game/types.ts'
 import { setupKeys } from './keys.ts'
@@ -43,7 +44,8 @@ export class SfApp extends LitElement {
   @state() private hud: HudState = defaultHud(FIRST_LEVEL)
   @state() private muted = fb.muted
   @state() private rate = 1
-  @state() private dev = urlState.get('dev')
+  @state() private persistedDev = loadDev()
+  @state() private urlDev = urlState.get('dev')
   private winRank = -1
   private devTools: DevTools | null = null
   private disposeKeys: (() => void) | null = null
@@ -67,6 +69,10 @@ export class SfApp extends LitElement {
     back: () => this.backToTitle(),
     speedDown: () => this.cycleSpeed(-1),
     speedUp: () => this.cycleSpeed(1),
+  }
+
+  private get dev(): boolean {
+    return this.persistedDev || (this.screen === 'game' && this.urlDev)
   }
 
   private get speedSteps(): number[] {
@@ -115,7 +121,7 @@ export class SfApp extends LitElement {
         fb.uiClick()
       }),
       urlState.onChange('dev', (v) => {
-        this.dev = v
+        this.urlDev = v
       }),
     ]
   }
@@ -159,7 +165,7 @@ export class SfApp extends LitElement {
 
   private onCreate() {
     fb.uiEnter()
-    this.dev = true
+    this.urlDev = true
     urlState.set('lv', { id: FIRST_LEVEL.id })
     urlState.clear('s')
     urlState.set('dev', true)
@@ -188,6 +194,8 @@ export class SfApp extends LitElement {
     urlState.clear('lv')
     urlState.clear('s')
     urlState.clear('v')
+    this.urlDev = false
+    urlState.clear('dev')
     this.applyScreen(screenFromUrl())
   }
 
@@ -210,9 +218,8 @@ export class SfApp extends LitElement {
   }
 
   private toggleDev(e: CustomEvent<boolean>) {
-    this.dev = e.detail
-    if (e.detail) urlState.set('dev', true, { replace: true })
-    else urlState.clear('dev', { replace: true })
+    this.persistedDev = e.detail
+    saveDev(e.detail)
     fb.uiClick()
   }
 

@@ -1,4 +1,4 @@
-import { GameLoop, SIM_DT } from '../core/loop.ts'
+import { GameLoop, MAX_TICKS_PER_FRAME, SIM_DT } from '../core/loop.ts'
 import { sfx } from '../core/sfx.ts'
 import { bgm } from '../core/bgm.ts'
 import { fb } from '../core/feedback.ts'
@@ -34,6 +34,7 @@ export class GameController {
   private press: PressVisual | null = null
   private devTools: PerfRecorder | null = null
   private tickMs = 0
+  private pendingTicks = 0
   private rate = 1
   private fitW = 0
   private fitH = 0
@@ -204,7 +205,8 @@ export class GameController {
   }
 
   private tick = (dt: number) => {
-    if (!this.ready) return
+    if (!this.ready || this.pendingTicks >= MAX_TICKS_PER_FRAME) return
+    this.pendingTicks++
     this.send({ t: 'tick', dt })
   }
 
@@ -248,6 +250,7 @@ export class GameController {
         this.onReady(m)
         break
       case 'frame':
+        this.pendingTicks = Math.max(0, this.pendingTicks - 1)
         this.tickMs += m.snapshot.tickMs
         this.snapshot = m.snapshot
         break

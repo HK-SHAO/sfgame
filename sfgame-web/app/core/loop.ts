@@ -6,8 +6,9 @@ export interface LoopHandlers {
 export const SIM_DT = 1 / 60
 const SIM_DT_MS = SIM_DT * 1000
 const MAX_FRAME = 0.25
-// 追赶封顶：慢帧欠账顺延后续帧逐步消化，避免单帧追帧爆成几十毫秒
-const MAX_TICKS_PER_FRAME = 24
+// 追赶封顶：慢帧欠账顺延后续帧逐步消化，避免单帧追帧爆成几十毫秒。
+// 同时是主→worker 在途 tick 上限（controller 以帧事件 1:1 回执做背压，见 pitfalls D20）
+export const MAX_TICKS_PER_FRAME = 24
 // 欠账上限 = 单帧封顶量：高倍速低帧率时超出部分丢时间（时间膨胀）而非无限累积——
 // 否则切回低倍速后仍按封顶满转还债数秒，视觉上倍速切换延迟生效
 const MAX_ACC = MAX_TICKS_PER_FRAME * SIM_DT

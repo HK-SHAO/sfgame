@@ -157,10 +157,10 @@ export class SfTitleScreen extends LitElement {
           rel="noopener"
           aria-label="观看视频"
         >
-          ${iconPlay}<span>观看视频</span>
+          ${iconPlay}<span>视频</span>
         </a>
         <button class="link-btn" @click=${this.onCreate} aria-label="关卡创作">
-          ${iconSparkle}<span>关卡创作</span>
+          ${iconSparkle}<span>创作</span>
         </button>
         ${!this.dev
           ? html`<button
@@ -177,7 +177,7 @@ export class SfTitleScreen extends LitElement {
           : nothing}
         ${this.dev
           ? html`<button class="link-btn" @click=${this.onDevPage} aria-label="开发者页面">
-              ${iconGear}<span>开发者页面</span>
+              ${iconGear}<span>开发</span>
             </button>`
           : nothing}
       </div>

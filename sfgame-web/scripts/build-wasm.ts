@@ -57,7 +57,7 @@ export async function compileWasm(opts: { force?: boolean } = {}): Promise<boole
   cpSync(engineArtifact, engineOut)
   // 共享内存注入（SAB 跨线程零拷贝的前提）：失败即构建中止（patch-shared.ts）
   patchSharedWasm(engineOut)
-  console.log(`[moon] 编译 ✓ ${(performance.now() - t0).toFixed(0)}ms（wasm 引擎，已注入 shared+target_features）`)
+  console.log(`[moon] 编译 ✓ ${(performance.now() - t0).toFixed(0)}ms（wasm 引擎，已注入 shared 位）`)
   return true
 }
 

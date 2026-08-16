@@ -1,18 +1,15 @@
 // 共享内存注入：moonc 产出的 wasm 是普通（非 shared）Memory；SAB 跨线程零拷贝要求
-// Memory 带 shared 位。二进制层面改动两处：
-//   1) memory 段 limits flags 0x01(has_max) → 0x03(has_max|shared)——布局漂移即抛错，构建响亮失败
-//   2) 段尾追加 custom 段 target_features（'+' threads bulk-memory simd，WebAssembly tool-conventions 规范）
+// Memory 带 shared 位。二进制层面只改一处：
+//   memory 段 limits flags 0x01(has_max) → 0x03(has_max|shared)——threads 提案官方编码，
+//   布局漂移即抛错，构建响亮失败。不追加 target_features 段：三大引擎（V8/JSC/SM）源码均不消费，
+//   消费方只有链接器（wasm-ld/binaryen），而本产物是终产物不经链接；该段的规范编码是
+//   count 前缀 + 特性名字符串（tool-conventions），曾误写数字 ID 会令 wasm-opt 严格解析报错，故删。
 // 已实证：patch 后 node 实例化成功、memory.buffer instanceof SharedArrayBuffer === true、tracer golden 逐位一致。
 // 纯字节操作不经 wasm 重编译：moon/ 与引擎源码零改动，golden 契约不破。
 import { readFileSync, writeFileSync } from 'node:fs'
 
-// target_features 段内容：'+'=0x2b，随后三个 feature id（threads=0x01 bulk-memory=0x02 simd=0x04）
-const TARGET_FEATURES = new Uint8Array([0x2b, 0x01, 0x02, 0x04])
-const FEATURES_NAME = 'target_features'
-
-// 全量遍历段（自检与主流程共用）：返回 memory 段 flags 的字节偏移（或 -1）与 custom 段名集合
-function scan(buf: Uint8Array): { memFlagsOff: number; memFlags: number; customs: Set<string> } {
-  const customs = new Set<string>()
+// 全量遍历段：返回 memory 段 flags 的字节偏移与现值（找不到则 -1）
+function scan(buf: Uint8Array): { memFlagsOff: number; memFlags: number } {
   if (buf[0] !== 0x00 || buf[1] !== 0x61 || buf[2] !== 0x73 || buf[3] !== 0x6d) {
     throw new Error('shared 注入：非 wasm 魔数')
   }
@@ -55,50 +52,32 @@ function scan(buf: Uint8Array): { memFlagsOff: number; memFlags: number; customs
       }
       memFlagsOff = start + 1
       memFlags = fl
-    } else if (id === 0) {
-      // custom 段：name_len + name
-      const nl = buf[start]
-      customs.add(String.fromCharCode(...buf.subarray(start + 1, start + 1 + nl)))
     }
     off = start + size
   }
   if (off !== buf.length) throw new Error('shared 注入：段遍历未对齐文件尾')
-  return { memFlagsOff, memFlags, customs }
+  return { memFlagsOff, memFlags }
 }
 
-// 对磁盘上的 wasm 文件执行共享注入（幂等：已带 shared 位则只补 target_features）
+// 对磁盘上的 wasm 文件执行共享注入（幂等：已带 shared 位则零改动）
 export function patchSharedWasm(path: string): void {
   const buf = new Uint8Array(readFileSync(path))
-  const { memFlagsOff, memFlags, customs } = scan(buf)
+  const { memFlagsOff, memFlags } = scan(buf)
   if (memFlagsOff < 0) throw new Error('shared 注入：未找到 memory 段')
   // moonc 产物恒 has_max（min=max 静态容量钉死）；shared 位置入前必须为 0x01，防布局漂移静默错位
   if (memFlags !== 1 && memFlags !== 3) {
     throw new Error(`shared 注入：memory flags=${memFlags}（期望 0x01），wasm 布局漂移，构建中止`)
   }
-  const patched = new Uint8Array(buf)
-  if (memFlags === 1) patched[memFlagsOff] = 3
-  if (!customs.has(FEATURES_NAME)) {
-    const name = new TextEncoder().encode(FEATURES_NAME)
-    // 段 = id(0) + size + name_len + name + content；size 恒 < 128 单字节 LEB
-    const size = 1 + name.length + TARGET_FEATURES.length
-    if (size >= 0x80) throw new Error('shared 注入：target_features 段超出单字节 size')
-    const out = new Uint8Array(patched.length + 1 + 1 + size)
-    out.set(patched, 0)
-    out[patched.length] = 0
-    out[patched.length + 1] = size
-    out[patched.length + 2] = name.length
-    out.set(name, patched.length + 3)
-    out.set(TARGET_FEATURES, patched.length + 3 + name.length)
-    writeFileSync(path, out)
-    verifySharedWasm(readFileSync(path))
-  } else {
+  if (memFlags === 1) {
+    const patched = new Uint8Array(buf)
+    patched[memFlagsOff] = 3
     writeFileSync(path, patched)
   }
+  verifySharedWasm(readFileSync(path))
 }
 
-// 自检：patch 后重新解析，memory flags 必须含 shared 位、target_features 必须存在
+// 自检：patch 后重新解析，memory flags 必须含 shared 位
 export function verifySharedWasm(raw: Uint8Array): void {
-  const { memFlags, customs } = scan(new Uint8Array(raw))
+  const { memFlags } = scan(new Uint8Array(raw))
   if ((memFlags & 0x02) === 0) throw new Error('shared 注入自检失败：memory flags 缺 shared 位')
-  if (!customs.has(FEATURES_NAME)) throw new Error('shared 注入自检失败：缺 target_features 段')
 }

@@ -20,7 +20,7 @@
 - `bun run check` = typecheck → build → test（fail-fast 一键验证，顺序与语义以 package.json 为准；build 前置 build:wasm，故 test 恒有产物）；`bun run test` = test:moon + vitest **双运行时**（node/V8 为权威基线 + bun/JSC 为 Safari 代理检测器，全量必跑，见 pitfalls I8）；根目录亦有同名透传脚本（--cwd sfgame-web），可在仓库根直接跑
 - `bun run dev` = vite（`scripts/vite-plugins/wasm-rebuild.ts` 插件：启动前编译 wasm 一次 + 复用 vite 的 chokidar 监视 `moon/` 变更自动重编，产物变化整页刷新）；`bun run dev -- --port N` 透传 vite 参数
 - `bun run build:wasm` = Moonbit 数值内核编译（moon 工具链需先装），wasm 单目标出单产物（dev/build/check 已内置，改 moon/ 后无需手动跑）：
-  - wasm 目标 → `app/wasm/sfengine.wasm`（流体+顶点批+示踪三内核单模块单内存；SDF 表达式求值器为纯 TS `app/game/sdf.ts`，不经 moon）；产物经 `scripts/patch-shared.ts` 二进制注入共享内存位（memory flags 0x01→0x03 + target_features 段，SAB 跨线程零拷贝的前提，纯字节操作不改内核）
+  - wasm 目标 → `app/wasm/sfengine.wasm`（流体+顶点批+示踪三内核单模块单内存；SDF 表达式求值器为纯 TS `app/game/sdf.ts`，不经 moon）；产物经 `scripts/patch-shared.ts` 二进制注入共享内存位（memory 段 limits flags 0x01→0x03，threads 提案官方编码，SAB 跨线程零拷贝的前提，纯字节操作不改内核；不追加 target_features 段——引擎不消费、只有链接器读，见 pitfalls I13）
 - `bun run test:moon` = moon 模块单元/白盒测试（wasm 引擎包，含 ffi 寻址约定与内核不变量）
 - `bun run bench:moon` = 内核性能基线（moon bench；分阶段基准见 `moon/bench_wbtest.mbt`：满网格流体步 ≈3.7ms(min)/4.2ms(mean, σ≈1.1) @ 256×160 = 平流 MacCormack 58% + GS 28% + 其余 14%——分阶段为单场基准，全流水线 ×3 折算；GS f64x2 双格 SIMD + buoyancy 双格 SIMD；无地形纯空域路径由内核门控自动转标量——JSC 对该路径的 gs_pair 误编译已被语义层隔离，见 pitfalls I8）
 - 新增长模拟测试必须传显式超时第三参数（vitest 默认 5s）

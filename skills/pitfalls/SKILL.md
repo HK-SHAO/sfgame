@@ -531,7 +531,8 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **信号**：MCP 脚本对布尔型 evaluate 结果做 `!x` 判断的地方逐一核对返回类型；关卡深链 URL 先确认 resolveLevel 能命中。
 
 ### I13 wasm 共享内存注入 + COI/gtag 陷阱（2026-08 实测）
-**背景**：moonc 产出的 wasm 是普通 Memory；SAB 跨线程零拷贝要求 Memory 带 shared 位。二进制注入（`scripts/patch-shared.ts`）：memory 段 limits flags 0x01(has_max)→0x03(has_max|shared) + 段尾追加 custom 段 `target_features`（内容 `2b 01 02 04` = '+' threads bulk-memory simd，WebAssembly tool-conventions 规范）。已实证 node 实例化成功、`memory.buffer instanceof SharedArrayBuffer === true`、tracer golden 逐位一致。
+**背景**：moonc 产出的 wasm 是普通 Memory；SAB 跨线程零拷贝要求 Memory 带 shared 位。二进制注入（`scripts/patch-shared.ts`）只改一处：memory 段 limits flags 0x01(has_max)→0x03(has_max|shared)——threads 提案官方编码（shared 位 = limits flags 第 2 位；共享 Memory 要求 has_max，moonc 产物恒 min=max 满足）。已实证 node 实例化成功、`memory.buffer instanceof SharedArrayBuffer === true`、tracer golden 逐位一致。
+**不追加 target_features 段（2026-08 调研定案）**：该段是 tool-conventions 的**链接器约定**，不是运行时信号——三大引擎源码均不消费（V8 module-decoder/wasm-features/wasm-serialization、JSC WasmSectionParser、SpiderMonkey WasmValidate 全 0 命中，浏览器实测实例化正常）。规范编码 = count 前缀 +（'+' + 特性名字符串，如 `atomics`/`bulk-memory`/`simd128`）；曾误写 `2b 01 02 04`（无 count、数字 ID 当名字），binaryen 严格解析（读完须对齐段尾，否则 throwError）与 LLVM（先读 count）都会报错——坏段比无段更糟，故删。本产物是终产物不经链接，shared 位是运行时唯一信号。
 **症状 A**：worker 内共享 Memory 实例化失败（`RangeError: WebAssembly.Instance: ...`）或主线程拿到非 SAB。
 **根因**：COOP/COEP 缺失——浏览器只在跨域隔离上下文允许共享 Memory；COEP require-corp 还会阻塞所有无 CORP/ACAO 的跨源子资源。
 **修法**：`public/_headers` 全站 `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`；vite dev/preview 必须同值（server.headers/preview.headers），否则本地调试与线上行为不一致。

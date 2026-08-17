@@ -22,7 +22,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'app',
       filename: 'sw.ts',
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       manifest: false,
       injectManifest: {
         rollupFormat: 'iife',

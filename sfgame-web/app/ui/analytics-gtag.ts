@@ -1,5 +1,24 @@
 import { analytics, type AnalyticsEvent, type AnalyticsTransport } from '../core/analytics.ts'
 
+const GA_ID = 'G-16BW99KEFB'
+
+type GtagPush = (...args: unknown[]) => number
+
+function injectSnippet(): GtagPush {
+  const w = window as unknown as { dataLayer?: unknown[][]; gtag?: GtagPush }
+  w.dataLayer ??= []
+  const push: GtagPush = (...args) => w.dataLayer!.push(args)
+  w.gtag = push
+  push('consent', 'default', { ad_storage: 'denied', analytics_storage: 'granted', personalization_storage: 'denied' })
+  push('js', new Date())
+  push('config', GA_ID)
+  const s = document.createElement('script')
+  s.async = true
+  s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`
+  document.head.appendChild(s)
+  return push
+}
+
 function toGtagParams(e: AnalyticsEvent): Record<string, unknown> {
   const p = e.payload
   const base: Record<string, unknown> = {
@@ -19,9 +38,9 @@ function toGtagParams(e: AnalyticsEvent): Record<string, unknown> {
 }
 
 export function mountGtagAnalytics(): void {
+  const push = injectSnippet()
   const transport: AnalyticsTransport = (e) => {
-    const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag
-    if (typeof gtag === 'function') gtag('event', e.type, toGtagParams(e))
+    push('event', e.type, toGtagParams(e))
   }
   analytics.transport = transport
 }

@@ -1,4 +1,3 @@
-import { clientsClaim } from 'workbox-core'
 import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 
@@ -19,7 +18,5 @@ registerRoute(
   }),
 )
 
-// 新版本立即接管：资产内容寻址 + 客户端 autoUpdate 的 reload-on-update，静默更新安全
-const sw = self as unknown as { skipWaiting(): Promise<void> }
-sw.skipWaiting()
-clientsClaim()
+// 更新语义 = 下次启动接管：新 SW 装好即停留 waiting（无 skipWaiting/clientsClaim），旧版缓存继续服务，
+// 待页面全部关闭后下次启动才 activate 并清旧条目——更新只在“下一次完整重载”生效，绝不在使用中自动刷新打断

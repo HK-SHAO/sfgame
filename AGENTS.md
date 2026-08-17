@@ -42,7 +42,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 - `app/ui/` — `app.ts` 根组件（声明式装配 + syncScreen 从 URL 推导屏幕，dev 面板生命周期在此）、`sf-game.ts` 画布宿主（firstUpdated 建 GameController、disconnectedCallback 销毁，事件外发 hudchange/deny/sourceschange）。`controller.ts` 只发消息驱动模拟 worker 并消费其帧快照渲染（快照协议与跨线程常数见 `app/sim/worker-protocol.ts`）；hitSource 用快照镜像复刻同值判定（SOURCE_HIT_RADIUS）
 - `app/render/` — `render.ts`（场景 → 顶点批组装 + 遮挡契约：太阳光晕最背景，气流粒子轨迹与太阳盘面在云后——云遮粒子与日芒、又被地面遮挡；纸飞机与其拖尾在画面顶层，不被地面遮挡，画在旗/源/风扇之后；地形 = marching squares 固体填充：烘焙格心 SDF 场每关上传顶点批内核一次，每帧按视域单调用切 d=0 等值线（格内线性插值，矢量级锐边，鞍点拆独立三角、越界格钳场外推延展；地表色=旧描边色按 SDF 深度指数渐近混向原填充色，特征长度 GROUND_DEPTH_LEN=8））、`gl.ts`（WebGL 薄层：单程序单缓冲、上下文状态幂等）、`batch.ts`（顶点批门面，数值实现在 `moon/batch.mbt`，静态容量零分配，可无头测试）
 - `app/dev/` — ?dev=1 开发者工具：面板 + 性能块 + 关卡 JSON 编辑器（默认折叠）+ 开发者页面，由 app 持有跨关卡重建延续；dev 会话不进入 GA 上报（无限源/倍速会污染正式漏斗与转化率）
-- `app/core/` — 固定步长循环、音效与反馈（离散反馈一律走 `feedback.ts` 门面 = `sfx.ts` 音频 + `haptics.ts` 震动唯一配对点；连续风声层由 controller 直驱 sfx）、性能治理（`governor.ts` 降级策略 / `wind.ts` 风强度与落地判定，均纯逻辑可无头测试）、通用 URL 状态模块、分析上报门面（`analytics.ts` 语义 schema + 可注入 transport，传输适配器在 `ui/analytics-gtag.ts`——换上报服务只改适配器 + main.ts 装配）；乐观上报契约：fire-and-forget，无重试/队列，传输异常全吞（分析永不破坏游戏）；dev 会话（持久化或 URL dev）不发漏斗事件，门槛用 `app.ts` 的 `dev` getter 而非 devTools 实例（后者懒创建，构造期深链会漏报）
+- `app/core/` — 固定步长循环、音效与反馈（离散反馈一律走 `feedback.ts` 门面 = `sfx.ts` 音频 + `haptics.ts` 震动唯一配对点；连续风声层由 controller 直驱 sfx）、性能治理（`governor.ts` 降级策略 / `wind.ts` 风强度与落地判定，均纯逻辑可无头测试）、通用 URL 状态模块、分析上报门面（`analytics.ts` 语义 schema + 可注入 transport，传输适配器在 `ui/analytics-gtag.ts`——gtag 全责归一：snippet 注入（桩/consent/config/延迟脚本）与事件转发都在 `mountGtagAnalytics`，main.ts 仅引擎就绪后一行装配）；乐观上报契约：fire-and-forget，无重试/队列，传输异常全吞（分析永不破坏游戏）；gtag snippet 由适配器在引擎就绪后注入（不在 index.html 首屏），回访打开除 sw.js 字节比对外零网络请求；dev 会话（持久化或 URL dev）不发漏斗事件，门槛用 `app.ts` 的 `dev` getter 而非 devTools 实例（后者懒创建，构造期深链会漏报）
 
 ## 拖尾约定（2026-08 起）
 
@@ -57,7 +57,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 - 居中 + 溢出兜底用子项 `margin: auto`，禁用 `place-items: center`（溢出双向裁切）
 - **暖色背景渐变单源**：token `--bg-warm`（左上光斑）/`--bg-warm-r`（右上）定义在 `styles.css` `:root`，`html,body` 兜底携带渐变（浏览器工具栏/overscroll 露白延续渐变而非纯色带），组件内引用走 `var()`（shadow DOM 继承自定义属性），禁止内联复制渐变值
 - **安全区四向齐备**：`env(safe-area-inset-top/bottom)` 之外，横屏刘海/Dynamic Island 在侧边，全宽铺满的层（hud/pageShell/.title/overlay）须同时带 left/right inset；`theme-color` 恒 = 渐变顶色 `#fff8ea`（standalone 状态栏与渐变无缝）
-- PWA 安装元数据在 `public/manifest.webmanifest` + `icon.svg`（`sips` 栅格化出 icons/ 与 apple-touch-icon.png）；SW 源码在 `app/sw.ts`，经 vite-plugin-pwa（injectManifest 模式，TS 由 Vite 构建为 classic `dist/sw.js`，无 module-SW 兼容门槛）构建期注入 workbox 预缓存清单（`globPatterns ['**/*']` 全量预缓存，`_headers`/`_redirects`/`sw.js` 除外），activate 自动清理旧版本条目；导航统一回退预缓存 app shell（离线深链直达游戏），带扩展名路径排除（.md 文档由 precache 按 URL 命中）；客户端 `virtual:pwa-register` + `registerType: 'autoUpdate'`（新 SW 立即接管、更新后自动 reload）；`_headers` 的 `/sw.js no-cache` 保持 SW 字节比对更新语义
+- PWA 安装元数据在 `public/manifest.webmanifest` + `icon.svg`（`sips` 栅格化出 icons/ 与 apple-touch-icon.png）；SW 源码在 `app/sw.ts`，经 vite-plugin-pwa（injectManifest 模式，TS 由 Vite 构建为 classic `dist/sw.js`，无 module-SW 兼容门槛）构建期注入 workbox 预缓存清单（`globPatterns ['**/*']` 全量预缓存，`_headers`/`_redirects`/`sw.js` 除外），activate 自动清理旧版本条目；导航统一回退预缓存 app shell（离线深链直达游戏），带扩展名路径排除（.md 文档由 precache 按 URL 命中）；客户端 `virtual:pwa-register` + `registerType: 'prompt'` 静默注册（无弹窗 UI）：新版 SW 后台装好停留 waiting，旧 SW 与旧缓存继续服务直到页面全部关闭、下次启动才 activate——更新只在「下一次完整重载」生效，使用中绝不自动刷新；`_headers` 的 `/sw.js no-cache` 保持 SW 字节比对更新语义
 
 ## 易错点
 

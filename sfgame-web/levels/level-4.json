@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema.json",
   "id": "chao-xi",
   "name": "潮汐",
   "tagline": "风有涨落，时间有箭头",

@@ -1,4 +1,4 @@
-// 关卡 JSON 结构校验 = levels/level.schema-1.json 的运行时镜像：schema 表达的静态约束两处同源，
+// 关卡 JSON 结构校验 = levels/level.schema.json 的运行时镜像：schema 表达的静态约束两处同源，
 // 由 tests/level-schema.test.ts 守护；world 依赖的动态边界（x≤w 等）与 SDF 语义仅此处可表达。
 // 错误逐字段 JSON 路径 + 实值；world 非法（结构/网格越界）时动态边界与烘焙自动失效（null），只查结构不级联误报
 import { bakeSdf, compileSdf, SdfError } from './sdf.ts'

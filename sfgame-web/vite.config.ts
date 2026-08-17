@@ -27,7 +27,7 @@ export default defineConfig({
       injectManifest: {
         rollupFormat: 'iife',
         globPatterns: ['**/*'],
-        globIgnores: ['**/_headers', '**/sw.js'],
+        globIgnores: ['**/_headers', '**/_redirects', '**/sw.js'],
       },
     }),
   ],

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema.json",
   "id": "fu-yao",
   "name": "扶摇",
   "tagline": "热让风上升",

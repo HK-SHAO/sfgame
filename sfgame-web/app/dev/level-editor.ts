@@ -184,7 +184,7 @@ export class SfLevelEditor extends LitElement {
             <div class="row">
               <button class="apply" @click=${this.confirm}>确认生效</button>
               <button class="cancel" @click=${this.collapse}>取消</button>
-              <a class="guide" href="./skills/level-design/SKILL.md" target="_blank" rel="noopener">创作指南</a>
+              <a class="guide" href="./skills/level-design/SKILL.md" target="_blank" rel="noopener">创作技能</a>
             </div>
           `
         : nothing}

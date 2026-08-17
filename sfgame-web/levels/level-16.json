@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema.json",
   "id": "zhui-xing",
   "name": "坠星",
   "tagline": "星落如屿，踏风而上",

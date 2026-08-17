@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema.json",
   "id": "gui-xu",
   "name": "归墟",
   "tagline": "万风归于墟",

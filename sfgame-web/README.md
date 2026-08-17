@@ -60,7 +60,7 @@ bun run scripts/run-level.ts levels/level-N.json --solve            # 离线求�
 bun run scripts/known-urls.ts                                      # 打印全部已知解的 URL 直达参数
 ```
 
-关卡协议见 `levels/level.schema-1.json`；设计与验证流程见 `../skills/level-design/SKILL.md`。
+关卡协议见 `levels/level.schema.json`；设计与验证流程见 `../skills/level-design/SKILL.md`。
 
 ## 更多
 

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import schemaText from '../levels/level.schema-1.json?raw'
+import schemaText from '../levels/level.schema.json?raw'
 import { GOAL_R_MAX, ID_PATTERN, LIST_MAX, SWING_MAX, TEMP_LIMIT } from '../app/game/level-validate.ts'
 import { CELL_MIN, CELL_MAX } from '../app/game/grid-limits.ts'
 import { LEVEL_ERRORS, LEVELS } from '../app/game/levels.ts'
@@ -28,7 +28,7 @@ const prop = (p: string) => schema.properties![p]
 
 test('schema 文件：draft-07、项目匹配 $id、根附加属性关闭、必需字段与协议一致', () => {
   expect(schema.$schema).toBe('http://json-schema.org/draft-07/schema#')
-  expect(schema.$id).toBe('https://sf.game.shao.fun/level.schema-1.json')
+  expect(schema.$id).toBe('https://sf.game.shao.fun/level.schema.json')
   expect(schema.required).toEqual([
     'id', 'name', 'tagline', 'win', 'world', 'terrain', 'budget', 'spawn', 'goals',
   ])

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema.json",
   "id": "ni-lu",
   "name": "逆旅",
   "tagline": "天地者，万物之逆旅",

@@ -288,7 +288,7 @@ export class SfApp extends LitElement {
   }
 
   private emitLevelStart(level: LevelDef) {
-    if (this.devTools) return
+    if (this.dev) return
     analytics.emit({
       type: 'level_start',
       payload: { levelId: level.id, levelName: level.name },
@@ -296,7 +296,7 @@ export class SfApp extends LitElement {
   }
 
   private emitLevelComplete(newRecord: boolean) {
-    if (this.devTools) return
+    if (this.dev) return
     analytics.emit({
       type: 'level_complete',
       payload: {

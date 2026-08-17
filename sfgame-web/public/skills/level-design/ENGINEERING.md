@@ -7,7 +7,7 @@ SKILL.md 的补充：只含创作之外的工程信息。新手创作只读 SKIL
 ## 文件与协议位置
 
 - 关卡：`sfgame-web/levels/level-N.json`（N = 顺序号，文件名与 id 无耦合）
-- 协议：`sfgame-web/levels/level.schema-1.json`（JSON Schema draft-07；`$schema` 绝对 URL 指向线上部署地址，dist 根随包发布副本）
+- 协议：`sfgame-web/levels/level.schema.json`（JSON Schema draft-07；`$schema` 绝对 URL 指向线上部署地址，dist 根随包发布副本）
 - 校验双轨：schema 只表达静态约束（编辑器提示用）；**运行时校验以 `app/game/level-validate.ts` 为准**（world 依赖的动态边界 x≤w、网格容量、SDF 语义、固/气约束只在此），静态镜像由 `tests/level-schema.test.ts` 守护、行为面（含固/气）由 `tests/level-format.test.ts` 守护。`$schema` 值本身不校验（错版/缺失不拒绝关卡）。
 
 ## 校验口径补充（运行时才有）

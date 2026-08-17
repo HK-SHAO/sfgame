@@ -11,7 +11,7 @@ description: 为「烧风」（物理益智：放置热/冷源造风，让纸飞
 
 ```json
 {
-  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema.json",
   "id": "luo-yu",
   "name": "落羽",
   "tagline": "冷让风下沉",

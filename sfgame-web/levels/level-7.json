@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema.json",
   "id": "bing-jiao",
   "name": "冰窖",
   "tagline": "冷沿山坡下沉",

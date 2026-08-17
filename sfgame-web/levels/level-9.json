@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sf.game.shao.fun/level.schema-1.json",
+  "$schema": "https://sf.game.shao.fun/level.schema.json",
   "id": "zhong-bai",
   "name": "钟摆",
   "tagline": "风有节拍，出手看时机",

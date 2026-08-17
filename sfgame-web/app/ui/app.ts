@@ -271,8 +271,8 @@ export class SfApp extends LitElement {
   }
 
   private onUnsupported(e: CustomEvent<UnsupportedDetail>) {
-    const el = document.createElement('sf-unsupported') as HTMLElement & { reason: string }
-    el.reason = e.detail?.reason ?? 'webgl'
+    const el = document.createElement('sf-unsupported')
+    el.reason = e.detail?.reason ?? 'fatal'
     document.body.replaceChildren(el)
   }
 

@@ -540,5 +540,5 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **实测（2026-08）**：本仓库 COI 下 gtag.js 与 GA collect 均未被拦（200）——Google 静态分发响应带跨源许可头（CORP/CORS），COEP require-corp 放行；无需 credentialless 备选。若换用无跨源头的第三方资源被拦，备选 `Cross-Origin-Embedder-Policy: credentialless`（放行无 CORP 跨源资源但不带凭据；Safari 需 15.2+），或改服务端代理；第三方响应头不受控，CORP 方案不可行。
 **信号**：改 COI 后在 devtools Network 看 gtag 请求状态；SAB 断言用 `memory.buffer instanceof SharedArrayBuffer`（node/bun 无 COI 限制，可直接验证注入生效）。
 **症状 C（非 COI 托管，2026-08 实测）**：部署到不能自定义响应头的静态托管（itch.io 等）→ `crossOriginIsolated=false` → worker 的 ready 消息携带 SAB postMessage 抛 `DataCloneError: SharedArrayBuffer transfer requires self.crossOriginIsolated` → 游戏画面冻结、仅 console 报错（wasm 实例化本身不抛，坑在于**失败点不在实例化而在 SAB 传输**）。
-**修法（已落地）**：main.ts 预检 `crossOriginIsolated`，缺失即显示「当前站点无法运行此游戏」明示屏（sf-unsupported reason=coi）；worker 运行期崩溃经 controller onFatal → sf-game UNSUPPORTED(reason=fatal) 同样走明示屏，杜绝静默冻结。**部署目标必须是能自定义响应头的托管（Cloudflare Pages 的 _headers）**。
+**修法（已落地）**：main.ts 预检 `crossOriginIsolated`，缺失即显示「当前环境无法运行此游戏」明示屏（sf-unsupported reason=coi；缺失原因在浏览器或站点两侧都可能，提示语不归咎站点）；worker 运行期崩溃经 controller onFatal → sf-game UNSUPPORTED(reason=fatal) 同样走明示屏，杜绝静默冻结。**部署目标必须是能自定义响应头的托管（Cloudflare Pages 的 _headers）**。
 **接受的设计取舍**：主线程直读 SAB 与 worker 写入并发——单粒子可能读撕裂（单帧毛刺），视觉可忽略；零拷贝收益（worker −0.4ms/tick、主线程 −0.15ms/帧、堆减半，2026-08 实测）大于撕裂风险。

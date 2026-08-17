@@ -2,7 +2,7 @@
   "extends": "./tsconfig.app.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    "types": ["vite/client", "@types/bun"]
+    "types": ["vite/client", "@types/bun", "gtag.js"]
   },
   "include": ["tests", "scripts", "vite.config.ts", "app"]
 }

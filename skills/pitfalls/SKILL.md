@@ -73,6 +73,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - MCP 自动化布尔断言恒真/深链检查形同虚设 → I12（'false' 字符串 truthy；关卡 URL 用 slug 非序号）
 - wasm 共享内存实例化失败 / SAB 拿不到 / GA 被拦 → I13（二进制注入 shared 位 + COI 头 + gtag/COEP 权衡）
 - gtag/js 加载 200 却零条 collect（GA 上报静默全断）→ I14（snippet 别做 JS 延迟注入，老实放 head 内联）
+- 新增 @types 包后 `-p tsconfig.app.json` 过但 `tsc -b` 报找不到类型 → I15（node config 覆盖 types，两处都得加）
 
 ## A. Lit + Shadow DOM
 
@@ -561,5 +562,10 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 ### I14 GA snippet 延迟注入导致上报静默全断（2026-08 实测）
 **症状**：Network 里 gtag/js 正常 200、`_ga` cookie 照写、事件确实进了 dataLayer，但零条 collect 请求；同页手动 fetch/beacon 到 collect 端点都通，甚至现场再注入一套全新标准 snippet 也不发——与业务代码无关的页面级静默。
 **实测排查（2026-08）**：把 snippet 从 index.html 内联改为 JS 延迟注入（wasm boot 后 injectSnippet）后复现；干净对照页（同库同命令）正常发。已排除：SW、CDP 附加、body 清空、注入延迟本身、网络。生产页 `google_tag_data.ics.usedDefault` 恒 false（consent 命令未被库应用），怀疑新版沙箱架构 gtag 的启动流水线在特定环境挂起；具体触发因子未钉死（HTTP 对照页正常、生产 HTTPS 复现，本地自签证书复现被证书状态污染不可作数）。
-**修法（已落地）**：snippet 恢复 index.html head 内联（consent default + js + config，与库加载时序解耦）；`analytics-gtag.ts` 只留 transport = 读 `window.gtag` 发事件，不再做任何注入。
+**修法（已落地）**：snippet 恢复 index.html head 内联（consent default + js + config，与库加载时序解耦）；`analytics-gtag.ts` 只留 transport = `typeof gtag` 守护 + 发事件（全局 gtag 由 `@types/gtag.js` 类型化），不再做任何注入。
 **信号**：gtag/js 200 但无 collect → 查 `window.google_tag_data?.ics?.usedDefault`；恒 false 即库启动流水线异常，别在业务代码里找。
+
+### I15 tsconfig.node.json 覆盖 types 导致新 @types 半生效（2026-08 实测）
+**症状**：新增 @types 包并加进 `tsconfig.app.json` 的 `types` 后，`tsc -p tsconfig.app.json` 通过，但 `tsc -b`（= `bun run typecheck`/check）仍报「Cannot find namespace/name」。
+**根因**：`tsconfig.node.json` extends app 但**覆盖**了 `compilerOptions.types`（加 `@types/bun` 时整组替换），且 include 含 `app/`——同一文件在 node 项目下缺类型。`-b` 按 solution 编译两个项目，只改 app 是半生效。
+**修法**：新 @types 两个 config 的 types 数组都加（本例 `"gtag.js"`）。诊断信号 = 同一 tsc 版本下 `-p` 单项目过、`-b` 挂，必查 extends 链上 types 是否被覆盖。

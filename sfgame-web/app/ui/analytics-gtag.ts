@@ -1,8 +1,8 @@
 import { analytics, type AnalyticsEvent, type AnalyticsTransport } from '../core/analytics.ts'
 
-function toGtagParams(e: AnalyticsEvent): Record<string, unknown> {
+function toGtagParams(e: AnalyticsEvent): Gtag.CustomParams {
   const p = e.payload
-  const base: Record<string, unknown> = {
+  const base: Gtag.CustomParams = {
     level_id: p.levelId,
     level_name: p.levelName,
   }
@@ -20,7 +20,6 @@ function toGtagParams(e: AnalyticsEvent): Record<string, unknown> {
 
 export function mountGtagAnalytics(): void {
   const transport: AnalyticsTransport = (e) => {
-    const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag
     if (typeof gtag === 'function') gtag('event', e.type, toGtagParams(e))
   }
   analytics.transport = transport

@@ -53,8 +53,7 @@ export class SfUnsupported extends LitElement {
     css`
       :host {
         display: block;
-        height: 100svh;
-        height: 100dvh;
+        height: 100%;
       }
 
       .page {

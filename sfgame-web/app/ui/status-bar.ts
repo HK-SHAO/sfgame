@@ -47,7 +47,7 @@ export class SfStatusBar extends LitElement {
       position: fixed;
       left: 50%;
       transform: translateX(-50%);
-      bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+      bottom: calc(var(--sp-2) + env(safe-area-inset-bottom, 0px));
       transition: bottom 180ms ease-out;
       z-index: 3;
       display: flex;

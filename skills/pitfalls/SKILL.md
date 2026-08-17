@@ -14,6 +14,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - 居中元素（提示条/弹层）宽度只有容器一半 → B4
 - 滚动容器内阴影被截断/缺一截 → B5
 - 栏与下方卡片间距消失、视觉贴死 → B6
+- iOS standalone 底部白条/Safari 布局被压扁（black-translucent 后出现） → B7
 - 顶部滚不回去、底部间距不可见 → A3
 - 刷新后页面/状态丢失 → C6
 - 后退/前进"没反应"、源删不掉 → C5
@@ -139,6 +140,12 @@ canvas 是 shadow root 直接子节点，不能隐式推断宿主，尺寸适配
 **症状**：header bar 与下方卡片贴死（2026-08-08 加 `env(safe-area-inset-left/right)` 后实测）：`margin: 0 calc(-1 * (var(--page-pad-x) + env(safe-area-inset-left, 0px)))` 原是 `margin: 0 calc(...) var(--sp-4)` 三值——改写时按两值收尾，bottom 的 `var(--sp-4)` 被吞（两值 = 上下 0 / 左右 calc），栏与内容的间距归零；且左右两侧误用同一 inset（横屏刘海在单侧，左/右必须各自 inset）。
 **修法**：带安全区的多值 padding/margin 一律写全四值（top/right/bottom/left），右侧用 `inset-right`、左侧用 `inset-left`；改完对含 .bar 的屏（storage/dev）探测 `card.top − bar.bottom` ≥ 设计间距。
 **信号**：任何把 `env()` 并进多值 shorthand 的编辑；布局没动过却出现"贴死/错位"。
+
+### B7 iOS standalone black-translucent 下根高度用百分比→底部露系统白条，叠 -webkit-fill-available 反把 Safari 压扁
+**症状**：`apple-mobile-web-app-status-bar-style: black-translucent` + `viewport-fit=cover` 后，iPhone 桌面图标启动底部出一条白色安全区空隙；另叠 `height: -webkit-fill-available` 兜底后 Safari（尤其桌面）整个 app 被压扁挤在顶部。
+**根因**：black-translucent 下 iOS 把视图上移垫到状态栏后，`height: 100%` 对**偏移后的包含块**测量、永远矮一截，矮出的部分在底部露出 WKWebView 系统白底；`svh/dvh` 同基于该包含块救不了。`-webkit-fill-available` 对 height 的解析在 Safari 不可靠（常远小于视口），且级联靠后反而覆盖正常值。
+**修法**：根元素（html/body）高度用视口单位 `100vh`，子层百分比继承；不要堆叠 svh/dvh/fill-available。改 status-bar-style meta 后需重新“添加到主屏幕”才生效（iOS 在安装时刻快照该设置）。
+**信号**：切 black-translucent 后底部出现白条；给高度链“加兜底”后 Safari 反而变矮。
 
 ## C. URL 状态 / 撤销重做
 

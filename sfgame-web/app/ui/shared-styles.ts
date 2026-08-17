@@ -40,19 +40,6 @@ export const reduceMotion = css`
   }
 `
 
-export const brandIn = css`
-  @keyframes brand-in {
-    from {
-      opacity: 0;
-      transform: translateY(0.5rem);
-    }
-  }
-
-  .brand {
-    animation: brand-in 500ms ease-out both;
-  }
-`
-
 export const warmBg = css`
   background: var(--bg-warm);
 `
@@ -70,7 +57,7 @@ export const pageShell = css`
     height: 100%;
     overflow-y: auto;
     padding: 0 calc(var(--page-pad-x) + env(safe-area-inset-right, 0px))
-      calc(1.875rem + env(safe-area-inset-bottom, 0px)) calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
+      calc(var(--page-pad-y) + env(safe-area-inset-bottom, 0px)) calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
     scrollbar-width: thin;
     scrollbar-color: var(--scroll-thumb) transparent;
   }

@@ -5,7 +5,7 @@ import { LEVEL_ERRORS, LEVEL_GROUPS, LEVELS, LEVELS_BY_ID, isUnlocked, levelHash
 import { progress } from '../game/progress.ts'
 import { formatTime } from '../game/timer.ts'
 import type { LevelDef } from '../game/types.ts'
-import { artBg, boxReset, brandIn, buttonReset, pillLink, reduceMotion } from './shared-styles.ts'
+import { artBg, boxReset, buttonReset, pillLink, reduceMotion } from './shared-styles.ts'
 import { iconChevron, iconGear, iconInfo, iconLock, iconPlay, iconSparkle } from './icons.ts'
 import logoUrl from '../../assets/logo-title.webp?url'
 
@@ -190,7 +190,6 @@ export class SfTitleScreen extends LitElement {
     pillLink,
     reduceMotion,
     artBg,
-    brandIn,
     css`
       :host {
         display: block;

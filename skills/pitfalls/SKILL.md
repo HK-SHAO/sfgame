@@ -57,6 +57,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - 改了姿态/角度逻辑后物体停稳位置漂移、沿坡蠕爬 → G11
 - 网格加偏移后空中被误标固体/流场错位 → G12
 - 布局测量与预期不符 → A1、H1
+- wasm 卡顿/倍速失效但纯 JS 正常（开着 DevTools 或 IDE 内置浏览器时） → H4
 - 挂进宿主元素的覆盖层元素"消失"（getBoundingClientRect 全 0/视口外）→ A9
 - CSS/样式改了却不生效（Lit 模板里写了 `//` 注释） → A12
 - 图标/SVG 空白不渲染、DevTools 编辑后恢复（嵌套 html 模板做 svg 子内容） → A13
@@ -71,6 +72,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - 站点分发的 .md 文档中文乱码（浏览器按 Latin-1 解码）→ I11
 - MCP 自动化布尔断言恒真/深链检查形同虚设 → I12（'false' 字符串 truthy；关卡 URL 用 slug 非序号）
 - wasm 共享内存实例化失败 / SAB 拿不到 / GA 被拦 → I13（二进制注入 shared 位 + COI 头 + gtag/COEP 权衡）
+- gtag/js 加载 200 却零条 collect（GA 上报静默全断）→ I14（snippet 别做 JS 延迟注入，老实放 head 内联）
 
 ## A. Lit + Shadow DOM
 
@@ -525,6 +527,12 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 ### H3 Lit 3 样式在 `shadowRoot.adoptedStyleSheets`
 无 `<style>` 标签，查生效规则读 `cssRules` 的 `cssText`。
 
+### H4 DevTools/CDP 附加使 wasm 降速约 10 倍——性能异常先排除调试器附加（2026-08 实锤）
+**症状**：桌面 Chrome 玩时倍速切换看似无效（0.5/4/16 无可见差异）、16× 放置源有延迟；换环境（手机/关 DevTools）又正常。看似代码或部署问题，实为测量/观察环境问题。
+**根因**：Chrome 被 DevTools 或 CDP 调试器附加（含 IDE 内置预览浏览器、MCP 自动化浏览器——它们恒附加）时 wasm 执行降速约 10 倍（实测同模块同 V8 系：node 1.35ms/tick、bun 0.94、无附加 headless Chrome 1.3–1.6；CDP 附加后主线程与 worker 皆 13.5–15ms，纯 JS 不受影响）。worker 吞吐被压到 ≈70 tick/s，1:1 回执背压（D20）丢弃超额 tick → 一切 >1.2× 的倍速封顶 ≈1.18（4×≈16×）、消息积压造成放置延迟。纯 JS 基准正常可排除进程限流。
+**修法**：wasm 性能测量一律在无调试器附加的环境：headless Chrome 独立 user-data-dir（不开 --remote-debugging，结果经 localStorage + 第二页 dump-dom 取回）或 node/bun 无头基线；用户报告的性能异常先问“当时是否开着 DevTools/IDE 内置浏览器”。
+**信号**：wasm 慢但纯 JS 快；同一构建在 headless 无附加环境正常；现象随 DevTools 开关出现/消失。
+
 ### I11 站点分发的 .md 文档中文乱码（text/markdown 无 charset）
 **症状**：Cloudflare 部署或 vite dev/preview 直接打开 /SKILL.md、/skills/level-design/*.md，中文显示为 çƒ§é£ŽæŠ€èƒ½æŒ‡å¼• 式乱码；文件字节本身是正确 UTF-8。
 **根因**：sirv 与 Cloudflare 静态服务对 .md 均发 `text/markdown` 且不带 `charset`；浏览器对 text/* 无 charset 时默认按 Latin-1（windows-1252）解码，UTF-8 中文即乱码。JSON 默认 UTF-8 不受影响，只有 text/* 家族踩坑。
@@ -549,3 +557,9 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **症状 C（非 COI 托管，2026-08 实测）**：部署到不能自定义响应头的静态托管（itch.io 等）→ `crossOriginIsolated=false` → worker 的 ready 消息携带 SAB postMessage 抛 `DataCloneError: SharedArrayBuffer transfer requires self.crossOriginIsolated` → 游戏画面冻结、仅 console 报错（wasm 实例化本身不抛，坑在于**失败点不在实例化而在 SAB 传输**）。
 **修法（已落地）**：main.ts 预检 `crossOriginIsolated`，缺失即显示「当前环境无法运行此游戏」明示屏（sf-unsupported reason=coi；缺失原因在浏览器或站点两侧都可能，提示语不归咎站点）；worker 运行期崩溃经 controller onFatal → sf-game UNSUPPORTED(reason=fatal) 同样走明示屏，杜绝静默冻结。**部署目标必须是能自定义响应头的托管（Cloudflare Pages 的 _headers）**。
 **接受的设计取舍**：主线程直读 SAB 与 worker 写入并发——单粒子可能读撕裂（单帧毛刺），视觉可忽略；零拷贝收益（worker −0.4ms/tick、主线程 −0.15ms/帧、堆减半，2026-08 实测）大于撕裂风险。
+
+### I14 GA snippet 延迟注入导致上报静默全断（2026-08 实测）
+**症状**：Network 里 gtag/js 正常 200、`_ga` cookie 照写、事件确实进了 dataLayer，但零条 collect 请求；同页手动 fetch/beacon 到 collect 端点都通，甚至现场再注入一套全新标准 snippet 也不发——与业务代码无关的页面级静默。
+**实测排查（2026-08）**：把 snippet 从 index.html 内联改为 JS 延迟注入（wasm boot 后 injectSnippet）后复现；干净对照页（同库同命令）正常发。已排除：SW、CDP 附加、body 清空、注入延迟本身、网络。生产页 `google_tag_data.ics.usedDefault` 恒 false（consent 命令未被库应用），怀疑新版沙箱架构 gtag 的启动流水线在特定环境挂起；具体触发因子未钉死（HTTP 对照页正常、生产 HTTPS 复现，本地自签证书复现被证书状态污染不可作数）。
+**修法（已落地）**：snippet 恢复 index.html head 内联（consent default + js + config，与库加载时序解耦）；`analytics-gtag.ts` 只留 transport = 读 `window.gtag` 发事件，不再做任何注入。
+**信号**：gtag/js 200 但无 collect → 查 `window.google_tag_data?.ics?.usedDefault`；恒 false 即库启动流水线异常，别在业务代码里找。

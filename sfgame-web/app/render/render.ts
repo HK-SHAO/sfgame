@@ -22,7 +22,7 @@ import {
   type SimViews, type CloudsView, type PlaneTrailView, type GoalView, type SourceView,
 } from '../sim/worker-protocol.ts'
 
-// 渲染消费的静态场景 + 每帧快照动态字段：来源单一（worker 帧快照）；views 为 SAB 零拷贝直读
+// 渲染消费的静态场景 + 每帧快照动态字段：来源单一（worker 帧快照），views 为场/示踪逐帧拷贝
 export interface RenderView {
   world: { w: number; h: number }
   terrain: Terrain
@@ -350,7 +350,7 @@ export class Renderer {
       const air = Renderer.tmpAir
       const sv = view.views
       if (sv) {
-        // 旗面风 = 共享场视图直读采样（同点同语义，与 worker 侧采样等价）
+        // 旗面风 = 场视图采样（同点同语义，与 worker 侧采样等价）
         bilinearSample(
           sv.u, sv.v, sv.t, sv.fxU, sv.fxV,
           view.terrain.nx, view.terrain.ny, view.terrain.cell,

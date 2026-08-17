@@ -4,7 +4,6 @@ import { bgm } from '../core/bgm.ts'
 import { fb } from '../core/feedback.ts'
 import { governor } from '../core/governor.ts'
 import { terrainFromField } from '../sim/terrain.ts'
-import { TRAIL_LEN } from '../sim/particles.ts'
 import type { PressVisual, SourceKind } from '../sim/types.ts'
 import type { HudState, LevelDef, Source, SourcePlacement } from '../game/types.ts'
 import { GestureInput } from './input.ts'
@@ -252,8 +251,7 @@ export class GameController {
       case 'frame':
         this.pendingTicks = Math.max(0, this.pendingTicks - 1)
         this.tickMs += m.snapshot.tickMs
-        // 兼容模式（无 SAB）：视图随帧运送；SAB 模式视图在 ready 建好后恒定
-        if (m.views && this.staticView) this.staticView.views = m.views
+        if (this.staticView) this.staticView.views = m.views
         this.snapshot = m.snapshot
         break
       case 'hud':
@@ -301,31 +299,9 @@ export class GameController {
       goals: m.goals,
       fixedSources: m.fixedSources,
       fans: m.fans,
-      views: this.buildViews(m.sab, nx, ny),
+      views: null,
     }
     this.ready = true
-  }
-
-  private buildViews(sab: ArrayBufferLike | undefined, nx: number, ny: number): SimViews | null {
-    if (!(sab instanceof SharedArrayBuffer)) return null
-    const ex = this.engine.ex
-    const n = nx * ny
-    const l = TRAIL_LEN
-    return {
-      u: new Float32Array(sab, ex.fieldU(), n),
-      v: new Float32Array(sab, ex.fieldV(), n),
-      t: new Float32Array(sab, ex.fieldT(), n),
-      fxU: new Float32Array(sab, ex.fieldFxU(), n),
-      fxV: new Float32Array(sab, ex.fieldFxV(), n),
-      tracerX: new Float32Array(sab, ex.tXBuf(), TRACER_COUNT),
-      tracerY: new Float32Array(sab, ex.tYBuf(), TRACER_COUNT),
-      life: new Float32Array(sab, ex.tLifeBuf(), TRACER_COUNT),
-      maxLife: new Float32Array(sab, ex.tMaxLifeBuf(), TRACER_COUNT),
-      trailX: new Float32Array(sab, ex.tTrailXBuf(), TRACER_COUNT * l),
-      trailY: new Float32Array(sab, ex.tTrailYBuf(), TRACER_COUNT * l),
-      trailT: new Float32Array(sab, ex.tTrailTBuf(), TRACER_COUNT * l),
-      trailN: new Uint8Array(sab, ex.tTrailNBuf(), TRACER_COUNT),
-    }
   }
 
   private onHud(state: HudState) {

@@ -71,9 +71,10 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
 - 站点分发的 .md 文档中文乱码（浏览器按 Latin-1 解码）→ I11
 - MCP 自动化布尔断言恒真/深链检查形同虚设 → I12（'false' 字符串 truthy；关卡 URL 用 slug 非序号）
-- wasm 共享内存实例化失败 / SAB 拿不到 / GA 被拦 → I13（二进制注入 shared 位 + COI 头 + 无 SAB 兼容回退 + gtag/COEP 权衡）
+- SAB/COI 历史（共享内存注入/COI 头/兼容回退，已整体移除）与教训 → I13 终章；gtag/COEP 权衡同条
 - gtag/js 加载 200 却零条 collect（GA 上报静默全断）→ I14（snippet 别做 JS 延迟注入，老实放 head 内联）
 - 新增 @types 包后 `-p tsconfig.app.json` 过但 `tsc -b` 报找不到类型 → I15（node config 覆盖 types，两处都得加）
+- worker 打包丢失（运行期指向未编译 .ts）→ I16（new Worker( 与 new URL( 必须内联字面，抽变量断 Vite 检测）
 
 ## A. Lit + Shadow DOM
 
@@ -559,6 +560,7 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **修法（已被下方兼容回退取代）**：main.ts 曾预检 `crossOriginIsolated`，缺失即明示屏（sf-unsupported reason=coi）；worker 运行期崩溃经 controller onFatal → sf-game UNSUPPORTED(reason=fatal) 走明示屏的机制保留。
 **接受的设计取舍**：主线程直读 SAB 与 worker 写入并发——单粒子可能读撕裂（单帧毛刺），视觉可忽略；零拷贝收益（worker −0.4ms/tick、主线程 −0.15ms/帧、堆减半，2026-08 实测）大于撕裂风险。
 **兼容回退（2026-08 落地）**：无 SAB 能力环境不再拦截而是降级：特性检测用 `typeof SharedArrayBuffer`（非 COI 浏览器中该全局不存在，比 `crossOriginIsolated` 更贴本质；WebView 架构上不支持 COI——Chromium issue 40914606，与响应头无关，头部方案无解）。engine.ts 引导期清 shared 位回退普通内存（段解析与 patch-shared.ts 单源在 wasm-shared.ts），worker 逐 tick 拷贝场/示踪随 frame transfer 送出（典型关卡 ~350KB/帧），渲染层零分叉；shared 位纯元数据，golden 基线不受模式影响（engine-wasm.test 钉死兼容实例化）。main.ts 不再预检 COI，明示屏只剩 WebAssembly 缺失。
+**终章：SAB/COI 整体移除（2026-08 定案）**：双模式落地后真机验证暴露边界问题（非安全上下文/内网 IP/老内核上双模式分流本身就是故障面），叠加收益复盘：SAB 快路径省 ~0.5ms/帧且只在 COI 环境生效——全是性能富余的高端机，真正需要性能的老设备/WebView 架构性无 COI 永远走拷贝路径（零覆盖优化）。遂整体移除：删 COOP/COEP 头（_headers + vite.config）、删构建期二进制注入（patch-shared.ts/wasm-shared.ts，产物回归 moonc 原样）、删双模式协议（ready.sab/frame.views 可选 → frame 恒带 views 拷贝）、bootEngine 还原纯检测。代价 = 每帧搬运（典型 ~350KB、满网格上限 ~1MB）+ GC 压力，governor 降级机制不变；未来若扩 tracer/网格致拷贝成本显著再议瘦身，不预建。收益 = 部署解除“能自定义响应头”约束（任意静态托管/HTTP/内网 IP 等价运行）、失败面减半、净删 ~200 行。教训：跨线程零拷贝类优化先量化目标设备覆盖率，零覆盖的收益不抵双模式复杂度；本条上文全部修法已成历史（git 可考古），保留作 COI/SAB 行为事实参考。
 
 ### I14 GA snippet 延迟注入导致上报静默全断（2026-08 实测）
 **症状**：Network 里 gtag/js 正常 200、`_ga` cookie 照写、事件确实进了 dataLayer，但零条 collect 请求；同页手动 fetch/beacon 到 collect 端点都通，甚至现场再注入一套全新标准 snippet 也不发——与业务代码无关的页面级静默。
@@ -570,3 +572,8 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **症状**：新增 @types 包并加进 `tsconfig.app.json` 的 `types` 后，`tsc -p tsconfig.app.json` 通过，但 `tsc -b`（= `bun run typecheck`/check）仍报「Cannot find namespace/name」。
 **根因**：`tsconfig.node.json` extends app 但**覆盖**了 `compilerOptions.types`（加 `@types/bun` 时整组替换），且 include 含 `app/`——同一文件在 node 项目下缺类型。`-b` 按 solution 编译两个项目，只改 app 是半生效。
 **修法**：新 @types 两个 config 的 types 数组都加（本例 `"gtag.js"`）。诊断信号 = 同一 tsc 版本下 `-p` 单项目过、`-b` 挂，必查 extends 链上 types 是否被覆盖。
+
+### I16 worker 构造抽变量致 Vite 不打包 worker（2026-08 实测）
+**症状**：构建不报错，运行期 worker 加载指向未编译的 .ts 源码（或直接 404）。
+**根因**：Vite 对 `new Worker(new URL('…', import.meta.url), …)` 是静态语法模式检测（含 options 可选参数形式）；把 `new URL(…)` 抽成变量再传入即打断检测，worker 不进打包流水线，且 dev 下表面正常（dev 直接服务源码）——只有 build 产物会坏。
+**修法**：`new Worker(` 与 `new URL(` 恒保持内联字面形态；若同处存在多处构造（如回落分支）每处都内联。验证 = build 后 dist/assets 存在 worker 独立 chunk 且主 chunk 引用其 hash 文件名。

@@ -1,13 +1,11 @@
 // 模拟 worker 与主线程的跨线程协议（无 DOM，node 无头可测）。消息字段即契约。
-// 双模式（按环境 SharedArrayBuffer 可用性分流，数值语义同一）：
-// - SAB 模式（COI）：ready 消息带 sab，流体场/示踪由主线程按导出地址建零拷贝视图直读（SimViews）；
-//   快照只携带 JS 侧状态（云/拖尾/源/时间/环境风强度）与每帧标量。
-// - 兼容模式（无 SAB 能力）：ready 不带 sab，frame 消息随附 SimViews 拷贝（transfer 移交所有权）。
+// 流体场/示踪逐帧随 frame 消息以 SimViews 拷贝运送（transfer 移交所有权免双份拷贝）；
+// 快照只携带 JS 侧状态（云/拖尾/源/时间/环境风强度）与每帧标量
 import type { SourceKind } from './types.ts'
 import type { FanDef, HudState, LevelJson, SourcePlacement } from '../game/types.ts'
 
 // ---- 跨线程共用的渲染计算常数（单源）----
-// 示踪粒子数量与包络常数原为 worker/particles.ts 局部值；主线程直读 SAB 后渲染侧
+// 示踪粒子数量与包络常数原为 worker/particles.ts 局部值；主线程渲染
 // 需要同一口径（视图长度、envelope 判定），统一收口于此。
 
 // 示踪粒子数（内核容量编译期钉死，Tracers 构造与主线程视图长度共用）
@@ -47,7 +45,7 @@ export const FLAG_SAMPLE_DY = 1.4
 //（同值同语义，模拟文件受 golden 契约保护不可改；判定逻辑随快照镜像原样搬入主线程）
 export const SOURCE_HIT_RADIUS = 3.0
 
-// ---- 共享内存视图（SAB 直读 / 兼容模式每帧拷贝同构）----
+// ---- 场/示踪视图（逐帧拷贝，与内核导出布局同构）----
 
 // 流体场 u/v/t/fxU/fxV（nx×ny）+ 示踪内核全部缓冲。
 // 布局与 moon 内核导出一一对应（engine-wasm.test canary 钉死），静态内存零增长视图恒定
@@ -145,8 +143,7 @@ export type SimRequest =
 
 // worker→主。place 携带的指针坐标经 worker 原样回传（deny 事件要落点做拒绝动画，
 // 主线程不能差分——sim 状态已不在主线程）；wind 携带 px 供声像定位（同因）。
-// ready 的 sab 仅 SAB 模式携带（随 terrain.field 一起转移），主线程据此直读引擎内存；
-// 兼容模式省略，视图改由 frame 消息逐帧运送
+// frame 恒携带 SimViews 拷贝（transfer 移交所有权），主线程渲染直接消费
 export type SimEvent =
   | {
       t: 'ready'
@@ -155,9 +152,8 @@ export type SimEvent =
       goals: GoalView[]
       fixedSources: SourceView[]
       fans: FanDef[]
-      sab?: SharedArrayBuffer
     }
-  | { t: 'frame'; snapshot: FrameSnapshot; views?: SimViews }
+  | { t: 'frame'; snapshot: FrameSnapshot; views: SimViews }
   | { t: 'hud'; state: HudState }
   | { t: 'phase'; phase: 'playing' | 'won'; won: boolean }
   | { t: 'visited'; won: boolean }

@@ -13,6 +13,6 @@
     "deploy": "bun run check && bun run --cwd cloudflare deploy"
   },
   "devDependencies": {
-     "@types/bun": "latest"
+    "@types/bun": "latest"
   }
 }

@@ -2,7 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { boxReset, warmBg } from './shared-styles.ts'
 
-export type UnsupportedReason = 'wasm' | 'webgl' | 'coi' | 'fatal'
+export type UnsupportedReason = 'wasm' | 'webgl' | 'fatal'
 
 const MESSAGES: Record<UnsupportedReason, readonly string[]> = {
   wasm: [
@@ -16,12 +16,6 @@ const MESSAGES: Record<UnsupportedReason, readonly string[]> = {
     '画面渲染需要 WebGL',
     '(Chrome 9+、Safari 8+、Firefox 4+)',
     '请升级浏览器或更换设备后重试。',
-  ],
-  coi: [
-    '此环境无法运行',
-    '多线程模拟需要跨域隔离共享内存（COOP/COEP）',
-    '(Chrome 92+、Safari 15.2+、Firefox 79+)',
-    '请升级浏览器，或联系 B 站 @烧风。',
   ],
   fatal: ['游戏启动失败', '模拟引擎运行出错', '请刷新页面重试。'],
 }

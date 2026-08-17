@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import { GRID_MAX_NX, GRID_MAX_NY } from '../app/game/grid-limits.ts'
+import { hasSharedFlag, setSharedFlag } from '../app/wasm/wasm-shared.ts'
 
 interface MbExports {
   memory: WebAssembly.Memory
@@ -63,6 +64,26 @@ test('实例隔离：各实例独立内存', () => {
   const b = boot()
   a.canary_set(0, 1)
   expect(b.canary_get(0)).toBe(0)
+})
+
+// 兼容回退（无 SAB 环境）：引导期清 shared 位后仍实例化，内存退为普通 ArrayBuffer，
+// 寻址/canary 语义不变——标志位是纯元数据，golden 基线不受模式影响
+test('兼容回退：清 shared 位仍可实例化且寻址同语义', () => {
+  const p = fileURLToPath(new URL('../app/wasm/sfengine.wasm', import.meta.url))
+  const raw = new Uint8Array(readFileSync(p))
+  expect(hasSharedFlag(raw)).toBe(true)
+  setSharedFlag(raw, false)
+  setSharedFlag(raw, false)
+  expect(hasSharedFlag(raw)).toBe(false)
+  const inst = new WebAssembly.Instance(new WebAssembly.Module(raw), {})
+  const ex = inst.exports as unknown as MbExports
+  expect(ex.memory.buffer).not.toBeInstanceOf(SharedArrayBuffer)
+  const view = new Int32Array(ex.memory.buffer, ex.canary_buf(), ex.canary_len())
+  view[2] = 99
+  expect(ex.canary_get(2)).toBe(99)
+  // 置位可逆（构建注入与运行清位同一套读写，往返不损）
+  setSharedFlag(raw, true)
+  expect(hasSharedFlag(raw)).toBe(true)
 })
 
 // 网格容量三处同源：moon/grid.mbt（内核钉死）↔ app/game/grid-limits.ts（schema 镜像）

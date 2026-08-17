@@ -252,6 +252,8 @@ export class GameController {
       case 'frame':
         this.pendingTicks = Math.max(0, this.pendingTicks - 1)
         this.tickMs += m.snapshot.tickMs
+        // 兼容模式（无 SAB）：视图随帧运送；SAB 模式视图在 ready 建好后恒定
+        if (m.views && this.staticView) this.staticView.views = m.views
         this.snapshot = m.snapshot
         break
       case 'hud':
@@ -304,7 +306,7 @@ export class GameController {
     this.ready = true
   }
 
-  private buildViews(sab: ArrayBufferLike, nx: number, ny: number): SimViews | null {
+  private buildViews(sab: ArrayBufferLike | undefined, nx: number, ny: number): SimViews | null {
     if (!(sab instanceof SharedArrayBuffer)) return null
     const ex = this.engine.ex
     const n = nx * ny

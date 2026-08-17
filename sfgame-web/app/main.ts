@@ -17,17 +17,13 @@ const showUnsupported = async (reason: UnsupportedReason) => {
   document.body.replaceChildren(el)
 }
 
-if (typeof crossOriginIsolated === 'undefined' || !crossOriginIsolated) {
-  await showUnsupported('coi')
-} else {
-  const ready = await bootEngine(() => fetchBytes(engineUrl))
+const ready = await bootEngine(() => fetchBytes(engineUrl))
 
-  if (ready) {
-    mountGtagAnalytics()
-    await import('./ui/app.ts')
-    document.body.replaceChildren(document.createElement('sf-app'))
-    registerSW()
-  } else {
-    await showUnsupported('wasm')
-  }
+if (ready) {
+  mountGtagAnalytics()
+  await import('./ui/app.ts')
+  document.body.replaceChildren(document.createElement('sf-app'))
+  registerSW()
+} else {
+  await showUnsupported('wasm')
 }

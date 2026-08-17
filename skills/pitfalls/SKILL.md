@@ -71,7 +71,7 @@ description: 本项目（Lit 3 + WebGL + WASM·Moonbit 数值内核 + vite/bun �
 - bun 跑脚本报 stdio/进程残留/端口占用 → I3
 - 站点分发的 .md 文档中文乱码（浏览器按 Latin-1 解码）→ I11
 - MCP 自动化布尔断言恒真/深链检查形同虚设 → I12（'false' 字符串 truthy；关卡 URL 用 slug 非序号）
-- wasm 共享内存实例化失败 / SAB 拿不到 / GA 被拦 → I13（二进制注入 shared 位 + COI 头 + gtag/COEP 权衡）
+- wasm 共享内存实例化失败 / SAB 拿不到 / GA 被拦 → I13（二进制注入 shared 位 + COI 头 + 无 SAB 兼容回退 + gtag/COEP 权衡）
 - gtag/js 加载 200 却零条 collect（GA 上报静默全断）→ I14（snippet 别做 JS 延迟注入，老实放 head 内联）
 - 新增 @types 包后 `-p tsconfig.app.json` 过但 `tsc -b` 报找不到类型 → I15（node config 覆盖 types，两处都得加）
 
@@ -556,8 +556,9 @@ iPhone 上 `performance.now()` 分辨率 ~1ms：p95 出现整齐的 1.000ms 是�
 **实测（2026-08）**：本仓库 COI 下 gtag.js 与 GA collect 均未被拦（200）——Google 静态分发响应带跨源许可头（CORP/CORS），COEP require-corp 放行；无需 credentialless 备选。若换用无跨源头的第三方资源被拦，备选 `Cross-Origin-Embedder-Policy: credentialless`（放行无 CORP 跨源资源但不带凭据；Safari 需 15.2+），或改服务端代理；第三方响应头不受控，CORP 方案不可行。
 **信号**：改 COI 后在 devtools Network 看 gtag 请求状态；SAB 断言用 `memory.buffer instanceof SharedArrayBuffer`（node/bun 无 COI 限制，可直接验证注入生效）。
 **症状 C（非 COI 托管，2026-08 实测）**：部署到不能自定义响应头的静态托管（itch.io 等）→ `crossOriginIsolated=false` → worker 的 ready 消息携带 SAB postMessage 抛 `DataCloneError: SharedArrayBuffer transfer requires self.crossOriginIsolated` → 游戏画面冻结、仅 console 报错（wasm 实例化本身不抛，坑在于**失败点不在实例化而在 SAB 传输**）。
-**修法（已落地）**：main.ts 预检 `crossOriginIsolated`，缺失即显示「当前环境无法运行此游戏」明示屏（sf-unsupported reason=coi；缺失原因在浏览器或站点两侧都可能，提示语不归咎站点）；worker 运行期崩溃经 controller onFatal → sf-game UNSUPPORTED(reason=fatal) 同样走明示屏，杜绝静默冻结。**部署目标必须是能自定义响应头的托管（Cloudflare Pages 的 _headers）**。
+**修法（已被下方兼容回退取代）**：main.ts 曾预检 `crossOriginIsolated`，缺失即明示屏（sf-unsupported reason=coi）；worker 运行期崩溃经 controller onFatal → sf-game UNSUPPORTED(reason=fatal) 走明示屏的机制保留。
 **接受的设计取舍**：主线程直读 SAB 与 worker 写入并发——单粒子可能读撕裂（单帧毛刺），视觉可忽略；零拷贝收益（worker −0.4ms/tick、主线程 −0.15ms/帧、堆减半，2026-08 实测）大于撕裂风险。
+**兼容回退（2026-08 落地）**：无 SAB 能力环境不再拦截而是降级：特性检测用 `typeof SharedArrayBuffer`（非 COI 浏览器中该全局不存在，比 `crossOriginIsolated` 更贴本质；WebView 架构上不支持 COI——Chromium issue 40914606，与响应头无关，头部方案无解）。engine.ts 引导期清 shared 位回退普通内存（段解析与 patch-shared.ts 单源在 wasm-shared.ts），worker 逐 tick 拷贝场/示踪随 frame transfer 送出（典型关卡 ~350KB/帧），渲染层零分叉；shared 位纯元数据，golden 基线不受模式影响（engine-wasm.test 钉死兼容实例化）。main.ts 不再预检 COI，明示屏只剩 WebAssembly 缺失。
 
 ### I14 GA snippet 延迟注入导致上报静默全断（2026-08 实测）
 **症状**：Network 里 gtag/js 正常 200、`_ga` cookie 照写、事件确实进了 dataLayer，但零条 collect 请求；同页手动 fetch/beacon 到 collect 端点都通，甚至现场再注入一套全新标准 snippet 也不发——与业务代码无关的页面级静默。

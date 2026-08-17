@@ -1,6 +1,9 @@
 // WASM 引擎引导与实例化（moon/ 数值内核 → sfengine.wasm）：流体 + 顶点批 + 示踪内核同一实例共享内存。
 // 内存静态定型（运行期零分配），视图生命周期内恒定，可安全缓存。
+// 双模式：COI 环境产物带 shared 位（SAB 跨线程零拷贝）；无 SAB 能力环境（非 COI 浏览器/WebView）
+// 引导期清 shared 位回退普通内存，数值语义不变（wasm-shared.ts）。
 // 门面在 sim/fluid.ts（物理）与 render/batch.ts（顶点批）；本模块不感知二者，只定义 wasm 导出面与单实例工厂
+import { setSharedFlag } from './wasm-shared.ts'
 
 export interface FluidExports {
   init(
@@ -150,7 +153,14 @@ export function initEngine(bytes: ArrayBuffer | Uint8Array): boolean {
 export async function bootEngine(load: () => Promise<ArrayBuffer | Uint8Array>): Promise<boolean> {
   if (typeof WebAssembly === 'undefined') return false
   try {
-    return initEngine(await load())
+    let bytes = await load()
+    // 特性检测：非 COI 浏览器中 SharedArrayBuffer 全局不存在（node 恒有，测试基线不受影响）；
+    // shared 内存模块在无 COI 环境实例化必抛，清位后按普通内存实例化
+    if (typeof SharedArrayBuffer === 'undefined') {
+      if (!(bytes instanceof Uint8Array)) bytes = new Uint8Array(bytes)
+      setSharedFlag(bytes, false)
+    }
+    return initEngine(bytes)
   } catch {
     return false
   }

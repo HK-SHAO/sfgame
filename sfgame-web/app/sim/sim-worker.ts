@@ -1,6 +1,7 @@
 // 模拟 worker：LevelSimulation + 示踪 + 云 + 拖尾 + 风采样 + 落地判定整体迁入。
-// 主线程只发消息、收帧快照渲染；引擎内存为共享内存（SAB，见 scripts/patch-shared.ts 注入）——
-// 示踪粒子/流体场的零拷贝视图经 ready 的 sab 转移给主线程直读，快照不再搬运大数组。
+// 主线程只发消息、收帧快照渲染。双模式（协议见 worker-protocol.ts）：
+// SAB 能力环境引擎内存为共享内存（scripts/patch-shared.ts 注入），示踪/流体场零拷贝直读；
+// 无 SAB 能力环境引导期已清 shared 位（engine.ts），场/示踪逐 tick 拷贝随 frame 送出。
 // 引擎实例跨关卡复用：fluid_init 全量复位已保证安全（engine-reuse.test 钉死），load 只重建模拟对象。
 // 消息处理在 wasm 引导完成前即可注册：load 恒为第一条消息，await 引擎就绪后按序消费（队列 FIFO 不丢消息）
 import engineUrl from '../wasm/sfengine.wasm?url'
@@ -15,8 +16,11 @@ import { buildWindProbes, isLanding, sampleWind } from '../core/wind.ts'
 import { FLUID_MARGIN } from './terrain.ts'
 import { totalPenaltySeconds } from '../game/timer.ts'
 import type { Source } from '../game/types.ts'
-import type { SimRequest, SimEvent, FrameSnapshot, PlaneTrailView } from './worker-protocol.ts'
+import type { SimRequest, SimEvent, FrameSnapshot, PlaneTrailView, SimViews } from './worker-protocol.ts'
 import { TRACER_COUNT } from './worker-protocol.ts'
+
+// 模式分流与 engine.ts 引导同源：非 COI 浏览器 SharedArrayBuffer 全局不存在
+const SAB_MODE = typeof SharedArrayBuffer !== 'undefined'
 
 const PLANE_TRAIL_MAX_SPEED = 30
 const PLANE_TRAIL_SAMPLE = 0.3
@@ -119,11 +123,10 @@ function loadLevel(m: Extract<SimRequest, { t: 'load' }>) {
     goals: level.goals.map((g, i) => ({ x: g.x, r: g.r, anchorY: sim.goalAnchorY[i] })),
     fixedSources: sim.fixedSources.map(toSourceView),
     fans: sim.fans,
-    // 引擎内存已注入 shared 位（scripts/patch-shared.ts），运行时必为 SAB；TS 类型面仍按
-    // WebAssembly.Memory.buffer 报 ArrayBuffer，窄化仅作类型断言。
     // SAB 不能进 transfer list（DataCloneError）：结构化克隆对共享内存走共享引用分支，
-    // 作为消息字段直接传递即零拷贝——transfer 只负责地形场的独立副本
-    sab: engine.memory.buffer as unknown as SharedArrayBuffer,
+    // 作为消息字段直接传递即零拷贝——transfer 只负责地形场的独立副本；
+    // 兼容模式（普通内存）省略 sab，类型面 TS 仍按 ArrayBuffer 报，窄化仅作断言
+    sab: SAB_MODE ? (engine.memory.buffer as unknown as SharedArrayBuffer) : undefined,
   }, [field.buffer])
   maybeHud()
 }
@@ -165,7 +168,13 @@ function tick(dt: number) {
   maybeHud()
   const snapshot = buildSnapshot()
   snapshot.tickMs = performance.now() - t0
-  post({ t: 'frame', snapshot })
+  if (SAB_MODE) {
+    post({ t: 'frame', snapshot })
+  } else {
+    // 兼容模式：视图拷贝随帧送出，transfer 移交所有权免双份拷贝（worker 侧零拷贝切片后直接放手）
+    const views = copyViews()
+    post({ t: 'frame', snapshot, views }, Object.values(views).map((a) => a.buffer as ArrayBuffer))
+  }
 }
 
 function place(m: Extract<SimRequest, { t: 'place' }>) {
@@ -263,4 +272,27 @@ function buildPlaneTrailView(): PlaneTrailView {
     tt[k] = t
   })
   return { count: n, time: planeTrail.time, tx, ty, tt }
+}
+
+// 兼容模式视图拷贝：与主线程 buildViews 同布局（导出地址同源），slice 出独立可转移副本
+function copyViews(): SimViews {
+  const mem = engine.memory.buffer
+  const ex = engine.ex
+  const n = sim.terrain.nx * sim.terrain.ny
+  const f = (off: number, len: number) => new Float32Array(mem, off, len).slice()
+  return {
+    u: f(ex.fieldU(), n),
+    v: f(ex.fieldV(), n),
+    t: f(ex.fieldT(), n),
+    fxU: f(ex.fieldFxU(), n),
+    fxV: f(ex.fieldFxV(), n),
+    tracerX: f(ex.tXBuf(), TRACER_COUNT),
+    tracerY: f(ex.tYBuf(), TRACER_COUNT),
+    life: f(ex.tLifeBuf(), TRACER_COUNT),
+    maxLife: f(ex.tMaxLifeBuf(), TRACER_COUNT),
+    trailX: f(ex.tTrailXBuf(), TRACER_COUNT * TRAIL_LEN),
+    trailY: f(ex.tTrailYBuf(), TRACER_COUNT * TRAIL_LEN),
+    trailT: f(ex.tTrailTBuf(), TRACER_COUNT * TRAIL_LEN),
+    trailN: new Uint8Array(mem, ex.tTrailNBuf(), TRACER_COUNT).slice(),
+  }
 }

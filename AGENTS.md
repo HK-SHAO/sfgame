@@ -56,7 +56,7 @@ Solution-style 项目引用：`tsconfig.json` 仅 references；`tsconfig.app.jso
 - **每个 Lit 组件须自声明 `box-sizing: border-box`**（全局样式不穿透 shadow DOM，缺了会右溢）
 - 居中 + 溢出兜底用子项 `margin: auto`，禁用 `place-items: center`（溢出双向裁切）
 - **暖色背景渐变单源**：token `--bg-warm`（左上光斑）/`--bg-warm-r`（右上）定义在 `styles.css` `:root`，`html,body` 兜底携带渐变（浏览器工具栏/overscroll 露白延续渐变而非纯色带），组件内引用走 `var()`（shadow DOM 继承自定义属性），禁止内联复制渐变值
-- **安全区四向齐备**：`env(safe-area-inset-top/bottom)` 之外，横屏刘海/Dynamic Island 在侧边，全宽铺满的层（hud/pageShell/.title/overlay）须同时带 left/right inset；`theme-color` 恒 = 渐变顶色 `#fff8ea`（standalone 状态栏与渐变无缝）
+- **安全区四向齐备**：iOS standalone 用 `black-translucent`（内容延伸到状态栏下，天空无缝），全宽铺满的屏幕/层顶部必须带 `env(safe-area-inset-top)`（hud/.title/help-scrim/pageShell .bar/win-overlay 均已备）；横屏刘海/Dynamic Island 在侧边，须同时带 left/right inset；`theme-color` 恒 = 渐变顶色 `#fff8ea`（Safari 工具栏与渐变无缝）
 - PWA 安装元数据在 `public/manifest.webmanifest` + `icon.svg`（`sips` 栅格化出 icons/ 与 apple-touch-icon.png）；SW 源码在 `app/sw.ts`，经 vite-plugin-pwa（injectManifest 模式，TS 由 Vite 构建为 classic `dist/sw.js`，无 module-SW 兼容门槛）构建期注入 workbox 预缓存清单（`globPatterns ['**/*']` 全量预缓存，`_headers`/`_redirects`/`sw.js` 除外），activate 自动清理旧版本条目；导航统一回退预缓存 app shell（离线深链直达游戏），带扩展名路径排除（.md 文档由 precache 按 URL 命中）；客户端 `virtual:pwa-register` + `registerType: 'prompt'` 静默注册（无弹窗 UI）：新版 SW 后台装好停留 waiting，旧 SW 与旧缓存继续服务直到页面全部关闭、下次启动才 activate——更新只在「下一次完整重载」生效，使用中绝不自动刷新；`_headers` 的 `/sw.js no-cache` 保持 SW 字节比对更新语义
 
 ## 易错点

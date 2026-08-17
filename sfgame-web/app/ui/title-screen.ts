@@ -205,8 +205,10 @@ export class SfTitleScreen extends LitElement {
         height: 100%;
         display: flex;
         flex-direction: column;
-        padding: var(--page-pad-y) calc(var(--page-pad-x) + env(safe-area-inset-right, 0px))
-          var(--page-pad-y) calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
+        padding: calc(var(--page-pad-y) + env(safe-area-inset-top, 0px))
+          calc(var(--page-pad-x) + env(safe-area-inset-right, 0px))
+          calc(var(--page-pad-y) + env(safe-area-inset-bottom, 0px))
+          calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
         overflow: auto;
         scrollbar-width: thin;
         scrollbar-color: var(--scroll-thumb) transparent;

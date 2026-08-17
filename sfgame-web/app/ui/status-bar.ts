@@ -36,7 +36,6 @@ export class SfStatusBar extends LitElement {
         <span class="t">用时 ${this.cached.t}</span>
         <span class="p">罚时 ${this.cached.p}</span>
       </span>
-      <span class="ops">轻点放热源 · 长按放冷源 · 再点一下即可移除</span>
     `
   }
 
@@ -74,12 +73,6 @@ export class SfStatusBar extends LitElement {
 
     :host([hidden]) {
       display: none;
-    }
-
-    .ops {
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: var(--ink-soft);
     }
 
     .row {

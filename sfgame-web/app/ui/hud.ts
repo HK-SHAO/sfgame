@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import type { HudState } from '../game/types.ts'
 import type { SourceKind } from '../sim/types.ts'
+import { fb } from '../core/feedback.ts'
 import { boxReset, buttonReset, glassChip, reduceMotion } from './shared-styles.ts'
 import { iconFlame, iconHome, iconPause, iconPlay, iconReset, iconSnow, iconSoundOff, iconSoundOn } from './icons.ts'
 
@@ -30,9 +31,11 @@ export class SfHud extends LitElement {
   private onRestart = () => this.dispatchEvent(new Event('restart'))
   private onSound = () => this.dispatchEvent(new Event('sound'))
   private openHelp = () => {
+    fb.uiClick()
     this.helpOpen = true
   }
   private closeHelp = () => {
+    fb.uiClick()
     this.helpOpen = false
   }
 
@@ -123,7 +126,7 @@ export class SfHud extends LitElement {
                   ${iconSnow}
                   <p><b>冷源</b>冷却空气，冷空气下沉，压出下沉气流</p>
                 </div>
-                <p class="help-foot">温差即风——用冷热摆布气流，托起纸飞机。</p>
+                <p class="help-ops"><b>轻点</b>放热源 · <b>长按</b>放冷源 · <b>再点</b>一下即可移除</p>
                 <button class="help-ok" @click=${this.closeHelp}>知道了</button>
               </div>
             </div>
@@ -268,7 +271,8 @@ export class SfHud extends LitElement {
         inset: 0;
         z-index: 30;
         display: flex;
-        padding: var(--page-pad-y) calc(var(--page-pad-x) + env(safe-area-inset-right, 0px))
+        padding: calc(var(--page-pad-y) + env(safe-area-inset-top, 0px))
+          calc(var(--page-pad-x) + env(safe-area-inset-right, 0px))
           calc(var(--page-pad-y) + env(safe-area-inset-bottom, 0px))
           calc(var(--page-pad-x) + env(safe-area-inset-left, 0px));
         background: var(--scrim);
@@ -321,8 +325,8 @@ export class SfHud extends LitElement {
         line-height: 1.6;
       }
 
-      .help-foot {
-        margin: var(--sp-4) 0 0;
+      .help-ops {
+        margin: var(--sp-2) 0 0;
         font-size: 0.75rem;
         line-height: 1.6;
         color: var(--ink-soft);

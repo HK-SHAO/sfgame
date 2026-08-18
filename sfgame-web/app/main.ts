@@ -4,6 +4,11 @@ import { mountGtagAnalytics } from './ui/analytics-gtag.ts'
 import type { UnsupportedReason } from './ui/unsupported.ts'
 import { registerSW } from 'virtual:pwa-register'
 
+const showMigrate = async () => {
+  await import('./ui/migrate-notice.ts')
+  document.body.append(document.createElement('sf-migrate'))
+}
+
 const fetchBytes = async (url: string) => {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`wasm ${res.status}`)
@@ -17,13 +22,16 @@ const showUnsupported = async (reason: UnsupportedReason) => {
   document.body.replaceChildren(el)
 }
 
+void showMigrate()
+
 const ready = await bootEngine(() => fetchBytes(engineUrl))
 
 if (ready) {
   mountGtagAnalytics()
   await import('./ui/app.ts')
-  document.body.replaceChildren(document.createElement('sf-app'))
+  document.body.append(document.createElement('sf-app'))
   registerSW()
 } else {
   await showUnsupported('wasm')
+  void showMigrate()
 }

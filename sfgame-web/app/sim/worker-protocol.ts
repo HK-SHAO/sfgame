@@ -45,14 +45,27 @@ export const FLAG_SAMPLE_DY = 1.4
 //（同值同语义，模拟文件受 golden 契约保护不可改；判定逻辑随快照镜像原样搬入主线程）
 export const SOURCE_HIT_RADIUS = 3.0
 
-// ---- 帧快照类型 ----
+// ---- 场/示踪视图（逐帧拷贝，与内核导出布局同构）----
 
-// 示踪渲染批：worker 已按内核记录布局填好（颜色/alpha/点数/轨迹点），主线程直拷入顶点批。
-// stride 与内核 bTracerStride 同源（canary 钉死）；count = 可见粒子数（记录已紧凑前置）
-export interface TracerBatch {
-  count: number
-  data: Float32Array
+// 流体场 u/v/t/fxU/fxV（nx×ny）+ 示踪内核全部缓冲。
+// 布局与 moon 内核导出一一对应（engine-wasm.test canary 钉死），静态内存零增长视图恒定
+export interface SimViews {
+  u: Float32Array
+  v: Float32Array
+  t: Float32Array
+  fxU: Float32Array
+  fxV: Float32Array
+  tracerX: Float32Array // TRACER_COUNT
+  tracerY: Float32Array
+  life: Float32Array
+  maxLife: Float32Array
+  trailX: Float32Array // TRACER_COUNT × TRAIL_LEN
+  trailY: Float32Array
+  trailT: Float32Array
+  trailN: Uint8Array // TRACER_COUNT
 }
+
+// ---- 帧快照类型 ----
 
 // 地形转移：ready 消息一次性送达（field 为独立副本可转移，主线程 terrainFromField 重建 Terrain）
 export interface TerrainTransfer {
@@ -110,11 +123,8 @@ export interface FrameSnapshot {
   time: number
   extra: number
   phase: 'playing' | 'won'
-  // 环境风强度与温度偏置：worker 示踪着色/旗面风采样需叠加（与内核浮力同源）
+  // 环境风强度与温度偏置：主线程 bilinearSample 需叠加基场与温度（与内核浮力同源）
   ambient: { x: number; y: number; t: number }
-  // 预计算渲染载荷：worker 直写内核记录布局，主线程零采样零搬运大场
-  tracers: TracerBatch | null
-  flags: { x: number; y: number }[]
   tickMs: number // worker 单 tick 耗时（governor/devTools 用）
 }
 
@@ -133,7 +143,7 @@ export type SimRequest =
 
 // worker→主。place 携带的指针坐标经 worker 原样回传（deny 事件要落点做拒绝动画，
 // 主线程不能差分——sim 状态已不在主线程）；wind 携带 px 供声像定位（同因）。
-// frame 的 tracers.data 为独立可转移副本（transfer 移交所有权）
+// frame 恒携带 SimViews 拷贝（transfer 移交所有权），主线程渲染直接消费
 export type SimEvent =
   | {
       t: 'ready'
@@ -143,7 +153,7 @@ export type SimEvent =
       fixedSources: SourceView[]
       fans: FanDef[]
     }
-  | { t: 'frame'; snapshot: FrameSnapshot }
+  | { t: 'frame'; snapshot: FrameSnapshot; views: SimViews }
   | { t: 'hud'; state: HudState }
   | { t: 'phase'; phase: 'playing' | 'won'; won: boolean }
   | { t: 'visited'; won: boolean }

@@ -3,7 +3,7 @@ import { GlRenderer } from './gl.ts'
 import type { EngineHandle } from '../wasm/engine.ts'
 import { CLOUD_COUNT } from '../sim/clouds.ts'
 import { fillCloudVerts } from './cloud-batch.ts'
-import { fadeRetention, PLANE_TRAIL_FADE } from '../sim/trail.ts'
+import { fadeRetention, TRAIL_FADE_T, PLANE_TRAIL_FADE } from '../sim/trail.ts'
 import { PLANE_LOCAL } from '../sim/bodies.ts'
 import type { Vec2 } from '../sim/types.ts'
 import { fanDirection } from '../game/simulation.ts'
@@ -11,9 +11,15 @@ import { gridAnchor, type Terrain } from '../sim/terrain.ts'
 import { worldToGrid } from '../sim/grid.ts'
 import { GOAL_LIFT, LONG_PRESS_MS, type PressVisual } from '../sim/types.ts'
 import type { FanDef } from '../game/types.ts'
+import { bilinearSample } from '../sim/fluid.ts'
+import { TRAIL_LEN } from '../sim/particles.ts'
 import {
-  POLE_HEIGHT, VISIBLE_ALPHA, HOT, COLD,
-  type CloudsView, type PlaneTrailView, type GoalView, type SourceView, type TracerBatch,
+  POLE_HEIGHT, FLAG_SAMPLE_DX, FLAG_SAMPLE_DY,
+  TRACER_TAIL_SEGS, TRACER_FADE_IN, TRACER_FADE_OUT, TRACER_COUNT, VISIBLE_ALPHA,
+  AIR_AMBIENT, AIR_SOFT, HOT, COLD,
+  HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED,
+  GUST_BASE, GUST_BOOST, GUST_FULL_SPEED,
+  type SimViews, type CloudsView, type PlaneTrailView, type GoalView, type SourceView,
 } from '../sim/worker-protocol.ts'
 
 // 渲染消费的静态场景 + 每帧快照动态字段：来源单一（worker 帧快照），views 为场/示踪逐帧拷贝
@@ -27,8 +33,7 @@ export interface RenderView {
   goals: GoalView[]
   fixedSources: SourceView[]
   fans: FanDef[]
-  tracers: TracerBatch | null
-  flags: { x: number; y: number }[]
+  views: SimViews | null
   ambient: { x: number; y: number; t: number }
   clouds: CloudsView
   planeTrail: PlaneTrailView
@@ -44,6 +49,9 @@ type RGB = readonly [number, number, number]
 
 // 轨迹尾段渐变：靠近起点的采样点线性减淡（头实尾虚）
 const tailFade = (k: number, segs: number) => (k < segs ? k / segs : 1)
+
+// 颜色插值（示踪/旗面共用）：模块级无闭包，每帧零开销
+const mix = (a: number, b: number, t: number) => a + (b - a) * t
 
 // 飞机轮廓遍历序（每帧复用，避免数组分配）
 const PLANE_OUTLINE = [0, 1, 2, 3, 0] as const
@@ -339,11 +347,22 @@ export class Renderer {
       const flagTop = gy - POLE_HEIGHT
 
       b.dashRing(g.x, gy - GOAL_LIFT, g.r, 1.2, 1.4, 0.28, ...GOAL, 0.32)
-      // 旗面风 = worker 预计算（同点同语义，与内核采样同构）
-      const f = view.flags[i]
       const air = Renderer.tmpAir
-      air.x = f?.x ?? 0
-      air.y = f?.y ?? 0
+      const sv = view.views
+      if (sv) {
+        // 旗面风 = 场视图采样（同点同语义，与 worker 侧采样等价）
+        bilinearSample(
+          sv.u, sv.v, sv.t, sv.fxU, sv.fxV,
+          view.terrain.nx, view.terrain.ny, view.terrain.cell,
+          view.terrain.originX, view.terrain.originY,
+          view.ambient.x, view.ambient.y,
+          g.x + FLAG_SAMPLE_DX, gy - POLE_HEIGHT + FLAG_SAMPLE_DY,
+          air,
+        )
+      } else {
+        air.x = 0
+        air.y = 0
+      }
       // 一阶滞后趋近当地风；restart 使 view.time 回退，负 dt 会让 k 变负巨值、
       // 状态逐帧炸到 Inf/NaN 后旗面永久消失（Renderer 跨重置持久）——夹到 0
       const dt = Math.max(0, view.time - this.flagT[i])
@@ -480,11 +499,73 @@ export class Renderer {
   private static tmpAir = { x: 0, y: 0 }
 
   private drawTracers(b: MeshBatch, view: RenderView) {
-    const td = view.tracers
-    if (!td || td.count === 0) return
-    // 渲染批由 worker 预计算（同内核记录布局），主线程直拷入顶点批后单调用细分
-    b.tracerData.set(td.data)
-    b.tracers(td.count, TRACER_LINE_WIDTH, TRACER_HEAD_RADIUS)
+    const v = view.views
+    if (!v) return
+    const { tracerX, tracerY, life, maxLife, trailX, trailY, trailT, trailN } = v
+    const t = view.terrain
+    const air = Renderer.tmpAir
+    const amb = view.ambient
+    // 可见粒子直写内核批量缓冲（定长记录），末尾单调用 tessellate：每帧跨界从 ~800 次降到 1 次
+    const buf = b.tracerData
+    const stride = b.tracerStride
+    const cap = b.tracerCap
+    // 定长记录点数上限（头点占末位）：写入钳制，防越界写跨记录串扰（内核侧另有镜像钳制）
+    const maxPts = (stride - 5) / 3
+    const trailLen = TRAIL_LEN
+    let m = 0
+    for (let i = 0; i < TRACER_COUNT && m < cap; i++) {
+      // 粒子包络（与 particles.ts envelope 同源）：出生渐入、临死渐出
+      const age = maxLife[i] - life[i]
+      const env = Math.min(1, age / TRACER_FADE_IN, life[i] / TRACER_FADE_OUT)
+      if (env <= VISIBLE_ALPHA) continue
+      // 零拷贝采样：直读共享内存流体场（环境风 = 基场×强度，与 wasm 采样同构）；
+      // 着色用总温度 = 场温 + 环境偏置（与内核 sampleTemp/浮力同一事实源）
+      const temp =
+        bilinearSample(
+          v.u, v.v, v.t, v.fxU, v.fxV, t.nx, t.ny, t.cell, t.originX, t.originY,
+          amb.x, amb.y, tracerX[i], tracerY[i], air,
+        ) + amb.t
+      const sp2 = air.x * air.x + air.y * air.y
+      const u = Math.tanh(Math.abs(temp) / AIR_SOFT)
+      const to = temp >= 0 ? HOT : COLD
+      const cr = mix(AIR_AMBIENT[0], to[0], u)
+      const cg = mix(AIR_AMBIENT[1], to[1], u)
+      const cb = mix(AIR_AMBIENT[2], to[2], u)
+      const headAlpha = mix(HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, u) * env
+      const lineAlpha = mix(LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED, u)
+
+      const off = m * stride
+      buf[off] = cr
+      buf[off + 1] = cg
+      buf[off + 2] = cb
+      buf[off + 4] = headAlpha
+      let np = 0
+      // 头点占末位：拖尾点最多 maxPts−1（写入钳制，与内核 b_tracers 的读取钳制成对）
+      const n = Math.min(trailN[i], maxPts - 1)
+      if (n > 0) {
+        const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
+        const base = i * trailLen
+        for (let k = 0; k < n; k++) {
+          const po = off + 5 + np * 3
+          buf[po] = trailX[base + k]
+          buf[po + 1] = trailY[base + k]
+          // trailT 以 sim 时间写入，淡出用同钟读，避免倍速下与 wall clock 漂移
+          const a = fadeRetention(view.time, trailT[base + k], TRAIL_FADE_T) * env * gust
+          const tail = tailFade(k, TRACER_TAIL_SEGS)
+          buf[po + 2] = a > 0 ? Math.min(1, a) * lineAlpha * tail : 0
+          np++
+        }
+      }
+      const po = off + 5 + np * 3
+      buf[po] = tracerX[i]
+      buf[po + 1] = tracerY[i]
+      // 头部顶点 alpha=0：线带恰在头心淡尽，头部圆盘独享混合——避免线带与圆盘重叠区双混发深
+      buf[po + 2] = 0
+      np++
+      buf[off + 3] = np
+      m++
+    }
+    b.tracers(m, TRACER_LINE_WIDTH, TRACER_HEAD_RADIUS)
   }
 
   // 拖尾scratch：逐点坐标与 alpha（含追加的飞机位点），生命周期内只增不缩，每帧零分配

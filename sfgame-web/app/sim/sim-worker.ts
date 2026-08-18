@@ -1,6 +1,5 @@
 // 模拟 worker：LevelSimulation + 示踪 + 云 + 拖尾 + 风采样 + 落地判定整体迁入。
-// 主线程只发消息、收帧快照渲染；渲染所需的示踪着色与旗面风由 worker 预计算（含大场采样），
-// 帧载荷只有记录级小数组（协议见 worker-protocol.ts）。
+// 主线程只发消息、收帧快照渲染；场/示踪逐 tick 拷贝随 frame 送出（协议见 worker-protocol.ts）。
 // 引擎实例跨关卡复用：fluid_init 全量复位已保证安全（engine-reuse.test 钉死），load 只重建模拟对象。
 // 消息处理在 wasm 引导完成前即可注册：load 恒为第一条消息，await 引擎就绪后按序消费（队列 FIFO 不丢消息）
 import engineUrl from '../wasm/sfengine.wasm?url'
@@ -10,19 +9,13 @@ import { levelFromJson } from '../game/level-format.ts'
 import { resolveLevel, levelSeed } from '../game/levels.ts'
 import { Tracers, TRAIL_LEN } from './particles.ts'
 import { Clouds } from './clouds.ts'
-import { fadeRetention, PLANE_TRAIL_FADE, TRAIL_FADE_T, Trail } from './trail.ts'
-import { bilinearSample } from './fluid.ts'
+import { PLANE_TRAIL_FADE, Trail } from './trail.ts'
 import { buildWindProbes, isLanding, sampleWind } from '../core/wind.ts'
 import { FLUID_MARGIN } from './terrain.ts'
 import { totalPenaltySeconds } from '../game/timer.ts'
 import type { Source } from '../game/types.ts'
-import type { SimRequest, SimEvent, FrameSnapshot, PlaneTrailView, TracerBatch } from './worker-protocol.ts'
-import {
-  AIR_AMBIENT, AIR_SOFT, COLD, GUST_BASE, GUST_BOOST, GUST_FULL_SPEED,
-  HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, HOT, LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED,
-  POLE_HEIGHT, FLAG_SAMPLE_DX, FLAG_SAMPLE_DY,
-  TRACER_COUNT, TRACER_FADE_IN, TRACER_FADE_OUT, TRACER_TAIL_SEGS, VISIBLE_ALPHA,
-} from './worker-protocol.ts'
+import type { SimRequest, SimEvent, FrameSnapshot, PlaneTrailView, SimViews } from './worker-protocol.ts'
+import { TRACER_COUNT } from './worker-protocol.ts'
 
 const PLANE_TRAIL_MAX_SPEED = 30
 const PLANE_TRAIL_SAMPLE = 0.3
@@ -45,26 +38,6 @@ let lastHudKey = ''
 let lastLand = -Infinity
 const tmpAir = { x: 0, y: 0 }
 const windSample = { field: 0, rel: 0 }
-
-// 采样视图与渲染批 scratch（loadLevel 建一次）：预计算示踪着色/旗面风的输入面
-let fieldViews: {
-  u: Float32Array
-  v: Float32Array
-  t: Float32Array
-  fxU: Float32Array
-  fxV: Float32Array
-  tracerX: Float32Array
-  tracerY: Float32Array
-  life: Float32Array
-  maxLife: Float32Array
-  trailX: Float32Array
-  trailY: Float32Array
-  trailT: Float32Array
-  trailN: Uint8Array
-  stride: number
-  cap: number
-} | null = null
-let tracerScratch: Float32Array | null = null
 
 const enginePromise = bootEngine(async () => {
   const res = await fetch(engineUrl)
@@ -123,30 +96,6 @@ function loadLevel(m: Extract<SimRequest, { t: 'load' }>) {
   clouds = new Clouds(levelSeed(level.id), world, sim.terrain)
   planeTrail = new Trail(PLANE_TRAIL_MAX_POINTS, PLANE_TRAIL_SAMPLE, PLANE_TRAIL_FADE)
   windProbes = buildWindProbes(world.w, world.h)
-  // 采样视图：引擎内存上的零拷贝视图（非副本），仅供 worker 侧预计算渲染载荷
-  const mem = engine.memory.buffer
-  const ex = engine.ex
-  const n = sim.terrain.nx * sim.terrain.ny
-  const view = (off: number, len: number) => new Float32Array(mem, off, len)
-  const stride = ex.bTracerStride()
-  fieldViews = {
-    u: view(ex.fieldU(), n),
-    v: view(ex.fieldV(), n),
-    t: view(ex.fieldT(), n),
-    fxU: view(ex.fieldFxU(), n),
-    fxV: view(ex.fieldFxV(), n),
-    tracerX: view(ex.tXBuf(), TRACER_COUNT),
-    tracerY: view(ex.tYBuf(), TRACER_COUNT),
-    life: view(ex.tLifeBuf(), TRACER_COUNT),
-    maxLife: view(ex.tMaxLifeBuf(), TRACER_COUNT),
-    trailX: view(ex.tTrailXBuf(), TRACER_COUNT * TRAIL_LEN),
-    trailY: view(ex.tTrailYBuf(), TRACER_COUNT * TRAIL_LEN),
-    trailT: view(ex.tTrailTBuf(), TRACER_COUNT * TRAIL_LEN),
-    trailN: new Uint8Array(mem, ex.tTrailNBuf(), TRACER_COUNT),
-    stride,
-    cap: ex.bTracerCap(),
-  }
-  tracerScratch = new Float32Array(TRACER_COUNT * stride)
   lastPhase = 'playing'
   lastHudKey = ''
   lastLand = -Infinity
@@ -206,9 +155,11 @@ function tick(dt: number) {
   }
   maybeHud()
   const snapshot = buildSnapshot()
+  // 视图拷贝随帧送出，transfer 移交所有权免双份拷贝（worker 侧零拷贝切片后直接放手）；
+  // 拷贝成本计入 tickMs，governor 降级决策看到的是真实单 tick 耗时
+  const views = copyViews()
   snapshot.tickMs = performance.now() - t0
-  // 渲染批独立可转移（transfer 移交所有权）；其余标量随消息结构化克隆
-  post({ t: 'frame', snapshot }, snapshot.tracers ? [snapshot.tracers.data.buffer] : [])
+  post({ t: 'frame', snapshot, views }, Object.values(views).map((a) => a.buffer as ArrayBuffer))
 }
 
 function place(m: Extract<SimRequest, { t: 'place' }>) {
@@ -272,23 +223,8 @@ function postSources() {
   post({ t: 'sources', list: sim.sources.map((s) => ({ x: s.x, y: s.y, kind: s.kind })) })
 }
 
-// 快照只发每帧动态标量与 JS 侧状态；示踪着色批与旗面风由 worker 预计算（含大场采样）
+// 快照只发每帧动态标量与 JS 侧状态；场/示踪大数组走 copyViews 另行 transfer
 function buildSnapshot(): FrameSnapshot {
-  const amb = engine.ambient
-  const goals = sim.level.goals
-  const flags: { x: number; y: number }[] = []
-  const air = tmpAir
-  for (let i = 0; i < goals.length; i++) {
-    bilinearSample(
-      fv().u, fv().v, fv().t, fv().fxU, fv().fxV,
-      sim.terrain.nx, sim.terrain.ny, sim.terrain.cell,
-      sim.terrain.originX, sim.terrain.originY,
-      amb.x, amb.y,
-      goals[i].x + FLAG_SAMPLE_DX, sim.goalAnchorY[i] - POLE_HEIGHT + FLAG_SAMPLE_DY,
-      air,
-    )
-    flags.push({ x: air.x, y: air.y })
-  }
   return {
     clouds: {
       count: clouds.count,
@@ -305,85 +241,9 @@ function buildSnapshot(): FrameSnapshot {
     time: sim.time,
     extra: totalPenaltySeconds(sim.sources.length, sim.groundedTime),
     phase: sim.phase,
-    ambient: { x: amb.x, y: amb.y, t: amb.t },
-    tracers: buildTracerBatch(amb),
-    flags,
+    ambient: { x: engine.ambient.x, y: engine.ambient.y, t: engine.ambient.t },
     tickMs: 0,
   }
-}
-
-const fv = () => fieldViews!
-const mix = (a: number, b: number, t: number) => a + (b - a) * t
-const tailFade = (k: number, segs: number) => (k < segs ? k / segs : 1)
-
-// 示踪渲染批：与主线程旧 drawTracers 同布局同语义（内核记录格式），按可见性紧凑写入
-function buildTracerBatch(amb: { x: number; y: number; t: number }): TracerBatch | null {
-  const v = fieldViews
-  const scratch = tracerScratch
-  if (!v || !scratch) return null
-  const stride = v.stride
-  const cap = v.cap
-  // 定长记录点数上限（头点占末位）：写入钳制，防越界写跨记录串扰（内核侧另有镜像钳制）
-  const maxPts = (stride - 5) / 3
-  const air = tmpAir
-  const buf = scratch
-  let m = 0
-  for (let i = 0; i < TRACER_COUNT && m < cap; i++) {
-    const age = v.maxLife[i] - v.life[i]
-    const env = Math.min(1, age / TRACER_FADE_IN, v.life[i] / TRACER_FADE_OUT)
-    if (env <= VISIBLE_ALPHA) continue
-    // 采样 = 场直读 + 环境基场/偏置叠加（与 wasm 采样同构、与主线程旧实现同源）
-    const temp =
-      bilinearSample(
-        v.u, v.v, v.t, v.fxU, v.fxV,
-        sim.terrain.nx, sim.terrain.ny, sim.terrain.cell,
-        sim.terrain.originX, sim.terrain.originY,
-        amb.x, amb.y, v.tracerX[i], v.tracerY[i], air,
-      ) + amb.t
-    const sp2 = air.x * air.x + air.y * air.y
-    const u = Math.tanh(Math.abs(temp) / AIR_SOFT)
-    const to = temp >= 0 ? HOT : COLD
-    const cr = mix(AIR_AMBIENT[0], to[0], u)
-    const cg = mix(AIR_AMBIENT[1], to[1], u)
-    const cb = mix(AIR_AMBIENT[2], to[2], u)
-    const headAlpha = mix(HEAD_ALPHA_AMBIENT, HEAD_ALPHA_STRONG, u) * env
-    const lineAlpha = mix(LINE_ALPHA_AMBIENT, LINE_ALPHA_COLORED, u)
-
-    const off = m * stride
-    buf[off] = cr
-    buf[off + 1] = cg
-    buf[off + 2] = cb
-    buf[off + 4] = headAlpha
-    let np = 0
-    // 头点占末位：拖尾点最多 maxPts−1（写入钳制，与内核 b_tracers 的读取钳制成对）
-    const n = Math.min(v.trailN[i], maxPts - 1)
-    if (n > 0) {
-      const gust = GUST_BASE + GUST_BOOST * Math.min(1, Math.sqrt(sp2) / GUST_FULL_SPEED)
-      const base = i * TRAIL_LEN
-      for (let k = 0; k < n; k++) {
-        const po = off + 5 + np * 3
-        buf[po] = v.trailX[base + k]
-        buf[po + 1] = v.trailY[base + k]
-        // trailT 以 sim 时间写入，淡出用同钟读，避免倍速下与 wall clock 漂移
-        const a = fadeRetention(sim.time, v.trailT[base + k], TRAIL_FADE_T) * env * gust
-        const tail = tailFade(k, TRACER_TAIL_SEGS)
-        buf[po + 2] = a > 0 ? Math.min(1, a) * lineAlpha * tail : 0
-        np++
-      }
-    }
-    const po = off + 5 + np * 3
-    buf[po] = v.tracerX[i]
-    buf[po + 1] = v.tracerY[i]
-    // 头部顶点 alpha=0：线带恰在头心淡尽，头部圆盘独享混合——避免线带与圆盘重叠区双混发深
-    buf[po + 2] = 0
-    np++
-    buf[off + 3] = np
-    m++
-  }
-  if (m === 0) return null
-  const data = new Float32Array(m * stride)
-  data.set(scratch.subarray(0, m * stride))
-  return { count: m, data }
 }
 
 function buildPlaneTrailView(): PlaneTrailView {
@@ -397,4 +257,27 @@ function buildPlaneTrailView(): PlaneTrailView {
     tt[k] = t
   })
   return { count: n, time: planeTrail.time, tx, ty, tt }
+}
+
+// 兼容模式视图拷贝：与主线程 buildViews 同布局（导出地址同源），slice 出独立可转移副本
+function copyViews(): SimViews {
+  const mem = engine.memory.buffer
+  const ex = engine.ex
+  const n = sim.terrain.nx * sim.terrain.ny
+  const f = (off: number, len: number) => new Float32Array(mem, off, len).slice()
+  return {
+    u: f(ex.fieldU(), n),
+    v: f(ex.fieldV(), n),
+    t: f(ex.fieldT(), n),
+    fxU: f(ex.fieldFxU(), n),
+    fxV: f(ex.fieldFxV(), n),
+    tracerX: f(ex.tXBuf(), TRACER_COUNT),
+    tracerY: f(ex.tYBuf(), TRACER_COUNT),
+    life: f(ex.tLifeBuf(), TRACER_COUNT),
+    maxLife: f(ex.tMaxLifeBuf(), TRACER_COUNT),
+    trailX: f(ex.tTrailXBuf(), TRACER_COUNT * TRAIL_LEN),
+    trailY: f(ex.tTrailYBuf(), TRACER_COUNT * TRAIL_LEN),
+    trailT: f(ex.tTrailTBuf(), TRACER_COUNT * TRAIL_LEN),
+    trailN: new Uint8Array(mem, ex.tTrailNBuf(), TRACER_COUNT).slice(),
+  }
 }

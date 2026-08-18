@@ -10,7 +10,7 @@ import { GestureInput } from './input.ts'
 import { Renderer, type RenderView } from '../render/render.ts'
 import { createEngine, type EngineHandle } from '../wasm/engine.ts'
 import type { PerfRecorder } from '../dev/devtools.ts'
-import type { FrameSnapshot, SimEvent, SimRequest } from '../sim/worker-protocol.ts'
+import type { FrameSnapshot, SimEvent, SimRequest, SimViews } from '../sim/worker-protocol.ts'
 import { SOURCE_HIT_RADIUS, TRACER_COUNT } from '../sim/worker-protocol.ts'
 
 export interface ControllerEvents {
@@ -46,6 +46,7 @@ export class GameController {
     goals: RenderView['goals']
     fixedSources: RenderView['fixedSources']
     fans: RenderView['fans']
+    views: SimViews | null
   } | null = null
   private paused = false
   private suppressSources = false
@@ -224,8 +225,6 @@ export class GameController {
       visited: snap.visited,
       clouds: snap.clouds,
       planeTrail: snap.planeTrail,
-      tracers: snap.tracers,
-      flags: snap.flags,
       ambient: snap.ambient,
     }
     this.renderer.draw({ view, press: this.press, now: performance.now() })
@@ -252,6 +251,7 @@ export class GameController {
       case 'frame':
         this.pendingTicks = Math.max(0, this.pendingTicks - 1)
         this.tickMs += m.snapshot.tickMs
+        if (this.staticView) this.staticView.views = m.views
         this.snapshot = m.snapshot
         break
       case 'hud':
@@ -299,6 +299,7 @@ export class GameController {
       goals: m.goals,
       fixedSources: m.fixedSources,
       fans: m.fans,
+      views: null,
     }
     this.ready = true
   }

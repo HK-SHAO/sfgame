@@ -70,6 +70,24 @@
         }
       }
     },
+    "balloons": {
+      "type": "array",
+      "maxItems": 40,
+      "description": "气球障碍阵（不是目标）：锚点固定、随当地风微摆，飞机撞入即爆并受反推；可作弹床/风信标等玩家可利用机制",
+      "items": {
+        "type": "object",
+        "required": ["x", "y", "r"],
+        "properties": {
+          "x": { "type": "number", "minimum": 0, "description": "锚点 x" },
+          "y": { "type": "number", "exclusiveMinimum": 0, "description": "锚点 y" },
+          "r": { "type": "number", "exclusiveMinimum": 0, "maximum": 5, "description": "半径" }
+        }
+      }
+    },
+    "balloonGate": {
+      "type": "boolean",
+      "description": "玩法模式：全部气球击破后 goals 才揭示并判定（缺省关闭；开启需非空 balloons）"
+    },
     "ambient": {
       "type": "object",
       "required": ["x", "y"],
